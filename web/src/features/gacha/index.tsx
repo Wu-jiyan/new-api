@@ -95,7 +95,8 @@ export default function GachaPage() {
   }
 
   return (
-    <main className='container mx-auto max-w-6xl space-y-8 py-8'>
+    <main className='min-h-0 flex-1 overflow-y-auto'>
+      <div className='container mx-auto max-w-6xl space-y-8 py-8'>
       <section className='relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/15 via-background to-pink-500/10 p-6 md:p-10'>
         <div className='pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-pink-500/20 blur-3xl' />
         <div className='relative flex flex-wrap items-start justify-between gap-5'>
@@ -169,6 +170,7 @@ export default function GachaPage() {
       </div>
 
       {cards.length > 0 && <PullResult cards={cards} />}
+      </div>
     </main>
   )
 }

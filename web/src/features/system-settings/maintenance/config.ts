@@ -71,6 +71,7 @@ export const SIDEBAR_MODULES_DEFAULT: SidebarModulesAdminConfig = {
     enabled: true,
     topup: true,
     personal: true,
+    gacha: true,
   },
   admin: {
     enabled: true,
@@ -80,6 +81,7 @@ export const SIDEBAR_MODULES_DEFAULT: SidebarModulesAdminConfig = {
     user: true,
     setting: true,
     subscription: true,
+    gacha_admin: true,
   },
 }
 

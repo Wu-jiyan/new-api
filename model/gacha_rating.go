@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -51,15 +52,16 @@ type deepSweLeaderboardRow struct {
 }
 
 // ParseDeepSweLeaderboard 解析 DeepSWE leaderboard JSON，返回 模型名 -> 最高 Pass@1（百分比）。
+// 真实结构：顶层为 rows 数组，行含 model / pass_at_1（0-1 比例）；同模型多配置取最高分。
 func ParseDeepSweLeaderboard(data []byte) (map[string]float64, error) {
 	var raw struct {
-		Models []deepSweLeaderboardRow `json:"models"`
+		Rows []deepSweLeaderboardRow `json:"rows"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, err
 	}
-	scores := make(map[string]float64, len(raw.Models))
-	for _, m := range raw.Models {
+	scores := make(map[string]float64, len(raw.Rows))
+	for _, m := range raw.Rows {
 		score := m.PassAt1 * 100 // 0.73 -> 73
 		if m.PassAt1 > 1 {       // 已经是百分比数值
 			score = m.PassAt1
@@ -131,30 +133,53 @@ func ApplyDeepSweScores(scores map[string]float64) (int, error) {
 	return updated, nil
 }
 
-// matchDeepSweScore 按模型名匹配榜单分数：精确 -> 前缀（长度短的榜单名匹配模型名前缀）-> 包含。
+// matchDeepSweScore 按模型名匹配榜单分数：精确 -> 归一化（. _ -> -，小写）-> 前缀 -> 包含。
 func matchDeepSweScore(modelName string, scores map[string]float64) (float64, bool) {
 	if s, ok := scores[modelName]; ok {
 		return s, true
 	}
+	// 构建归一化名索引（同归一化名冲突时保留最高分）
+	normScores := make(map[string]float64, len(scores))
+	for name, s := range scores {
+		n := normalizeDeepSweName(name)
+		if old, ok := normScores[n]; !ok || s > old {
+			normScores[n] = s
+		}
+	}
+	normModel := normalizeDeepSweName(modelName)
+	if s, ok := normScores[normModel]; ok {
+		return s, true
+	}
 	best := 0.0
 	found := false
-	for name, s := range scores {
+	for name, s := range normScores {
 		if name == "" {
 			continue
 		}
-		if len(name) <= len(modelName) && modelName[:len(name)] == name {
+		if len(name) <= len(normModel) && normModel[:len(name)] == name {
 			if !found || s > best {
 				best, found = s, true
 			}
 			continue
 		}
-		if contains(modelName, name) {
+		if contains(normModel, name) {
 			if !found || s > best {
 				best, found = s, true
 			}
 		}
 	}
 	return best, found
+}
+
+// normalizeDeepSweName 将模型名归一化用于跨命名约定匹配：小写、. _ 统一为 -。
+func normalizeDeepSweName(s string) string {
+	b := []byte(strings.ToLower(s))
+	for i, ch := range b {
+		if ch == '.' || ch == '_' {
+			b[i] = '-'
+		}
+	}
+	return string(b)
 }
 
 func contains(s, sub string) bool {

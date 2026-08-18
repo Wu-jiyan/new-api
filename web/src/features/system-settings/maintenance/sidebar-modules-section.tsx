@@ -128,6 +128,10 @@ export function SidebarModulesSection({
         title: t('Profile'),
         description: t('Personal settings and profile management.'),
       },
+      gacha: {
+        title: t('Gacha'),
+        description: t('Card pack pulls and your card library.'),
+      },
     },
     admin: {
       channel: {
@@ -153,6 +157,10 @@ export function SidebarModulesSection({
       subscription: {
         title: t('Subscription Management'),
         description: t('Manage subscription plans and pricing.'),
+      },
+      gacha_admin: {
+        title: t('Gacha Admin'),
+        description: t('Manage card pools, entries and economics.'),
       },
     },
   }

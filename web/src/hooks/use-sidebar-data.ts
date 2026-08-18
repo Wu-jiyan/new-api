@@ -23,12 +23,14 @@ import {
   FileText,
   FlaskConical,
   Key,
+  Layers,
   LayoutDashboard,
   ListTodo,
   MessageSquare,
   Radio,
   ServerCog,
   Settings,
+  Sparkles,
   Ticket,
   User,
   Users,
@@ -104,6 +106,16 @@ export function useSidebarData(): SidebarData {
         title: t('Personal'),
         items: [
           {
+            title: t('Gacha'),
+            url: '/gacha',
+            icon: Sparkles,
+          },
+          {
+            title: t('Gacha Cards'),
+            url: '/gacha/cards',
+            icon: Layers,
+          },
+          {
             title: t('Wallet'),
             url: '/wallet',
             icon: Wallet,
@@ -143,6 +155,12 @@ export function useSidebarData(): SidebarData {
             title: t('Subscriptions'),
             url: '/subscriptions',
             icon: CreditCard,
+          },
+          {
+            title: t('Gacha Admin'),
+            url: '/gacha/admin',
+            icon: Sparkles,
+            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('System Info'),

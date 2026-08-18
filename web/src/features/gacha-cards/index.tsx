@@ -81,7 +81,8 @@ export default function GachaCardsPage() {
   ]
 
   return (
-    <main className='container mx-auto max-w-6xl space-y-6 py-8'>
+    <main className='min-h-0 flex-1 overflow-y-auto'>
+      <div className='container mx-auto max-w-6xl space-y-6 py-8'>
       <div className='flex flex-wrap items-end justify-between gap-4'>
         <div className='space-y-1'>
           <div className='flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-primary'>
@@ -124,6 +125,7 @@ export default function GachaCardsPage() {
           ))}
         </div>
       )}
+      </div>
     </main>
   )
 }

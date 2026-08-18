@@ -487,7 +487,8 @@ function RatingsTab() {
 
 export default function GachaAdminPage() {
   return (
-    <main className='container mx-auto max-w-6xl space-y-6 py-8'>
+    <main className='min-h-0 flex-1 overflow-y-auto'>
+      <div className='container mx-auto max-w-6xl space-y-6 py-8'>
       <div>
         <h1 className='text-2xl font-bold'>抽卡管理</h1>
         <p className='text-sm text-muted-foreground'>卡池配置、条目与经济测算、模型分级</p>
@@ -504,6 +505,7 @@ export default function GachaAdminPage() {
           <RatingsTab />
         </TabsContent>
       </Tabs>
+      </div>
     </main>
   )
 }
