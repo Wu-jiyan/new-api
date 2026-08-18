@@ -56,6 +56,10 @@ export type PricingModel = {
   billing_expr?: string
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
+  /** Rarity tier N / R / SR / SSR / UR (from DeepSWE rating) */
+  rating?: string
+  /** DeepSWE pass@1 score */
+  rating_score?: number
   /**
    * Optional model metadata fields reserved for backend-provided catalog data.
    * Keep them data-driven; do not synthesize display values on the client.

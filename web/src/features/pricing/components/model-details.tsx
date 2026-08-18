@@ -69,6 +69,7 @@ import {
 import { parseTags } from '../lib/filters'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
+import { RatingBadge } from './rating-badge'
 import type {
   ModelCapability,
   PriceType,
@@ -537,6 +538,7 @@ function ModelHeader(props: { model: PricingModel }) {
         <h1 className='font-mono text-xl font-bold tracking-tight sm:text-2xl'>
           {model.model_name}
         </h1>
+        <RatingBadge rating={model.rating} />
         <CopyButton
           value={model.model_name || ''}
           className='size-6'
@@ -552,6 +554,14 @@ function ModelHeader(props: { model: PricingModel }) {
         )}
         <span className='text-muted-foreground/30'>·</span>
         <ModelBillingModeBadge model={model} />
+        {model.rating_score != null && (
+          <>
+            <span className='text-muted-foreground/30'>·</span>
+            <span className='text-muted-foreground'>
+              {t('DeepSWE Score')}: {model.rating_score.toFixed(1)}%
+            </span>
+          </>
+        )}
       </div>
       {description && (
         <p className='text-muted-foreground mt-2 text-sm leading-relaxed'>
