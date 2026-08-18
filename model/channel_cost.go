@@ -15,11 +15,13 @@ import (
 // Revenue/Cost/Count 为调用侧（含充值日志的收入为 0、成本为让利额度）；
 // TopupConcession/TopupCount 单独汇总充值让利（充值本身不产生利润，折扣让利计入成本）。
 type ChannelProfitSummary struct {
-	Revenue         int64   `json:"revenue" gorm:"column:revenue"`
-	Cost            float64 `json:"cost" gorm:"column:cost"`
-	Count           int64   `json:"count" gorm:"column:count"`
-	TopupConcession float64 `json:"topup_concession" gorm:"column:topup_concession"`
-	TopupCount      int64   `json:"topup_count" gorm:"column:topup_count"`
+	Revenue          int64   `json:"revenue" gorm:"column:revenue"`
+	Cost             float64 `json:"cost" gorm:"column:cost"`
+	Count            int64   `json:"count" gorm:"column:count"`
+	TopupConcession  float64 `json:"topup_concession" gorm:"column:topup_concession"`
+	TopupCount       int64   `json:"topup_count" gorm:"column:topup_count"`
+	GachaRevenue     int64   `json:"gacha_revenue" gorm:"column:gacha_revenue"`           // 抽卡收入（卡包购买）
+	GachaConsumeCost float64 `json:"gacha_consume_cost" gorm:"column:gacha_consume_cost"` // 抽卡卡调用成本
 }
 
 // ChannelProfitRow 按渠道 / 按模型的利润聚合行。
@@ -66,19 +68,44 @@ func SumChannelProfit(startTimestamp int64, endTimestamp int64, channelID int, m
 		return tx
 	}
 
+	// 普通调用收入：含成本快照，且排除抽卡卡消费（卡消费不计收入，只计成本）
 	profitLogs := func() *gorm.DB {
 		tx := build()
-		return tx.Where("type = ? OR (type = ? AND other LIKE ?)", LogTypeTopup, LogTypeConsume, "%\"channel_cost\"%")
+		return tx.Where("type = ? OR (type = ? AND other LIKE ? AND other NOT LIKE ?)",
+			LogTypeTopup, LogTypeConsume, "%\"channel_cost\"%", "%\"gacha_card_id\"%")
 	}
 	consumeLogs := func() *gorm.DB {
 		tx := build().Where("type = ?", LogTypeConsume)
-		return tx.Where("other LIKE ?", "%\"channel_cost\"%")
+		return tx.Where("other LIKE ?", "%\"channel_cost\"%").Where("other NOT LIKE ?", "%\"gacha_card_id\"%")
+	}
+	// 抽卡卡消费：只计成本与用量，不计收入
+	gachaConsumeLogs := func() *gorm.DB {
+		return build().Where("type = ?", LogTypeConsume).Where("other LIKE ?", "%\"gacha_card_id\"%")
+	}
+	// 抽卡收入：卡包购买（LogTypeGacha）
+	gachaRevenueLogs := func() *gorm.DB {
+		return build().Where("type = ?", LogTypeGacha)
 	}
 
 	var summary ChannelProfitSummary
 	if err := profitLogs().Select("COALESCE(SUM(quota), 0) AS revenue, COALESCE(SUM(cost_quota), 0) AS cost, COUNT(*) AS count").Scan(&summary).Error; err != nil {
 		return summary, nil, nil, nil, err
 	}
+
+	// 抽卡收入累加到营收，卡消费成本累加到总成本
+	var gachaRev ChannelProfitSummary
+	if err := gachaRevenueLogs().Select("COALESCE(SUM(quota), 0) AS gacha_revenue, COUNT(*) AS count").Scan(&gachaRev).Error; err != nil {
+		return summary, nil, nil, nil, err
+	}
+	var gachaConsume ChannelProfitSummary
+	if err := gachaConsumeLogs().Select("COALESCE(SUM(cost_quota), 0) AS gacha_consume_cost").Scan(&gachaConsume).Error; err != nil {
+		return summary, nil, nil, nil, err
+	}
+	summary.GachaRevenue = gachaRev.GachaRevenue
+	summary.GachaConsumeCost = gachaConsume.GachaConsumeCost
+	summary.Revenue += gachaRev.GachaRevenue
+	summary.Cost += gachaConsume.GachaConsumeCost
+	summary.Count += gachaRev.Count
 
 	var byChannel []ChannelProfitRow
 	if err := profitLogs().Select("channel_id, COALESCE(SUM(quota), 0) AS revenue, COALESCE(SUM(cost_quota), 0) AS cost, COUNT(*) AS count").

@@ -40,6 +40,11 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	other["is_task"] = true
 	other["request_path"] = c.Request.URL.Path
 	other["model_price"] = info.PriceData.ModelPrice
+	if info.GachaCardId > 0 {
+		other["gacha_card_id"] = info.GachaCardId
+		other["gacha_model"] = info.OriginModelName
+		other["gacha_group"] = info.UsingGroup
+	}
 	if info.PriceData.ModelRatio > 0 {
 		other["model_ratio"] = info.PriceData.ModelRatio
 	}

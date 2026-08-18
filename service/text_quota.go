@@ -522,6 +522,11 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 
 	attachQuotaSaturation(ctx, relayInfo, other)
+	if relayInfo.GachaCardId > 0 {
+		other["gacha_card_id"] = relayInfo.GachaCardId
+		other["gacha_model"] = relayInfo.OriginModelName
+		other["gacha_group"] = relayInfo.UsingGroup
+	}
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
