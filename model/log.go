@@ -92,6 +92,7 @@ const (
 	LogTypeError   = 5
 	LogTypeRefund  = 6
 	LogTypeLogin   = 7
+	LogTypeGacha   = 8 // 抽卡 / 卡包购买
 )
 
 func ensureLogRequestId(log *Log) {

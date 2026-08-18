@@ -263,3 +263,165 @@ func GetUserGachaPity(userId, poolId int) (int, error) {
 	}
 	return m[strconv.Itoa(poolId)], nil
 }
+
+// ---------------------------------------------------------------------------
+// 抽卡主事务
+// ---------------------------------------------------------------------------
+
+// GachaPullResult 一次抽卡的完整结果。
+type GachaPullResult struct {
+	PullRecordId int              `json:"pull_record_id"`
+	Cards        []PullCardResult `json:"cards"`
+	PityBefore   int              `json:"pity_before"`
+	PityAfter    int              `json:"pity_after"`
+}
+
+// PullGachaCards 抽卡主流程：
+// 1) 幂等检查（pull_id 已存在则直接返回历史结果，不重复扣费）
+// 2) 主库事务：锁用户行 -> 校验余额 -> 抽卡 -> 发卡 -> 更新保底 -> 扣费 -> 写流水
+// 3) 事务提交后写 LogTypeGacha 日志（日志库可能独立，失败不阻塞抽卡）
+func PullGachaCards(userId int, pool *GachaPool, entries []GachaCardEntry, count int, cost int64, pullId string) (*GachaPullResult, error) {
+	// 幂等：命中直接返回
+	var existing GachaPullRecord
+	if err := DB.Where("pull_id = ?", pullId).First(&existing).Error; err == nil {
+		var cards []PullCardResult
+		_ = json.Unmarshal([]byte(existing.Cards), &cards)
+		return &GachaPullResult{
+			PullRecordId: existing.Id,
+			Cards:        cards,
+			PityBefore:   existing.PityBefore,
+			PityAfter:    existing.PityAfter,
+		}, nil
+	}
+
+	ratings, err := GetEntryRatings(entries)
+	if err != nil {
+		return nil, err
+	}
+	ewr := make([]entryWithRating, 0, len(entries))
+	for _, e := range entries {
+		ewr = append(ewr, entryWithRating{Entry: e, Rating: ratings[e.Id]})
+	}
+
+	var result *GachaPullResult
+	var username string
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		// 锁用户行（保底计数 + 余额扣减串行化）
+		var user User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", userId).First(&user).Error; err != nil {
+			return err
+		}
+		username = user.Username
+		if int64(user.Quota) < cost {
+			return ErrInsufficientGachaBalance
+		}
+
+		pity := 0
+		if user.GachaPity != "" {
+			var m map[string]int
+			_ = json.Unmarshal([]byte(user.GachaPity), &m)
+			pity = m[strconv.Itoa(pool.Id)]
+		}
+
+		cards, pityAfter := DrawCards(ewr, pool, pity, count)
+
+		now := common.GetTimestamp()
+		var pullCards []PullCardResult
+		for _, c := range cards {
+			expiredAt := int64(-1)
+			if c.Entry.ExpireDays > 0 {
+				expiredAt = now + int64(c.Entry.ExpireDays)*86400
+			}
+			card := UserGachaCard{
+				UserId:       userId,
+				PoolId:       pool.Id,
+				ModelName:    c.Entry.ModelName,
+				Group:        c.Entry.Group,
+				TotalQuota:   c.Entry.Quota,
+				RemainQuota:  c.Entry.Quota,
+				Status:       0,
+				ExpiredTime:  expiredAt,
+				CreatedTime:  now,
+				UpdatedTime:  now,
+			}
+			if err := tx.Create(&card).Error; err != nil {
+				return err
+			}
+			pullCards = append(pullCards, PullCardResult{
+				CardId:     card.Id,
+				ModelName:  card.ModelName,
+				Group:      card.Group,
+				Rarity:     c.Rating,
+				Quota:      card.TotalQuota,
+				ExpireDays: c.Entry.ExpireDays,
+				ExpiredAt:  expiredAt,
+			})
+		}
+
+		// 更新保底计数
+		pityMap := map[string]int{strconv.Itoa(pool.Id): pityAfter}
+		if user.GachaPity != "" {
+			var m map[string]int
+			if err := json.Unmarshal([]byte(user.GachaPity), &m); err == nil {
+				m[strconv.Itoa(pool.Id)] = pityAfter
+				pityMap = m
+			}
+		}
+		pityJSON, _ := json.Marshal(pityMap)
+		if err := tx.Model(&User{}).Where("id = ?", userId).Update("gacha_pity", string(pityJSON)).Error; err != nil {
+			return err
+		}
+
+		// 扣费
+		if err := tx.Model(&User{}).Where("id = ?", userId).
+			Update("quota", gorm.Expr("quota - ?", cost)).Error; err != nil {
+			return err
+		}
+
+		// 写流水
+		cardsJSON, _ := json.Marshal(pullCards)
+		record := GachaPullRecord{
+			PullId:      pullId,
+			UserId:      userId,
+			PoolId:      pool.Id,
+			Count:       count,
+			Cost:        cost,
+			Cards:       string(cardsJSON),
+			PityBefore:  pity,
+			PityAfter:   pityAfter,
+			Status:      0,
+			CreatedTime: now,
+		}
+		if err := tx.Create(&record).Error; err != nil {
+			return err
+		}
+
+		result = &GachaPullResult{
+			PullRecordId: record.Id,
+			Cards:        pullCards,
+			PityBefore:   pity,
+			PityAfter:    pityAfter,
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// 日志库可能独立于主库（如 ClickHouse），事务外写日志，失败仅记录不阻塞。
+	content := "gacha pull: " + pool.Name
+	other := `{"gacha_pull_id":"` + pullId + `","gacha_pool_id":` + strconv.Itoa(pool.Id) + `}`
+	log := &Log{
+		UserId:    userId,
+		Username:  username,
+		CreatedAt: common.GetTimestamp(),
+		Type:      LogTypeGacha,
+		Content:   content,
+		Quota:     int(cost),
+		Other:     other,
+	}
+	if err := createLog(log); err != nil {
+		common.SysLog("failed to record gacha log: " + err.Error())
+	}
+	return result, nil
+}
