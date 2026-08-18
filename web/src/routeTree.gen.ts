@@ -54,6 +54,7 @@ import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_aut
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
+import { Route as AuthenticatedGachaAdminIndexRouteImport } from './routes/_authenticated/gacha/admin/index'
 import { Route as AuthenticatedGachaCardsIndexRouteImport } from './routes/_authenticated/gacha/cards/index'
 import { Route as AuthenticatedSystemSettingsAuthIndexRouteImport } from './routes/_authenticated/system-settings/auth/index'
 import { Route as AuthenticatedSystemSettingsAuthSectionRouteImport } from './routes/_authenticated/system-settings/auth/$section'
@@ -309,6 +310,12 @@ const PricingModelIdIndexRoute = PricingModelIdIndexRouteImport.update({
   path: '/pricing/$modelId/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedGachaAdminIndexRoute =
+  AuthenticatedGachaAdminIndexRouteImport.update({
+    id: '/gacha/admin/',
+    path: '/gacha/admin/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedGachaCardsIndexRoute =
   AuthenticatedGachaCardsIndexRouteImport.update({
     id: '/gacha/cards/',
@@ -451,6 +458,7 @@ export interface FileRoutesByFullPath {
   '/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
+  '/gacha/admin/': typeof AuthenticatedGachaAdminIndexRoute
   '/gacha/cards/': typeof AuthenticatedGachaCardsIndexRoute
   '/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
@@ -510,6 +518,7 @@ export interface FileRoutesByTo {
   '/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
+  '/gacha/admin': typeof AuthenticatedGachaAdminIndexRoute
   '/gacha/cards': typeof AuthenticatedGachaCardsIndexRoute
   '/system-settings/auth': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing': typeof AuthenticatedSystemSettingsBillingIndexRoute
@@ -573,6 +582,7 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
   '/_authenticated/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/_authenticated/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
+  '/_authenticated/gacha/admin/': typeof AuthenticatedGachaAdminIndexRoute
   '/_authenticated/gacha/cards/': typeof AuthenticatedGachaCardsIndexRoute
   '/_authenticated/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/_authenticated/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
@@ -635,6 +645,7 @@ export interface FileRouteTypes {
     | '/system-settings/operations/$section'
     | '/system-settings/security/$section'
     | '/system-settings/site/$section'
+    | '/gacha/admin/'
     | '/gacha/cards/'
     | '/system-settings/auth/'
     | '/system-settings/billing/'
@@ -694,6 +705,7 @@ export interface FileRouteTypes {
     | '/system-settings/operations/$section'
     | '/system-settings/security/$section'
     | '/system-settings/site/$section'
+    | '/gacha/admin'
     | '/gacha/cards'
     | '/system-settings/auth'
     | '/system-settings/billing'
@@ -756,6 +768,7 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/operations/$section'
     | '/_authenticated/system-settings/security/$section'
     | '/_authenticated/system-settings/site/$section'
+    | '/_authenticated/gacha/admin/'
     | '/_authenticated/gacha/cards/'
     | '/_authenticated/system-settings/auth/'
     | '/_authenticated/system-settings/billing/'
@@ -1102,6 +1115,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingModelIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/gacha/admin/': {
+      id: '/_authenticated/gacha/admin/'
+      path: '/gacha/admin'
+      fullPath: '/gacha/admin/'
+      preLoaderRoute: typeof AuthenticatedGachaAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/gacha/cards/': {
       id: '/_authenticated/gacha/cards/'
       path: '/gacha/cards'
@@ -1314,6 +1334,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUsageLogsIndexRoute: typeof AuthenticatedUsageLogsIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
   AuthenticatedWalletIndexRoute: typeof AuthenticatedWalletIndexRoute
+  AuthenticatedGachaAdminIndexRoute: typeof AuthenticatedGachaAdminIndexRoute
   AuthenticatedGachaCardsIndexRoute: typeof AuthenticatedGachaCardsIndexRoute
 }
 
@@ -1340,6 +1361,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedUsageLogsIndexRoute: AuthenticatedUsageLogsIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
   AuthenticatedWalletIndexRoute: AuthenticatedWalletIndexRoute,
+  AuthenticatedGachaAdminIndexRoute: AuthenticatedGachaAdminIndexRoute,
   AuthenticatedGachaCardsIndexRoute: AuthenticatedGachaCardsIndexRoute,
 }
 
