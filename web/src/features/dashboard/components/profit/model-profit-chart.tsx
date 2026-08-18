@@ -27,10 +27,14 @@ import type {
   ChannelProfitRow,
   ChannelProfitTrend,
 } from '@/features/dashboard/types'
-import { formatLogQuota } from '@/lib/format'
 import { formatChartTime, type TimeGranularity } from '@/lib/time'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { VCHART_OPTION } from '@/lib/vchart'
+
+import {
+  formatProfitChartValue,
+  normalizeProfitModelName,
+} from './chart-format'
 
 type ProfitChartType = 'bar' | 'area' | 'pie'
 
@@ -80,6 +84,10 @@ export function ModelProfitChart(props: {
         data: [{ id: 'profitTrendData', values }],
         xField: 'Time',
         yField: 'Profit',
+        axes: [
+          { orient: 'left', type: 'linear', label: { formatMethod: formatProfitChartValue } },
+          { orient: 'bottom', type: 'band' },
+        ],
         title: {
           visible: true,
           text: t('Profit Trend'),
@@ -98,7 +106,7 @@ export function ModelProfitChart(props: {
               {
                 key: t('Profit'),
                 value: (datum: Record<string, unknown>) =>
-                  formatLogQuota(Number(datum?.rawProfit ?? 0)),
+                  formatProfitChartValue(Number(datum?.rawProfit ?? 0)),
               },
             ],
           },
@@ -108,7 +116,7 @@ export function ModelProfitChart(props: {
 
     // 按模型利润（柱状 / 饼图）。
     const values = rows.map((row) => ({
-      Model: row.model_name || topupLabel,
+      Model: normalizeProfitModelName(row.model_name, topupLabel),
       Profit: row.profit,
       ProfitAbs: Math.abs(row.profit),
     }))
@@ -137,7 +145,7 @@ export function ModelProfitChart(props: {
         label: {
           visible: true,
           style: { fontSize: 11 },
-          formatMethod: (value: number) => formatLogQuota(value),
+          formatMethod: formatProfitChartValue,
         },
         pie: {
           state: { hover: { stroke: '#000', lineWidth: 1 } },
@@ -148,7 +156,7 @@ export function ModelProfitChart(props: {
               {
                 key: (datum: Record<string, unknown>) => datum?.Model,
                 value: (datum: Record<string, unknown>) =>
-                  formatLogQuota(Number(datum?.Profit ?? 0)),
+                  formatProfitChartValue(Number(datum?.Profit ?? 0)),
               },
             ],
           },
@@ -178,7 +186,7 @@ export function ModelProfitChart(props: {
         visible: true,
         position: 'outside',
         style: { fontSize: 11 },
-        formatMethod: (value: number) => formatLogQuota(value),
+        formatMethod: formatProfitChartValue,
       },
       axes: [
         { orient: 'left', type: 'band' },
@@ -190,7 +198,7 @@ export function ModelProfitChart(props: {
             {
               key: (datum: Record<string, unknown>) => datum?.Model,
               value: (datum: Record<string, unknown>) =>
-                formatLogQuota(Number(datum?.Profit ?? 0)),
+                formatProfitChartValue(Number(datum?.Profit ?? 0)),
             },
           ],
         },
