@@ -91,6 +91,46 @@ type SubscriptionFunding struct {
 	PlanTitle       string
 }
 
+// GachaCardFunding 抽卡卡资金来源。卡额度只允许为绑定模型的请求扣减。
+type GachaCardFunding struct {
+	requestId   string
+	cardId      int
+	userId      int
+	preConsumed int64
+}
+
+func (f *GachaCardFunding) Source() string { return BillingSourceGachaCard }
+
+func (f *GachaCardFunding) PreConsume(amount int) error {
+	if amount <= 0 {
+		return nil
+	}
+	if err := model.ConsumeGachaCardQuota(f.cardId, int64(amount)); err != nil {
+		return err
+	}
+	f.preConsumed += int64(amount)
+	return nil
+}
+
+func (f *GachaCardFunding) Settle(delta int) error {
+	if delta == 0 {
+		return nil
+	}
+	if delta > 0 {
+		return model.ConsumeGachaCardQuota(f.cardId, int64(delta))
+	}
+	return model.RefundGachaCardQuota(f.cardId, int64(-delta))
+}
+
+func (f *GachaCardFunding) Refund() error {
+	if f.preConsumed <= 0 {
+		return nil
+	}
+	return refundWithRetry(func() error {
+		return model.RefundGachaCardPreConsume(f.requestId, f.cardId, f.preConsumed)
+	})
+}
+
 func (s *SubscriptionFunding) Source() string { return BillingSourceSubscription }
 
 func (s *SubscriptionFunding) PreConsume(_ int) error {

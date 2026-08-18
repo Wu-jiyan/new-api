@@ -296,6 +296,7 @@ func migrateDB() error {
 		&GachaCardEntry{},
 		&UserGachaCard{},
 		&GachaPullRecord{},
+		&GachaCardRefund{},
 	)
 	if err != nil {
 		return err

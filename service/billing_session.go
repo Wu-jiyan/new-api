@@ -263,6 +263,12 @@ func (s *BillingSession) reserveFunding(delta int) error {
 			)
 		}
 		return nil
+	case *GachaCardFunding:
+		if err := model.ConsumeGachaCardQuota(funding.cardId, int64(delta)); err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+		}
+		funding.preConsumed += int64(delta)
+		return nil
 	default:
 		return types.NewError(fmt.Errorf("unsupported funding source: %s", s.funding.Source()), types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 	}
@@ -279,6 +285,12 @@ func (s *BillingSession) rollbackFundingReserve(delta int) {
 	case *SubscriptionFunding:
 		if err := model.PostConsumeUserSubscriptionDelta(funding.subscriptionId, -int64(delta)); err != nil {
 			common.SysLog("error rolling back subscription funding reserve: " + err.Error())
+		}
+	case *GachaCardFunding:
+		if err := model.RefundGachaCardQuota(funding.cardId, int64(delta)); err != nil {
+			common.SysLog("error rolling back gacha card funding reserve: " + err.Error())
+		} else {
+			funding.preConsumed -= int64(delta)
 		}
 	}
 }
@@ -324,6 +336,8 @@ func (s *BillingSession) shouldTrust(c *gin.Context) bool {
 		// 2. SubscriptionFunding.PreConsume 忽略参数，始终用 s.amount 预扣
 		// 3. 若信任旁路将 effectiveQuota 设为 0，会导致 preConsumedQuota 与实际订阅预扣不一致
 		return false
+	case BillingSourceGachaCard:
+		return false
 	default:
 		return false
 	}
@@ -357,6 +371,27 @@ func (s *BillingSession) syncRelayInfo() {
 func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preConsumedQuota int) (*BillingSession, *types.NewAPIError) {
 	if relayInfo == nil {
 		return nil, types.NewError(fmt.Errorf("relayInfo is nil"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+	}
+	if relayInfo.GachaCardId > 0 {
+		card, err := model.GetGachaCardByUser(relayInfo.GachaCardId, relayInfo.UserId)
+		if err != nil {
+			return nil, types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
+		}
+		if card.Status != 0 || (card.ExpiredTime > 0 && card.ExpiredTime < common.GetTimestamp()) {
+			return nil, types.NewErrorWithStatusCode(errors.New("gacha card is not usable"), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+		}
+		if card.ModelName != relayInfo.OriginModelName {
+			return nil, types.NewErrorWithStatusCode(fmt.Errorf("gacha card model mismatch: %s", card.ModelName), types.ErrorCodeInvalidRequest, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+		}
+		relayInfo.UsingGroup = card.Group
+		session := &BillingSession{
+			relayInfo: relayInfo,
+			funding:   &GachaCardFunding{requestId: relayInfo.RequestId, cardId: card.Id, userId: relayInfo.UserId},
+		}
+		if apiErr := session.preConsume(c, preConsumedQuota); apiErr != nil {
+			return nil, apiErr
+		}
+		return session, nil
 	}
 
 	pref := common.NormalizeBillingPreference(relayInfo.UserSetting.BillingPreference)

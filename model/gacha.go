@@ -76,6 +76,15 @@ type GachaPullRecord struct {
 	CreatedTime int64  `json:"created_time" gorm:"bigint"`
 }
 
+// GachaCardRefund 卡预扣退款幂等记录。
+type GachaCardRefund struct {
+	Id          int    `json:"id" gorm:"primaryKey"`
+	RequestId   string `json:"request_id" gorm:"size:64;uniqueIndex;not null"`
+	CardId      int    `json:"card_id" gorm:"index;not null"`
+	Amount      int64  `json:"amount" gorm:"not null"`
+	CreatedTime int64  `json:"created_time" gorm:"bigint"`
+}
+
 // PullCardResult 抽卡结果单卡（用于接口返回与流水快照）。
 type PullCardResult struct {
 	CardId     int    `json:"card_id"`
@@ -210,25 +219,62 @@ func ConsumeGachaCardQuota(cardId int, amount int64) error {
 // RefundGachaCardQuota 退还卡额度（已用完的卡恢复为可用）。
 func RefundGachaCardQuota(cardId int, amount int64) error {
 	return DB.Transaction(func(tx *gorm.DB) error {
-		var card UserGachaCard
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", cardId).First(&card).Error; err != nil {
+		return refundGachaCardQuotaTx(tx, cardId, amount)
+	})
+}
+
+func refundGachaCardQuotaTx(tx *gorm.DB, cardId int, amount int64) error {
+	var card UserGachaCard
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", cardId).First(&card).Error; err != nil {
+		return err
+	}
+	if card.Status == 3 {
+		return errors.New("gacha card disabled")
+	}
+	remain := card.RemainQuota + amount
+	if remain > card.TotalQuota {
+		remain = card.TotalQuota
+	}
+	status := card.Status
+	if status == 1 && remain > 0 {
+		status = 0
+	}
+	return tx.Model(&UserGachaCard{}).Where("id = ?", cardId).
+		Updates(map[string]interface{}{
+			"remain_quota": remain,
+			"status":       status,
+			"updated_time": common.GetTimestamp(),
+		}).Error
+}
+
+// RefundGachaCardPreConsume 按 requestId 幂等退还卡预扣额度。
+func RefundGachaCardPreConsume(requestId string, cardId int, amount int64) error {
+	if requestId == "" || cardId <= 0 || amount <= 0 {
+		return nil
+	}
+	var existing GachaCardRefund
+	if err := DB.Where("request_id = ?", requestId).First(&existing).Error; err == nil {
+		return nil
+	}
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		record := GachaCardRefund{
+			RequestId:   requestId,
+			CardId:      cardId,
+			Amount:      amount,
+			CreatedTime: common.GetTimestamp(),
+		}
+		if err := tx.Create(&record).Error; err != nil {
 			return err
 		}
-		if card.Status == 3 {
-			return errors.New("gacha card disabled")
-		}
-		remain := card.RemainQuota + amount
-		status := card.Status
-		if status == 1 && remain > 0 {
-			status = 0 // 从已用完恢复
-		}
-		return tx.Model(&UserGachaCard{}).Where("id = ?", cardId).
-			Updates(map[string]interface{}{
-				"remain_quota": remain,
-				"status":       status,
-				"updated_time": common.GetTimestamp(),
-			}).Error
+		return refundGachaCardQuotaTx(tx, cardId, amount)
 	})
+	if err == nil {
+		return nil
+	}
+	if queryErr := DB.Where("request_id = ?", requestId).First(&existing).Error; queryErr == nil {
+		return nil
+	}
+	return err
 }
 
 // ExpireDueGachaCards 将已过期且仍可用的卡置为过期（Status=2），返回更新行数。
@@ -333,16 +379,16 @@ func PullGachaCards(userId int, pool *GachaPool, entries []GachaCardEntry, count
 				expiredAt = now + int64(c.Entry.ExpireDays)*86400
 			}
 			card := UserGachaCard{
-				UserId:       userId,
-				PoolId:       pool.Id,
-				ModelName:    c.Entry.ModelName,
-				Group:        c.Entry.Group,
-				TotalQuota:   c.Entry.Quota,
-				RemainQuota:  c.Entry.Quota,
-				Status:       0,
-				ExpiredTime:  expiredAt,
-				CreatedTime:  now,
-				UpdatedTime:  now,
+				UserId:      userId,
+				PoolId:      pool.Id,
+				ModelName:   c.Entry.ModelName,
+				Group:       c.Entry.Group,
+				TotalQuota:  c.Entry.Quota,
+				RemainQuota: c.Entry.Quota,
+				Status:      0,
+				ExpiredTime: expiredAt,
+				CreatedTime: now,
+				UpdatedTime: now,
 			}
 			if err := tx.Create(&card).Error; err != nil {
 				return err
