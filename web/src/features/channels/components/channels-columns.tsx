@@ -182,7 +182,7 @@ function ChannelCostCell({ channel }: { channel: Channel | TagRow }) {
   }
   return (
     <div className='flex flex-col gap-1'>
-      <CostConfigBadge channel={channel} />
+      {!isTagRow && <CostConfigBadge channel={channel} />}
       {isAdmin && costEnabled && profit != null && (
         <span className={profitClass}>
           {t('Profit')}: {profit >= 0 ? '+' : ''}

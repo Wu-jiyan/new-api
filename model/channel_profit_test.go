@@ -50,6 +50,24 @@ func insertProfitLog(t *testing.T, createdAt int64, quota int, costQuota float64
 	}
 }
 
+func insertCostSnapshotProfitLog(t *testing.T, createdAt int64, quota int, costQuota float64, channelID int, modelName string) {
+	t.Helper()
+	log := &Log{
+		UserId:    1,
+		Username:  "test",
+		CreatedAt: createdAt,
+		Type:      LogTypeConsume,
+		ModelName: modelName,
+		Quota:     quota,
+		CostQuota: costQuota,
+		ChannelId: channelID,
+		Other:     `{"admin_info":{"channel_cost":{"cost":1}}}`,
+	}
+	if err := LOG_DB.Create(log).Error; err != nil {
+		t.Fatalf("insert cost snapshot log: %v", err)
+	}
+}
+
 // insertTopupProfitLog 插入一笔充值日志：Quota 恒 0，CostQuota 为折扣让利。
 func insertTopupProfitLog(t *testing.T, createdAt int64, concession float64) {
 	t.Helper()
@@ -83,9 +101,9 @@ func TestSumChannelProfit(t *testing.T) {
 		}
 	}
 
-	insertProfitLog(t, 1000, 100, 60, 10, "gpt-4o")
-	insertProfitLog(t, 1001, 200, 150, 10, "gpt-4o")
-	insertProfitLog(t, 1002, 300, 100, 11, "claude")
+	insertCostSnapshotProfitLog(t, 1000, 100, 60, 10, "gpt-4o")
+	insertCostSnapshotProfitLog(t, 1001, 200, 150, 10, "gpt-4o")
+	insertCostSnapshotProfitLog(t, 1002, 300, 100, 11, "claude")
 	insertProfitLog(t, 1003, 999, 0, 12, "uncosted") // 未启用成本渠道：收入直接丢弃
 	insertProfitLog(t, 2000, 500, 0, 11, "claude")   // 时间范围外
 	insertTopupProfitLog(t, 1100, 5000000)           // 充值让利：计入总成本与 TopupConcession
@@ -119,6 +137,23 @@ func TestSumChannelProfit(t *testing.T) {
 	// 趋势按小时桶：三条启用成本渠道的调用都落在同一桶。
 	if len(trend) != 1 || trend[0].Revenue != 600 || trend[0].Count != 3 {
 		t.Fatalf("trend = %+v, want single bucket revenue=600 count=3", trend)
+	}
+}
+
+func TestSumChannelProfitExcludesConsumeLogsWithoutCostSnapshot(t *testing.T) {
+	setupLogDBForProfitTest(t)
+	insertProfitLog(t, 1000, 999, 0, 10, "uncosted")
+	insertCostSnapshotProfitLog(t, 1001, 100, 40, 11, "costed")
+
+	summary, _, byModel, _, err := SumChannelProfit(900, 1100, 0, "", 0)
+	if err != nil {
+		t.Fatalf("SumChannelProfit: %v", err)
+	}
+	if summary.Revenue != 100 || summary.Cost != 40 || summary.Count != 1 {
+		t.Fatalf("summary = %+v, want revenue=100 cost=40 count=1", summary)
+	}
+	if len(byModel) != 1 || byModel[0].ModelName != "costed" {
+		t.Fatalf("byModel = %+v, want only costed model", byModel)
 	}
 }
 

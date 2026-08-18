@@ -69,3 +69,23 @@ func TestCalculateModelCost(t *testing.T) {
 		})
 	}
 }
+
+func TestGlobalModelCostFromOtherUsesCacheCreationRatio(t *testing.T) {
+	mc := globalModelCostFromOther("gpt-5.6-sol", map[string]interface{}{
+		"model_ratio":          1.0,
+		"completion_ratio":     1.0,
+		"cache_ratio":          0.1,
+		"cache_creation_ratio": 1.25,
+	})
+	if mc.CreateCacheRatio != 1.25 {
+		t.Fatalf("CreateCacheRatio = %v, want 1.25", mc.CreateCacheRatio)
+	}
+	got := CalculateModelCost(mc, 1, 4387, 14, map[string]interface{}{
+		"cache_tokens":          3840,
+		"cache_creation_tokens": 0,
+		"cache_creation_ratio":  1.25,
+	})
+	if got != 945 {
+		t.Fatalf("cache cost = %v, want 945", got)
+	}
+}

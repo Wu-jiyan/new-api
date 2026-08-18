@@ -39,37 +39,16 @@ type ChannelProfitTrend struct {
 	Count   int64   `json:"count" gorm:"column:count"`
 }
 
-// getCostEnabledChannelIDs 返回启用成本核算的渠道 ID 集合。
-// 未启用成本的渠道不产生成本记录，其收入不应计入利润统计，聚合时直接丢弃。
-func getCostEnabledChannelIDs() ([]int, error) {
-	var channels []*Channel
-	if err := DB.Find(&channels).Error; err != nil {
-		return nil, err
-	}
-	ids := make([]int, 0, len(channels))
-	for _, ch := range channels {
-		if ch.GetCostSettings().Enabled {
-			ids = append(ids, ch.Id)
-		}
-	}
-	return ids, nil
-}
-
 // SumChannelProfit 从日志聚合利润数据。
 // 纳入调用日志（LogTypeConsume）与充值日志（LogTypeTopup）：
 //   - 调用日志：quota 为用户实扣（营收），cost_quota 为渠道成本（支出）；
-//     仅统计启用成本核算渠道的调用日志，未启用成本渠道的历史收入直接丢弃；
+//     仅统计写入成本快照的调用日志，未启用成本渠道的历史收入直接丢弃；
 //   - 充值日志：quota 恒为 0（充值本身不产生营收），cost_quota 为折扣让利额度（支出），
 //     该让利在用户后续调用时由渠道成本差价赚回，因此计入总成本即可得到真实净利润。
 //
 // startTimestamp/endTimestamp 为 0 表示不限；channelID 为 0 表示不限；modelName 为空表示不限；
 // granularity 为时间桶步长（秒），>0 时返回按桶聚合的利润趋势。
 func SumChannelProfit(startTimestamp int64, endTimestamp int64, channelID int, modelName string, granularity int64) (ChannelProfitSummary, []ChannelProfitRow, []ChannelProfitRow, []ChannelProfitTrend, error) {
-	costEnabledIDs, err := getCostEnabledChannelIDs()
-	if err != nil {
-		return ChannelProfitSummary{}, nil, nil, nil, err
-	}
-
 	build := func() *gorm.DB {
 		tx := LOG_DB.Table("logs")
 		if startTimestamp != 0 {
@@ -87,21 +66,13 @@ func SumChannelProfit(startTimestamp int64, endTimestamp int64, channelID int, m
 		return tx
 	}
 
-	// profitLogs 限定利润统计范围：充值日志全部纳入，调用日志仅启用成本渠道。
 	profitLogs := func() *gorm.DB {
 		tx := build()
-		if len(costEnabledIDs) == 0 {
-			return tx.Where("type = ?", LogTypeTopup)
-		}
-		return tx.Where("type = ? OR (type = ? AND channel_id IN ?)", LogTypeTopup, LogTypeConsume, costEnabledIDs)
+		return tx.Where("type = ? OR (type = ? AND other LIKE ?)", LogTypeTopup, LogTypeConsume, "%\"channel_cost\"%")
 	}
-	// consumeLogs 仅统计启用成本渠道的调用日志。
 	consumeLogs := func() *gorm.DB {
 		tx := build().Where("type = ?", LogTypeConsume)
-		if len(costEnabledIDs) == 0 {
-			return tx.Where("1 = 0")
-		}
-		return tx.Where("channel_id IN ?", costEnabledIDs)
+		return tx.Where("other LIKE ?", "%\"channel_cost\"%")
 	}
 
 	var summary ChannelProfitSummary
@@ -130,7 +101,7 @@ func SumChannelProfit(startTimestamp int64, endTimestamp int64, channelID int, m
 	summary.TopupConcession = topup.TopupConcession
 	summary.TopupCount = topup.TopupCount
 
-	// 调用侧利润趋势（仅启用成本渠道的调用日志，按时间桶聚合）。
+	// 调用侧利润趋势（仅写入成本快照的调用日志，按时间桶聚合）。
 	var trend []ChannelProfitTrend
 	if granularity > 0 {
 		if err := consumeLogs().
@@ -407,7 +378,7 @@ func resolveChannelCost(params RecordConsumeLogParams) float64 {
 		} else {
 			// 未同步/留空该模型的渠道成本：以日志中的全局模型标价（乘算）回退，避免从用户费用反推的除法误差。
 			// 全局标价与渠道标价同构，成本 = 全局标价 × 渠道折扣系数，与系统计费算法一致。
-			mc := globalModelCostFromOther(params.Other)
+			mc := globalModelCostFromOther(params.ModelName, params.Other)
 			if mc.ModelRatio > 0 || mc.ModelPrice > 0 {
 				cost = CalculateModelCost(mc, settings.Discount, params.PromptTokens, params.CompletionTokens, params.Other)
 			}
@@ -422,13 +393,20 @@ func resolveChannelCost(params RecordConsumeLogParams) float64 {
 }
 
 // globalModelCostFromOther 从日志 Other 读取全局模型标价（系统模型成本定价），用于未同步模型的成本回退。
-func globalModelCostFromOther(other map[string]interface{}) dto.ChannelModelCost {
+func globalModelCostFromOther(modelName string, other map[string]interface{}) dto.ChannelModelCost {
+	createCacheRatio := readOtherFloat(other, "cache_creation_ratio")
+	if createCacheRatio <= 0 {
+		createCacheRatio = readOtherFloat(other, "create_cache_ratio")
+	}
+	if createCacheRatio <= 0 {
+		createCacheRatio, _ = ratio_setting.GetCreateCacheRatio(modelName)
+	}
 	return dto.ChannelModelCost{
 		ModelRatio:           readOtherFloat(other, "model_ratio"),
 		ModelPrice:           readOtherFloat(other, "model_price"),
 		CompletionRatio:      readOtherFloat(other, "completion_ratio"),
 		CacheRatio:           readOtherFloat(other, "cache_ratio"),
-		CreateCacheRatio:     readOtherFloat(other, "create_cache_ratio"),
+		CreateCacheRatio:     createCacheRatio,
 		ImageRatio:           readOtherFloat(other, "image_ratio"),
 		AudioRatio:           readOtherFloat(other, "audio_ratio"),
 		AudioCompletionRatio: readOtherFloat(other, "audio_completion_ratio"),
