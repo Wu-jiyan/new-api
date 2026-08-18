@@ -36,6 +36,8 @@ type Pricing struct {
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
+	Rating                 string                  `json:"rating,omitempty"`      // 稀有度档位 N / R / SR / SSR / UR
+	RatingScore            float64                 `json:"rating_score,omitempty"` // DeepSWE 分数
 }
 
 type PricingVendor struct {
@@ -372,6 +374,8 @@ func updatePricing() {
 			pricing.Icon = meta.Icon
 			pricing.Tags = meta.Tags
 			pricing.VendorID = meta.VendorID
+			pricing.Rating = meta.Rating
+			pricing.RatingScore = meta.RatingScore
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
 		if findPrice {
