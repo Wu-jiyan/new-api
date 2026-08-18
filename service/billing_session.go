@@ -142,6 +142,9 @@ func (s *BillingSession) needsRefundLocked() bool {
 	if sub, ok := s.funding.(*SubscriptionFunding); ok && sub.preConsumed > 0 {
 		return true
 	}
+	if card, ok := s.funding.(*GachaCardFunding); ok && card.preConsumed > 0 {
+		return true
+	}
 	return false
 }
 
