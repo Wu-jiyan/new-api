@@ -292,6 +292,10 @@ func migrateDB() error {
 		&SystemTaskLock{},
 		&CasbinRule{},
 		&AuthzRole{},
+		&GachaPool{},
+		&GachaCardEntry{},
+		&UserGachaCard{},
+		&GachaPullRecord{},
 	)
 	if err != nil {
 		return err
