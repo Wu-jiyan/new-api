@@ -4,7 +4,15 @@ import { cn } from '@/lib/utils'
 import { formatQuotaWithCurrency } from '@/lib/currency'
 
 import { gachaAudio } from '../lib/audio'
+import { burstAtCenter } from '../lib/fx'
 import type { PullCardResult } from '../types'
+
+const RARITY_BURST: Record<string, string[]> = {
+  UR: ['#ec4899', '#f59e0b', '#ffffff'],
+  SSR: ['#f59e0b', '#fde68a'],
+  SR: ['#9333ea', '#c4b5fd'],
+  R: ['#3b82f6', '#bfdbfe'],
+}
 
 const RARITY_STYLE: Record<string, { border: string; glow: string; badge: string }> = {
   N: {
@@ -44,6 +52,8 @@ export function PullResult({ cards }: { cards: PullCardResult[] }) {
       const t = window.setTimeout(() => {
         setFlipped((prev) => prev.map((f, j) => (j === i ? true : f)))
         gachaAudio.reveal(card.rarity)
+        const colors = RARITY_BURST[card.rarity]
+        if (colors) burstAtCenter(colors)
       }, delay)
       timers.current.push(t)
     })

@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react'
-import { Coins, Sparkles, Volume2, VolumeX } from 'lucide-react'
+import { Coins, Info, Sparkles, Volume2, VolumeX } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { formatQuotaWithCurrency } from '@/lib/currency'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -13,12 +20,56 @@ import { gachaAudio } from './lib/audio'
 import './lib/gacha.css'
 import type { GachaPool, PullCardResult } from './types'
 
+function ProbabilityDialog({ pool }: { pool: GachaPool }) {
+  const entries = pool.entries ?? []
+  const totalWeight = entries.reduce((sum, e) => sum + e.weight, 0)
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button size='sm' variant='ghost' className='h-6 px-1.5 text-xs' onClick={() => setOpen(true)}>
+        <Info className='mr-1 size-3.5' /> 概率公示
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className='max-h-[80vh] overflow-y-auto'>
+          <DialogHeader>
+          <DialogTitle>{pool.name} · 概率公示</DialogTitle>
+          <DialogDescription>
+            {pool.pity_enabled && pool.pity_max > 0
+              ? `${pool.pity_max} 抽硬保底 ${pool.pity_rarity} 及以上；`
+              : ''}
+            {pool.ten_guarantee ? `十连保底 ${pool.ten_guarantee}+；` : ''}
+            保底规则以卡池配置为准。
+          </DialogDescription>
+        </DialogHeader>
+        {totalWeight > 0 && (
+          <div className='space-y-2 text-xs'>
+            {entries.map((e) => (
+              <div key={e.id} className='flex items-center justify-between rounded-lg bg-muted/50 px-3 py-1.5'>
+                <div className='flex min-w-0 items-center gap-2'>
+                  <span className='truncate font-mono'>{e.model_name}</span>
+                  <span className='shrink-0 rounded bg-muted px-1 py-0.5'>{e.group}</span>
+                </div>
+                <div className='flex shrink-0 gap-4 text-muted-foreground'>
+                  <span>{((e.weight / totalWeight) * 100).toFixed(2)}%</span>
+                  <span>{formatQuotaWithCurrency(e.quota)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
 export default function GachaPage() {
   const { auth } = useAuthStore()
   const [pools, setPools] = useState<GachaPool[]>([])
   const [cards, setCards] = useState<PullCardResult[]>([])
   const [pulling, setPulling] = useState(false)
   const [muted, setMuted] = useState(gachaAudio.muted)
+  const balance = auth.user?.quota ?? 0
 
   useEffect(() => {
     void fetchGachaPools()
@@ -89,12 +140,29 @@ export default function GachaPage() {
                 期望价值约 {formatQuotaWithCurrency(pool.ev_value)}
                 {pool.pity_enabled && pool.pity_max > 0 ? ` · ${pool.pity_max} 抽保底 ${pool.pity_rarity || ''}` : ''}
               </div>
-              <div className='flex gap-2'>
-                <Button className='flex-1' disabled={pulling} onClick={() => void doPull(pool, 1)}>单抽</Button>
-                <Button className='flex-1' variant='secondary' disabled={pulling || pool.ten_price <= 0} onClick={() => void doPull(pool, 10)}>
-                  十连 {pool.ten_price > 0 ? formatQuotaWithCurrency(pool.ten_price) : '未开放'}
-                </Button>
+              <div className='flex items-center justify-between'>
+                <div className='flex gap-2'>
+                  <Button
+                    className='flex-1'
+                    disabled={pulling || balance < pool.price}
+                    onClick={() => void doPull(pool, 1)}
+                  >
+                    单抽
+                  </Button>
+                  <Button
+                    className='flex-1'
+                    variant='secondary'
+                    disabled={pulling || pool.ten_price <= 0 || balance < pool.ten_price}
+                    onClick={() => void doPull(pool, 10)}
+                  >
+                    十连 {pool.ten_price > 0 ? formatQuotaWithCurrency(pool.ten_price) : '未开放'}
+                  </Button>
+                </div>
+                <ProbabilityDialog pool={pool} />
               </div>
+              {balance < pool.price && (
+                <p className='text-xs text-destructive'>余额不足，请先充值</p>
+              )}
             </CardContent>
           </Card>
         ))}
