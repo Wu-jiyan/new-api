@@ -268,3 +268,7 @@ const (
 	TopUpStatusFailed  = "failed"
 	TopUpStatusExpired = "expired"
 )
+
+const (
+	OptionKeyGachaRatingThresholds = "GachaRatingThresholds"
+)

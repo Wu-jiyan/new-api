@@ -35,6 +35,10 @@ type Model struct {
 	UpdatedTime  int64          `json:"updated_time" gorm:"bigint"`
 	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_model_name_delete_at,priority:2"`
 
+	Rating       string  `json:"rating,omitempty" gorm:"size:16;default:''"`        // 稀有度档位 N / R / SR / SSR / UR，空 = 未分级
+	RatingScore  float64 `json:"rating_score,omitempty" gorm:"default:0"`           // DeepSWE Pass@1 分数
+	RatingSource string  `json:"rating_source,omitempty" gorm:"size:32;default:''"` // 来源：deepswe / manual
+
 	BoundChannels []BoundChannel `json:"bound_channels,omitempty" gorm:"-"`
 	EnableGroups  []string       `json:"enable_groups,omitempty" gorm:"-"`
 	QuotaTypes    []int          `json:"quota_types,omitempty" gorm:"-"`
@@ -78,7 +82,8 @@ func (mi *Model) Update() error {
 	mi.UpdatedTime = common.GetTimestamp()
 	// 使用 Select 强制更新所有字段，包括零值
 	return DB.Model(&Model{}).Where("id = ?", mi.Id).
-		Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "updated_time").
+		Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule",
+			"rating", "rating_score", "rating_source", "updated_time").
 		Updates(mi).Error
 }
 
