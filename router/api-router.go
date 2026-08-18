@@ -199,6 +199,16 @@ func SetApiRouter(router *gin.Engine) {
 			gachaAdminRoute.PUT("/settings", controller.AdminUpdateGachaRatingThresholds)
 		}
 
+		// Gacha (card pack) user endpoints
+		gachaRoute := apiRouter.Group("/gacha")
+		gachaRoute.Use(middleware.UserAuth())
+		{
+			gachaRoute.GET("/pools", controller.ListGachaPools)
+			gachaRoute.POST("/pool/:id/pull", middleware.CriticalRateLimit(), controller.PullGachaCards)
+			gachaRoute.GET("/cards", controller.ListGachaCards)
+			gachaRoute.GET("/stats", controller.GetGachaStats)
+		}
+
 		optionRoute := apiRouter.Group("/option")
 		optionRoute.Use(middleware.RootAuth())
 		{
