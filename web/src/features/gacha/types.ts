@@ -22,6 +22,8 @@ export interface GachaCardEntry {
   group: string
   weight: number
   quota: number
+  quota_min?: number
+  quota_max?: number
   expire_days: number
 }
 
@@ -33,6 +35,7 @@ export interface PullCardResult {
   quota: number
   expire_days: number
   expired_at: number
+  merge_count?: number
 }
 
 export interface PullResponse {
@@ -50,6 +53,7 @@ export interface UserGachaCard {
   total_quota: number
   remain_quota: number
   status: number
+  merge_count?: number
   expired_time: number
   created_time: number
 }
@@ -58,4 +62,8 @@ export interface GachaStats {
   total_pulls: number
   total_cost: number
   by_rarity: Record<string, number>
+  recent_rtp?: number
+  recent_pulls?: number
+  recent_cost?: number
+  recent_value?: number
 }

@@ -14,11 +14,11 @@ import {
 import { formatQuotaWithCurrency } from '@/lib/currency'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { fetchGachaPools, pullGachaCards } from './api'
+import { fetchGachaPools, fetchGachaStats, pullGachaCards } from './api'
 import { PullResult } from './components/pull-result'
 import { gachaAudio } from './lib/audio'
 import './lib/gacha.css'
-import type { GachaPool, PullCardResult } from './types'
+import type { GachaPool, GachaStats, PullCardResult } from './types'
 
 function ProbabilityDialog({ pool }: { pool: GachaPool }) {
   const entries = pool.entries ?? []
@@ -51,7 +51,11 @@ function ProbabilityDialog({ pool }: { pool: GachaPool }) {
                 </div>
                 <div className='flex shrink-0 gap-4 text-muted-foreground'>
                   <span>{((e.weight / totalWeight) * 100).toFixed(2)}%</span>
-                  <span>{formatQuotaWithCurrency(e.quota)}</span>
+                  <span>
+                    {(e.quota_max ?? 0) > (e.quota_min ?? 0)
+                      ? `${formatQuotaWithCurrency(e.quota_min ?? 0)}~${formatQuotaWithCurrency(e.quota_max ?? 0)}`
+                      : formatQuotaWithCurrency(e.quota)}
+                  </span>
                 </div>
               </div>
             ))}
@@ -67,6 +71,7 @@ export default function GachaPage() {
   const { auth } = useAuthStore()
   const [pools, setPools] = useState<GachaPool[]>([])
   const [cards, setCards] = useState<PullCardResult[]>([])
+  const [stats, setStats] = useState<GachaStats | null>(null)
   const [pulling, setPulling] = useState(false)
   const [muted, setMuted] = useState(gachaAudio.muted)
   const balance = auth.user?.quota ?? 0
@@ -75,6 +80,10 @@ export default function GachaPage() {
     void fetchGachaPools()
       .then(setPools)
       .catch((error: unknown) => toast.error(error instanceof Error ? error.message : '卡池加载失败'))
+  }, [])
+
+  useEffect(() => {
+    void fetchGachaStats().then(setStats).catch(() => undefined)
   }, [])
 
   async function doPull(pool: GachaPool, count: 1 | 10) {
@@ -86,6 +95,7 @@ export default function GachaPage() {
       const result = await pullGachaCards(pool.id, count, crypto.randomUUID())
       setCards(result.cards)
       gachaAudio.coin()
+      void fetchGachaStats().then(setStats).catch(() => undefined)
     } catch (error: unknown) {
       gachaAudio.bad()
       toast.error(error instanceof Error ? error.message : '抽卡失败')
@@ -114,6 +124,26 @@ export default function GachaPage() {
           </div>
         </div>
       </section>
+
+      {stats && (stats.recent_pulls ?? 0) > 0 && (
+        <div className='flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card/60 px-5 py-3.5 text-sm'>
+          <div className='flex items-center gap-2'>
+            <span className='text-base'>{stats.recent_rtp && stats.recent_rtp >= 1 ? '🎉' : '📊'}</span>
+            <span className='text-muted-foreground'>近 {stats.recent_pulls} 抽回本率</span>
+            <strong
+              className={
+                (stats.recent_rtp ?? 0) >= 1 ? 'text-green-500' : (stats.recent_rtp ?? 0) >= 0.8 ? 'text-amber-500' : 'text-muted-foreground'
+              }
+            >
+              {((stats.recent_rtp ?? 0) * 100).toFixed(1)}%
+            </strong>
+            <span className='text-xs text-muted-foreground'>
+              投入 {formatQuotaWithCurrency(stats.recent_cost)} · 卡价值 {formatQuotaWithCurrency(stats.recent_value)}
+            </span>
+          </div>
+          <span className='text-xs text-muted-foreground'>基于近几次真实抽卡数据统计，非概率承诺，仅供参考</span>
+        </div>
+      )}
 
       <div className='flex items-center justify-between'>
         <div>

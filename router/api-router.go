@@ -205,6 +205,8 @@ func SetApiRouter(router *gin.Engine) {
 			gachaAdminRoute.POST("/pools/:id/entries", controller.AdminUpsertGachaEntry)
 			gachaAdminRoute.PUT("/pools/:id/entries", controller.AdminUpsertGachaEntry)
 			gachaAdminRoute.DELETE("/entries/:id", controller.AdminDeleteGachaEntry)
+			gachaAdminRoute.POST("/pools/:id/generate-preview", controller.AdminGenerateGachaEntriesPreview)
+			gachaAdminRoute.POST("/pools/:id/generate", controller.AdminGenerateGachaEntries)
 		}
 
 		// Gacha (card pack) user endpoints

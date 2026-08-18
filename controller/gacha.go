@@ -116,10 +116,28 @@ func ListGachaCards(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": cards, "total": total})
+	// 批量补模型档位（前端卡片分级展示）
+	ratings := map[string]string{}
+	names := make([]string, 0, len(cards))
+	for _, card := range cards {
+		if _, ok := ratings[card.ModelName]; ok {
+			continue
+		}
+		names = append(names, card.ModelName)
+		ratings[card.ModelName] = ""
+	}
+	if len(names) > 0 {
+		var ms []model.Model
+		if err := model.DB.Where("model_name IN ?", names).Find(&ms).Error; err == nil {
+			for _, m := range ms {
+				ratings[m.ModelName] = m.Rating
+			}
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": cards, "total": total, "ratings": ratings})
 }
 
-// GetGachaStats 我的抽卡统计。
+// GetGachaStats 我的抽卡统计（含近 N 次抽卡回本率，基于真实数据，仅供参考）。
 func GetGachaStats(c *gin.Context) {
 	userId := c.GetInt("id")
 	var records []model.GachaPullRecord
@@ -140,12 +158,38 @@ func GetGachaStats(c *gin.Context) {
 			}
 		}
 	}
+	// 近 10 次抽卡：回本率 = 抽到卡额度价值 / 花费（真实数据统计，非概率）
+	var recent []model.GachaPullRecord
+	if err := model.DB.Where("user_id = ?", userId).Order("id DESC").Limit(10).Find(&recent).Error; err != nil {
+		recent = nil
+	}
+	recentPulls := 0
+	recentCost := int64(0)
+	recentValue := int64(0)
+	for _, r := range recent {
+		recentPulls += r.Count
+		recentCost += r.Cost
+		var cards []model.PullCardResult
+		if err := json.Unmarshal([]byte(r.Cards), &cards); err == nil {
+			for _, card := range cards {
+				recentValue += card.Quota
+			}
+		}
+	}
+	recentRtp := 0.0
+	if recentCost > 0 {
+		recentRtp = float64(recentValue) / float64(recentCost)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
-			"total_pulls": totalPulls,
-			"total_cost":  totalCost,
-			"by_rarity":   byRarity,
+			"total_pulls":   totalPulls,
+			"total_cost":    totalCost,
+			"by_rarity":     byRarity,
+			"recent_rtp":    recentRtp,
+			"recent_pulls":  recentPulls,
+			"recent_cost":   recentCost,
+			"recent_value":  recentValue,
 		},
 	})
 }

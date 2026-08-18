@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"errors"
+	"math/rand"
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
@@ -35,6 +36,7 @@ type GachaPool struct {
 }
 
 // GachaCardEntry 卡池条目（模型 + 分组 + 权重 + 额度 + 过期天数）。
+// Quota 为基准额度；QuotaMax > QuotaMin 时抽卡额度在 [QuotaMin, QuotaMax] 内随机。
 type GachaCardEntry struct {
 	Id         int    `json:"id" gorm:"primaryKey"`
 	PoolId     int    `json:"pool_id" gorm:"index;not null"`
@@ -42,10 +44,21 @@ type GachaCardEntry struct {
 	Group      string `json:"group" gorm:"size:64;not null"`
 	Weight     int    `json:"weight" gorm:"not null"`
 	Quota      int64  `json:"quota" gorm:"not null"`
+	QuotaMin   int64  `json:"quota_min" gorm:"default:0"`
+	QuotaMax   int64  `json:"quota_max" gorm:"default:0"`
 	ExpireDays int    `json:"expire_days" gorm:"default:0"`
 }
 
+// EntryDrawQuota 抽中条目的卡额度：QuotaMax > QuotaMin 时区间随机，否则固定 Quota。
+func EntryDrawQuota(e GachaCardEntry) int64 {
+	if e.QuotaMax > e.QuotaMin {
+		return e.QuotaMin + rand.Int63n(e.QuotaMax-e.QuotaMin+1)
+	}
+	return e.Quota
+}
+
 // UserGachaCard 用户卡库。Status: 0 可用 / 1 已用完 / 2 已过期 / 3 已禁用。
+// MergeCount 为抽中次数：同模型重复卡合并为一张，额度叠加，等级按抽中次数累计。
 type UserGachaCard struct {
 	Id           int    `json:"id" gorm:"primaryKey"`
 	UserId       int    `json:"user_id" gorm:"index;not null"`
@@ -56,6 +69,7 @@ type UserGachaCard struct {
 	TotalQuota   int64  `json:"total_quota" gorm:"not null"`
 	RemainQuota  int64  `json:"remain_quota" gorm:"not null"`
 	Status       int    `json:"status" gorm:"default:0"`
+	MergeCount   int    `json:"merge_count" gorm:"default:1"`
 	ExpiredTime  int64  `json:"expired_time" gorm:"bigint"` // -1 永久
 	CreatedTime  int64  `json:"created_time" gorm:"bigint"`
 	UpdatedTime  int64  `json:"updated_time" gorm:"bigint"`
@@ -94,6 +108,7 @@ type PullCardResult struct {
 	Quota      int64  `json:"quota"`
 	ExpireDays int    `json:"expire_days"`
 	ExpiredAt  int64  `json:"expired_at"`
+	MergeCount int    `json:"merge_count"`
 }
 
 // ErrInsufficientGachaBalance 钱包余额不足。
@@ -374,18 +389,46 @@ func PullGachaCards(userId int, pool *GachaPool, entries []GachaCardEntry, count
 		now := common.GetTimestamp()
 		var pullCards []PullCardResult
 		for _, c := range cards {
+			quota := EntryDrawQuota(c.Entry)
 			expiredAt := int64(-1)
 			if c.Entry.ExpireDays > 0 {
 				expiredAt = now + int64(c.Entry.ExpireDays)*86400
+			}
+			// 同模型 + 同分组 + 可用且未过期：合并为一张，额度叠加
+			var existing UserGachaCard
+			mergeTarget := tx.Where("user_id = ? AND model_name = ? AND `group` = ? AND status = 0 AND (expired_time = -1 OR expired_time > ?)",
+				userId, c.Entry.ModelName, c.Entry.Group, now).
+				Order("id ASC").First(&existing).Error == nil
+			if mergeTarget {
+				if err := tx.Model(&UserGachaCard{}).Where("id = ?", existing.Id).Updates(map[string]interface{}{
+					"total_quota":  gorm.Expr("total_quota + ?", quota),
+					"remain_quota": gorm.Expr("remain_quota + ?", quota),
+					"merge_count":  gorm.Expr("merge_count + 1"),
+					"updated_time": now,
+				}).Error; err != nil {
+					return err
+				}
+				pullCards = append(pullCards, PullCardResult{
+					CardId:     existing.Id,
+					ModelName:  existing.ModelName,
+					Group:      existing.Group,
+					Rarity:     c.Rating,
+					Quota:      quota,
+					ExpireDays: c.Entry.ExpireDays,
+					ExpiredAt:  expiredAt,
+					MergeCount: existing.MergeCount + 1,
+				})
+				continue
 			}
 			card := UserGachaCard{
 				UserId:      userId,
 				PoolId:      pool.Id,
 				ModelName:   c.Entry.ModelName,
 				Group:       c.Entry.Group,
-				TotalQuota:  c.Entry.Quota,
-				RemainQuota: c.Entry.Quota,
+				TotalQuota:  quota,
+				RemainQuota: quota,
 				Status:      0,
+				MergeCount:  1,
 				ExpiredTime: expiredAt,
 				CreatedTime: now,
 				UpdatedTime: now,
@@ -401,6 +444,7 @@ func PullGachaCards(userId int, pool *GachaPool, entries []GachaCardEntry, count
 				Quota:      card.TotalQuota,
 				ExpireDays: c.Entry.ExpireDays,
 				ExpiredAt:  expiredAt,
+				MergeCount: 1,
 			})
 		}
 

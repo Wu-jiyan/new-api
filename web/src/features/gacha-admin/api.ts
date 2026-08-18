@@ -1,6 +1,14 @@
 import { api } from '@/lib/api'
 
-import type { GachaCardEntry, GachaPool, ModelRatingItem, PoolEconomics, RatingThresholds } from './types'
+import type {
+  GachaCardEntry,
+  GachaPool,
+  GenerateGachaEntryReq,
+  GenerateGachaPreview,
+  ModelRatingItem,
+  PoolEconomics,
+  RatingThresholds,
+} from './types'
 
 export async function listPools(): Promise<GachaPool[]> {
   const res = await api.get<{ success: boolean; data: GachaPool[] }>('/api/gacha/admin/pools')
@@ -30,6 +38,22 @@ export async function upsertEntry(poolId: number, entry: GachaCardEntry): Promis
 
 export async function deleteEntry(id: number): Promise<void> {
   await api.delete(`/api/gacha/admin/entries/${id}`)
+}
+
+export async function generatePreview(poolId: number, req: GenerateGachaEntryReq): Promise<GenerateGachaPreview> {
+  const res = await api.post<{ success: boolean; data: GenerateGachaPreview }>(
+    `/api/gacha/admin/pools/${poolId}/generate-preview`,
+    req
+  )
+  return res.data?.data
+}
+
+export async function generateEntries(poolId: number, req: GenerateGachaEntryReq): Promise<GenerateGachaPreview> {
+  const res = await api.post<{ success: boolean; data: GenerateGachaPreview }>(
+    `/api/gacha/admin/pools/${poolId}/generate`,
+    req
+  )
+  return res.data?.data
 }
 
 export async function fetchEconomics(poolId: number): Promise<PoolEconomics> {

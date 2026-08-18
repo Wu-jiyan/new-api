@@ -306,3 +306,44 @@ func AdminDeleteGachaEntry(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
+
+// AdminGenerateGachaEntriesPreview 批量生成条目预览（不落库）：按档位自动权重/额度并建议售价。
+func AdminGenerateGachaEntriesPreview(c *gin.Context) {
+	poolId, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "invalid id"})
+		return
+	}
+	var req model.GenerateGachaEntryReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	preview, err := model.GenerateGachaEntries(poolId, &req, false)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": preview})
+}
+
+// AdminGenerateGachaEntries 批量生成条目并落库（可选替换该分组条目 + 自动定价）。
+func AdminGenerateGachaEntries(c *gin.Context) {
+	poolId, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "invalid id"})
+		return
+	}
+	var req model.GenerateGachaEntryReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	preview, err := model.GenerateGachaEntries(poolId, &req, true)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	model.RefreshPricing()
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": preview})
+}

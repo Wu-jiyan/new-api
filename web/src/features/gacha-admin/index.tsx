@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
-import { Pencil, Plus, RefreshCw, Trash2, TrendingUp } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Pencil, Plus, RefreshCw, Search, Trash2, TrendingUp, Wand2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -25,6 +26,8 @@ import {
   deleteEntry,
   deletePool,
   fetchEconomics,
+  generateEntries,
+  generatePreview,
   listPools,
   listRatings,
   setRating,
@@ -33,9 +36,20 @@ import {
   updateThresholds,
   upsertEntry,
 } from './api'
-import type { GachaCardEntry, GachaPool, ModelRatingItem, PoolEconomics, RatingThresholds } from './types'
+import type {
+  GachaCardEntry,
+  GachaPool,
+  GenerateGachaPreview,
+  ModelRatingItem,
+  PoolEconomics,
+  RatingThresholds,
+} from './types'
 
 const RARITIES = ['N', 'R', 'SR', 'SSR', 'UR']
+
+const DEFAULT_WEIGHTS: Record<string, number> = { N: 100, R: 40, SR: 15, SSR: 5, UR: 1 }
+const DEFAULT_QUOTA_MIN: Record<string, number> = { N: 500, R: 800, SR: 1500, SSR: 3000, UR: 8000 }
+const DEFAULT_QUOTA_MAX: Record<string, number> = { N: 800, R: 1500, SR: 3000, SSR: 8000, UR: 20000 }
 
 function PoolEditor(props: { pool?: GachaPool; onClose: () => void; onSaved: () => void }) {
   const { pool, onClose, onSaved } = props
@@ -187,7 +201,7 @@ function PoolEditor(props: { pool?: GachaPool; onClose: () => void; onSaved: () 
 function EntryEditor(props: { poolId: number; entry?: GachaCardEntry; onClose: () => void; onSaved: () => void }) {
   const { poolId, entry, onClose, onSaved } = props
   const [form, setForm] = useState<GachaCardEntry>(
-    entry ?? { pool_id: poolId, model_name: '', group: '', weight: 1, quota: 0, expire_days: 0 }
+    entry ?? { pool_id: poolId, model_name: '', group: '', weight: 1, quota: 0, quota_min: 0, quota_max: 0, expire_days: 0 }
   )
 
   async function save() {
@@ -222,14 +236,25 @@ function EntryEditor(props: { poolId: number; entry?: GachaCardEntry; onClose: (
               <Input type='number' value={form.weight} onChange={(e) => setForm({ ...form, weight: Number(e.target.value) })} />
             </div>
             <div className='space-y-1.5'>
-              <Label>额度 (quota)</Label>
+              <Label>基准额度 (quota)</Label>
               <Input type='number' value={form.quota} onChange={(e) => setForm({ ...form, quota: Number(e.target.value) })} />
             </div>
             <div className='space-y-1.5'>
               <Label>过期天数</Label>
               <Input type='number' value={form.expire_days} onChange={(e) => setForm({ ...form, expire_days: Number(e.target.value) })} />
             </div>
+            <div className='space-y-1.5'>
+              <Label>额度下限 (随机)</Label>
+              <Input type='number' value={form.quota_min ?? 0} onChange={(e) => setForm({ ...form, quota_min: Number(e.target.value) })} />
+            </div>
+            <div className='space-y-1.5'>
+              <Label>额度上限 (随机)</Label>
+              <Input type='number' value={form.quota_max ?? 0} onChange={(e) => setForm({ ...form, quota_max: Number(e.target.value) })} />
+            </div>
           </div>
+          {(form.quota_max ?? 0) > (form.quota_min ?? 0) && (
+            <p className='text-xs text-muted-foreground'>抽中时额度将在 {form.quota_min} ~ {form.quota_max} 之间随机</p>
+          )}
         </div>
         <DialogFooter>
           <Button variant='outline' onClick={onClose}>
@@ -242,11 +267,307 @@ function EntryEditor(props: { poolId: number; entry?: GachaCardEntry; onClose: (
   )
 }
 
+function GenerateEntriesDialog(props: { pool: GachaPool; onClose: () => void; onSaved: () => void }) {
+  const { pool, onClose, onSaved } = props
+  const [group, setGroup] = useState('default')
+  const [expireDays, setExpireDays] = useState(30)
+  const [keyword, setKeyword] = useState('')
+  const [ratingFilter, setRatingFilter] = useState('')
+  const [models, setModels] = useState<ModelRatingItem[]>([])
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [weights, setWeights] = useState<Record<string, number>>({ ...DEFAULT_WEIGHTS })
+  const [quotaMin, setQuotaMin] = useState<Record<string, number>>({ ...DEFAULT_QUOTA_MIN })
+  const [quotaMax, setQuotaMax] = useState<Record<string, number>>({ ...DEFAULT_QUOTA_MAX })
+  const [targetRtp, setTargetRtp] = useState(0.7)
+  const [autoPrice, setAutoPrice] = useState(true)
+  const [replace, setReplace] = useState(true)
+  const [preview, setPreview] = useState<GenerateGachaPreview | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    void listRatings()
+      .then((r) => setModels(r.data))
+      .catch((e) => toast.error(e instanceof Error ? e.message : '加载模型失败'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const filtered = useMemo(
+    () =>
+      models.filter((m) => {
+        if (ratingFilter && m.rating !== ratingFilter) return false
+        if (keyword && !m.model_name.toLowerCase().includes(keyword.toLowerCase())) return false
+        return true
+      }),
+    [models, ratingFilter, keyword]
+  )
+
+  const allSelected = filtered.length > 0 && filtered.every((m) => selected.has(m.model_name))
+
+  function toggleAll() {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (allSelected) {
+        filtered.forEach((m) => next.delete(m.model_name))
+      } else {
+        filtered.forEach((m) => next.add(m.model_name))
+      }
+      return next
+    })
+  }
+
+  function toggleOne(name: string, checked: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(name)
+      else next.delete(name)
+      return next
+    })
+  }
+
+  function buildReq(): {
+    group: string
+    models: string[]
+    expire_days: number
+    weights: Record<string, number>
+    quota_min: Record<string, number>
+    quota_max: Record<string, number>
+    target_rtp: number
+    auto_price: boolean
+    replace: boolean
+  } {
+    return {
+      group: group.trim() || 'default',
+      models: [...selected],
+      expire_days: expireDays,
+      weights,
+      quota_min: quotaMin,
+      quota_max: quotaMax,
+      target_rtp: targetRtp,
+      auto_price: autoPrice,
+      replace,
+    }
+  }
+
+  async function doPreview() {
+    if (selected.size === 0) {
+      toast.error('请先选择模型')
+      return
+    }
+    setLoading(true)
+    try {
+      setPreview(await generatePreview(pool.id, buildReq()))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '预览失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function doSave() {
+    if (selected.size === 0) return
+    setSaving(true)
+    try {
+      await generateEntries(pool.id, buildReq())
+      toast.success('条目已生成')
+      onSaved()
+      onClose()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '生成失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className='max-h-[88vh] max-w-3xl overflow-y-auto'>
+        <DialogHeader>
+          <DialogTitle>批量添加模型到「{pool.name}」</DialogTitle>
+        </DialogHeader>
+        <div className='space-y-4'>
+          <div className='grid grid-cols-3 gap-3'>
+            <div className='space-y-1.5'>
+              <Label>分组</Label>
+              <Input value={group} onChange={(e) => setGroup(e.target.value)} placeholder='default' />
+            </div>
+            <div className='space-y-1.5'>
+              <Label>过期天数（0 永久）</Label>
+              <Input type='number' value={expireDays} onChange={(e) => setExpireDays(Number(e.target.value))} />
+            </div>
+            <div className='space-y-1.5'>
+              <Label>目标回本率</Label>
+              <Input
+                type='number'
+                step='0.05'
+                value={targetRtp}
+                onChange={(e) => setTargetRtp(Number(e.target.value))}
+              />
+            </div>
+          </div>
+
+          <div className='space-y-2 rounded-xl border p-3'>
+            <div className='flex items-center justify-between gap-2'>
+              <span className='text-sm font-semibold'>模型选择</span>
+              <div className='flex items-center gap-2'>
+                <Select value={ratingFilter} onValueChange={(v) => setRatingFilter(v ?? '')}>
+                  <SelectTrigger className='h-7 w-28'>
+                    <SelectValue placeholder='全部档位' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value=''>全部档位</SelectItem>
+                    {RARITIES.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {r}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className='relative'>
+                  <Search className='absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground' />
+                  <Input className='h-7 w-44 pl-7' placeholder='搜索模型' value={keyword} onChange={(e) => setKeyword(e.target.value)} />
+                </div>
+              </div>
+            </div>
+            <div className='flex items-center gap-2 text-xs text-muted-foreground'>
+              <Checkbox checked={allSelected} onCheckedChange={() => toggleAll()} />
+              <span>全选当前 {filtered.length} 个 · 已选 {selected.size} 个</span>
+              {selected.size > 0 && (
+                <Button size='sm' variant='ghost' className='h-6 px-2' onClick={() => setSelected(new Set())}>
+                  清空
+                </Button>
+              )}
+            </div>
+            <div className='max-h-52 space-y-1 overflow-y-auto'>
+              {filtered.map((m) => (
+                <label
+                  key={m.id}
+                  className='hover:bg-accent flex cursor-pointer items-center gap-2 rounded px-2 py-1'
+                >
+                  <Checkbox checked={selected.has(m.model_name)} onCheckedChange={(v) => toggleOne(m.model_name, !!v)} />
+                  <span className='truncate font-mono text-sm'>{m.model_name}</span>
+                  <RatingBadge rating={m.rating} />
+                </label>
+              ))}
+              {filtered.length === 0 && <p className='py-6 text-center text-sm text-muted-foreground'>无匹配模型</p>}
+            </div>
+          </div>
+
+          <div className='space-y-2 rounded-xl border p-3'>
+            <div className='flex items-center gap-2 text-sm font-semibold'>
+              <Wand2 className='size-4' /> 按档位自动生成权重与额度
+            </div>
+            <div className='grid grid-cols-[3rem_1fr_1.2fr_1.2fr] items-center gap-2 text-xs text-muted-foreground'>
+              <span />
+              <span>权重（越大越容易抽中）</span>
+              <span>额度下限 (quota)</span>
+              <span>额度上限 (quota)</span>
+              {RARITIES.map((r) => (
+                <FragmentRow
+                  key={r}
+                  rarity={r}
+                  weight={weights[r]}
+                  min={quotaMin[r]}
+                  max={quotaMax[r]}
+                  onWeight={(v) => setWeights({ ...weights, [r]: v })}
+                  onMin={(v) => setQuotaMin({ ...quotaMin, [r]: v })}
+                  onMax={(v) => setQuotaMax({ ...quotaMax, [r]: v })}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className='flex items-center gap-4'>
+            <label className='flex items-center gap-2 text-sm'>
+              <Switch checked={autoPrice} onCheckedChange={setAutoPrice} />
+              按建议售价自动定价
+            </label>
+            <label className='flex items-center gap-2 text-sm'>
+              <Switch checked={replace} onCheckedChange={setReplace} />
+              替换该分组现有条目
+            </label>
+          </div>
+
+          {preview && (
+            <div className='space-y-2 rounded-xl border p-3 text-xs'>
+              <div className='flex items-center gap-1.5 font-semibold'>
+                <TrendingUp className='size-3.5' /> 生成预览
+              </div>
+              <div className='grid grid-cols-2 gap-1.5'>
+                <span className='text-muted-foreground'>期望卡价值</span>
+                <span className='text-right font-mono'>{formatQuotaWithCurrency(preview.expected_value)}</span>
+                <span className='text-muted-foreground'>建议单抽价</span>
+                <span className='text-right font-mono'>{formatQuotaWithCurrency(preview.suggested_price)}</span>
+                <span className='text-muted-foreground'>建议十连价</span>
+                <span className='text-right font-mono'>{formatQuotaWithCurrency(preview.suggested_ten)}</span>
+                {preview.cost_known_weight > 0 && (
+                  <>
+                    <span className='text-muted-foreground'>期望成本</span>
+                    <span className='text-right font-mono'>{formatQuotaWithCurrency(Math.round(preview.expected_cost))}</span>
+                  </>
+                )}
+              </div>
+              {preview.warn && <p className='text-destructive'>⚠ {preview.warn_reason}</p>}
+              <div className='max-h-36 space-y-1 overflow-y-auto border-t pt-2'>
+                {preview.entries.map((v) => (
+                  <div key={v.entry.model_name} className='flex items-center justify-between gap-2'>
+                    <span className='flex min-w-0 items-center gap-2'>
+                      <span className='truncate font-mono'>{v.entry.model_name}</span>
+                      <RatingBadge rating={v.rating} />
+                    </span>
+                    <span className='shrink-0 text-muted-foreground'>
+                      {(v.probability * 100).toFixed(1)}% · 权重 {v.entry.weight} · {formatQuotaWithCurrency(v.entry.quota_min)}~
+                      {formatQuotaWithCurrency(v.entry.quota_max)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant='outline' onClick={onClose}>
+            取消
+          </Button>
+          <Button variant='secondary' disabled={selected.size === 0 || loading} onClick={() => void doPreview()}>
+            预览
+          </Button>
+          <Button disabled={selected.size === 0 || loading || saving} onClick={() => void doSave()}>
+            生成条目
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function FragmentRow(props: {
+  rarity: string
+  weight: number
+  min: number
+  max: number
+  onWeight: (v: number) => void
+  onMin: (v: number) => void
+  onMax: (v: number) => void
+}) {
+  const { rarity, weight, min, max, onWeight, onMin, onMax } = props
+  return (
+    <>
+      <span className='font-semibold'>{rarity}</span>
+      <Input className='h-7' type='number' value={weight} onChange={(e) => onWeight(Number(e.target.value))} />
+      <Input className='h-7' type='number' value={min} onChange={(e) => onMin(Number(e.target.value))} />
+      <Input className='h-7' type='number' value={max} onChange={(e) => onMax(Number(e.target.value))} />
+    </>
+  )
+}
+
 function PoolsTab() {
   const [pools, setPools] = useState<GachaPool[]>([])
   const [editingPool, setEditingPool] = useState<GachaPool | undefined>()
   const [showCreate, setShowCreate] = useState(false)
   const [editingEntry, setEditingEntry] = useState<{ pool: GachaPool; entry?: GachaCardEntry } | undefined>()
+  const [generatingPool, setGeneratingPool] = useState<GachaPool | undefined>()
 
   async function load() {
     try {
@@ -313,6 +634,9 @@ function PoolsTab() {
                   <Button size='sm' variant='outline' onClick={() => setEditingPool(pool)}>
                     <Pencil className='size-3.5' />
                   </Button>
+                  <Button size='sm' variant='outline' title='批量添加模型' onClick={() => setGeneratingPool(pool)}>
+                    <Wand2 className='size-3.5' />
+                  </Button>
                   <Button size='sm' variant='outline' onClick={() => setEditingEntry({ pool })}>
                     <Plus className='size-3.5' />
                   </Button>
@@ -325,6 +649,7 @@ function PoolsTab() {
                 <span>单抽 {formatQuotaWithCurrency(pool.price)}</span>
                 {pool.ten_price > 0 && <span>十连 {formatQuotaWithCurrency(pool.ten_price)}</span>}
                 {pool.ten_guarantee && <span>十连保底 {pool.ten_guarantee}+</span>}
+                {pool.entries && pool.entries.length > 0 && <span>{pool.entries.length} 个条目</span>}
               </div>
               {pool.entries && pool.entries.length > 0 && (
                 <div className='mt-3 space-y-1.5'>
@@ -338,7 +663,11 @@ function PoolsTab() {
                       </div>
                       <div className='flex shrink-0 items-center gap-3 text-muted-foreground'>
                         <span>权重 {entry.weight}</span>
-                        <span>{formatQuotaWithCurrency(entry.quota)}</span>
+                        <span>
+                          {(entry.quota_max ?? 0) > (entry.quota_min ?? 0)
+                            ? `${formatQuotaWithCurrency(entry.quota_min ?? 0)}~${formatQuotaWithCurrency(entry.quota_max ?? 0)}`
+                            : formatQuotaWithCurrency(entry.quota)}
+                        </span>
                         <span>{entry.expire_days > 0 ? `${entry.expire_days} 天` : '永久'}</span>
                         <button className='hover:text-foreground' onClick={() => setEditingEntry({ pool, entry })}>
                           <Pencil className='size-3' />
@@ -362,6 +691,13 @@ function PoolsTab() {
           poolId={editingEntry.pool.id}
           entry={editingEntry.entry}
           onClose={() => setEditingEntry(undefined)}
+          onSaved={() => void load()}
+        />
+      )}
+      {generatingPool && (
+        <GenerateEntriesDialog
+          pool={generatingPool}
+          onClose={() => setGeneratingPool(undefined)}
           onSaved={() => void load()}
         />
       )}

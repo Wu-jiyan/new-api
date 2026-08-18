@@ -23,13 +23,13 @@ export async function fetchGachaCards(
   status?: number,
   page = 1,
   pageSize = 50
-): Promise<{ data: UserGachaCard[]; total: number }> {
+): Promise<{ data: UserGachaCard[]; total: number; ratings: Record<string, string> }> {
   const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
   if (status != null) params.set('status', String(status))
-  const res = await api.get<{ success: boolean; data: UserGachaCard[]; total: number }>(
+  const res = await api.get<{ success: boolean; data: UserGachaCard[]; total: number; ratings: Record<string, string> }>(
     `/api/gacha/cards?${params.toString()}`
   )
-  return { data: res.data?.data ?? [], total: res.data?.total ?? 0 }
+  return { data: res.data?.data ?? [], total: res.data?.total ?? 0, ratings: res.data?.ratings ?? {} }
 }
 
 export async function fetchGachaStats(): Promise<GachaStats | null> {
