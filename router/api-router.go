@@ -197,6 +197,14 @@ func SetApiRouter(router *gin.Engine) {
 			gachaAdminRoute.POST("/sync-rating", controller.AdminSyncGachaRatings)
 			gachaAdminRoute.PUT("/ratings/:id", controller.AdminSetGachaRating)
 			gachaAdminRoute.PUT("/settings", controller.AdminUpdateGachaRatingThresholds)
+			gachaAdminRoute.GET("/pools", controller.AdminListGachaPools)
+			gachaAdminRoute.POST("/pools", controller.AdminCreateGachaPool)
+			gachaAdminRoute.PUT("/pools/:id", controller.AdminUpdateGachaPool)
+			gachaAdminRoute.DELETE("/pools/:id", controller.AdminDeleteGachaPool)
+			gachaAdminRoute.GET("/pools/:id/economics", controller.AdminPoolEconomics)
+			gachaAdminRoute.POST("/pools/:id/entries", controller.AdminUpsertGachaEntry)
+			gachaAdminRoute.PUT("/pools/:id/entries", controller.AdminUpsertGachaEntry)
+			gachaAdminRoute.DELETE("/entries/:id", controller.AdminDeleteGachaEntry)
 		}
 
 		// Gacha (card pack) user endpoints

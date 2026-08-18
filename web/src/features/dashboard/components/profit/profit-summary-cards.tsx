@@ -71,9 +71,10 @@ export function ProfitSummaryCards(props: {
     }
   }
   const topupConcession = summary ? summary.topup_concession : 0
+  const gachaRevenue = summary?.gacha_revenue ?? 0
 
   return (
-    <div className='grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5'>
+    <div className='grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6'>
       <ProfitCard
         label={t('Total Revenue')}
         value={summary ? formatQuota(summary.revenue) : '-'}
@@ -105,6 +106,18 @@ export function ProfitSummaryCards(props: {
               : '-'
             : '-'
         }
+        loading={loading}
+      />
+      <ProfitCard
+        label={t('Gacha Revenue')}
+        value={
+          summary
+            ? gachaRevenue > 0
+              ? `+${formatQuota(gachaRevenue)}`
+              : '0'
+            : '-'
+        }
+        tone={gachaRevenue > 0 ? 'success' : 'default'}
         loading={loading}
       />
       <ProfitCard
