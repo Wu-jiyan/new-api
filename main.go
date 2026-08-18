@@ -327,6 +327,9 @@ func InitResources() error {
 	}
 	model.InitOptionMap()
 
+	// 加载抽卡模型分级阈值（依赖 OptionMap）
+	model.ReloadGachaRatingThresholds()
+
 	// 清理旧的磁盘缓存文件
 	common.CleanupOldCacheFiles()
 

@@ -188,6 +188,17 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)
 		apiRouter.GET("/subscription/epay/return", controller.SubscriptionEpayReturn)
 		apiRouter.POST("/subscription/epay/return", anonymousRequestBodyLimit, controller.SubscriptionEpayReturn)
+
+		// Gacha (card pack) admin management
+		gachaAdminRoute := apiRouter.Group("/gacha/admin")
+		gachaAdminRoute.Use(middleware.AdminAuth())
+		{
+			gachaAdminRoute.GET("/ratings", controller.AdminListGachaRatings)
+			gachaAdminRoute.POST("/sync-rating", controller.AdminSyncGachaRatings)
+			gachaAdminRoute.PUT("/ratings/:id", controller.AdminSetGachaRating)
+			gachaAdminRoute.PUT("/settings", controller.AdminUpdateGachaRatingThresholds)
+		}
+
 		optionRoute := apiRouter.Group("/option")
 		optionRoute.Use(middleware.RootAuth())
 		{
