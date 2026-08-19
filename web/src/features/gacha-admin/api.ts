@@ -65,9 +65,11 @@ export async function fetchEconomics(poolId: number): Promise<PoolEconomics> {
 
 export async function listRatings(
   keyword?: string,
-  rating?: string
+  rating?: string,
+  page = 1,
+  pageSize = 20
 ): Promise<{ data: ModelRatingItem[]; total: number; thresholds: RatingThresholds }> {
-  const params = new URLSearchParams()
+  const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
   if (keyword) params.set('keyword', keyword)
   if (rating) params.set('rating', rating)
   const res = await api.get<{

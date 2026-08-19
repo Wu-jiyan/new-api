@@ -133,7 +133,6 @@ func ApplyDeepSweScores(scores map[string]float64) (int, error) {
 	return updated, nil
 }
 
-// matchDeepSweScore 按模型名匹配榜单分数：精确 -> 归一化（. _ -> -，小写）-> 前缀 -> 包含。
 func matchDeepSweScore(modelName string, scores map[string]float64) (float64, bool) {
 	if s, ok := scores[modelName]; ok {
 		return s, true
@@ -150,25 +149,7 @@ func matchDeepSweScore(modelName string, scores map[string]float64) (float64, bo
 	if s, ok := normScores[normModel]; ok {
 		return s, true
 	}
-	best := 0.0
-	found := false
-	for name, s := range normScores {
-		if name == "" {
-			continue
-		}
-		if len(name) <= len(normModel) && normModel[:len(name)] == name {
-			if !found || s > best {
-				best, found = s, true
-			}
-			continue
-		}
-		if contains(normModel, name) {
-			if !found || s > best {
-				best, found = s, true
-			}
-		}
-	}
-	return best, found
+	return 0, false
 }
 
 // normalizeDeepSweName 将模型名归一化用于跨命名约定匹配：小写、. _ 统一为 -。
@@ -180,18 +161,6 @@ func normalizeDeepSweName(s string) string {
 		}
 	}
 	return string(b)
-}
-
-func contains(s, sub string) bool {
-	if sub == "" {
-		return true
-	}
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
 }
 
 // UpdateModelRating 更新指定模型的档位与分数。

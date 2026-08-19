@@ -396,7 +396,7 @@ func PullGachaCards(userId int, pool *GachaPool, entries []GachaCardEntry, count
 			}
 			// 同模型 + 同分组 + 可用且未过期：合并为一张，额度叠加
 			var existing UserGachaCard
-			mergeTarget := tx.Where("user_id = ? AND model_name = ? AND `group` = ? AND status = 0 AND (expired_time = -1 OR expired_time > ?)",
+			mergeTarget := tx.Where("user_id = ? AND model_name = ? AND "+commonGroupCol+" = ? AND status = 0 AND (expired_time = -1 OR expired_time > ?)",
 				userId, c.Entry.ModelName, c.Entry.Group, now).
 				Order("id ASC").First(&existing).Error == nil
 			if mergeTarget {

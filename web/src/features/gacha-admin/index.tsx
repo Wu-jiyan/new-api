@@ -283,14 +283,32 @@ function GenerateEntriesDialog(props: { pool: GachaPool; onClose: () => void; on
   const [replace, setReplace] = useState(true)
   const [preview, setPreview] = useState<GenerateGachaPreview | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [page, setPage] = useState(1)
+  const [modelTotal, setModelTotal] = useState(0)
   const [saving, setSaving] = useState(false)
+  const MODEL_PAGE_SIZE = 100
+
+  async function loadModels(reset = false, pageNo?: number) {
+    const next = pageNo ?? (reset ? 1 : page)
+    if (reset) setLoading(true)
+    else setLoadingMore(true)
+    try {
+      const r = await listRatings(undefined, undefined, next, MODEL_PAGE_SIZE)
+      setModelTotal(r.total)
+      setModels((prev) => (reset ? r.data : [...prev, ...r.data]))
+      setPage(next)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '加载模型失败')
+    } finally {
+      setLoading(false)
+      setLoadingMore(false)
+    }
+  }
 
   useEffect(() => {
-    setLoading(true)
-    void listRatings()
-      .then((r) => setModels(r.data))
-      .catch((e) => toast.error(e instanceof Error ? e.message : '加载模型失败'))
-      .finally(() => setLoading(false))
+    void loadModels(true, 1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const filtered = useMemo(
@@ -452,6 +470,17 @@ function GenerateEntriesDialog(props: { pool: GachaPool; onClose: () => void; on
               ))}
               {filtered.length === 0 && <p className='py-6 text-center text-sm text-muted-foreground'>无匹配模型</p>}
             </div>
+            {models.length < modelTotal && (
+              <Button
+                size='sm'
+                variant='ghost'
+                className='w-full'
+                disabled={loadingMore}
+                onClick={() => void loadModels(false, page + 1)}
+              >
+                {loadingMore ? '加载中…' : `加载更多（已加载 ${models.length}/${modelTotal}）`}
+              </Button>
+            )}
           </div>
 
           <div className='space-y-2 rounded-xl border p-3'>
@@ -708,12 +737,17 @@ function PoolsTab() {
 function RatingsTab() {
   const [models, setModels] = useState<ModelRatingItem[]>([])
   const [keyword, setKeyword] = useState('')
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
   const [thresholds, setThresholds] = useState<RatingThresholds>({ ur: 65, ssr: 55, sr: 45, r: 30 })
+  const PAGE_SIZE = 20
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   async function load() {
     try {
-      const res = await listRatings(keyword)
+      const res = await listRatings(keyword, undefined, page, PAGE_SIZE)
       setModels(res.data)
+      setTotal(res.total)
       setThresholds(res.thresholds)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '加载失败')
@@ -721,8 +755,12 @@ function RatingsTab() {
   }
 
   useEffect(() => {
-    void load()
+    setPage(1)
   }, [keyword])
+
+  useEffect(() => {
+    void load()
+  }, [keyword, page])
 
   async function changeRating(item: ModelRatingItem, rating: string) {
     try {
@@ -816,6 +854,22 @@ function RatingsTab() {
           </div>
         ))}
         {models.length === 0 && <p className='py-10 text-center text-sm text-muted-foreground'>暂无模型</p>}
+        {total > PAGE_SIZE && (
+          <div className='flex items-center justify-between pt-3 text-xs text-muted-foreground'>
+            <span>共 {total} 个模型</span>
+            <div className='flex items-center gap-1.5'>
+              <Button size='sm' variant='outline' disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                上一页
+              </Button>
+              <span className='px-1'>
+                {page} / {totalPages}
+              </span>
+              <Button size='sm' variant='outline' disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+                下一页
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

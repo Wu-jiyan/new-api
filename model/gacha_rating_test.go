@@ -52,8 +52,12 @@ func TestMatchDeepSweScoreNormalized(t *testing.T) {
 	if s, ok := matchDeepSweScore("gpt-5.6-sol", scores); !ok || s != 73 {
 		t.Fatalf("normalized match gpt-5.6-sol = %v/%v, want 73/true", s, ok)
 	}
-	if s, ok := matchDeepSweScore("claude-opus-5-max", scores); !ok || s != 68 {
-		t.Fatalf("prefix match claude-opus-5-max = %v/%v, want 68/true", s, ok)
+	// 带版本后缀的模型不应前缀匹配基础版分数
+	if _, ok := matchDeepSweScore("claude-opus-5-max", scores); ok {
+		t.Fatal("suffixed model should not prefix-match base model")
+	}
+	if _, ok := matchDeepSweScore("deepseek-v4-flash-0731", map[string]float64{"deepseek-v4-flash": 53}); ok {
+		t.Fatal("versioned model should not match base model score")
 	}
 	if _, ok := matchDeepSweScore("unknown-model", scores); ok {
 		t.Fatal("unknown model should not match")

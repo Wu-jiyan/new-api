@@ -165,7 +165,7 @@ func GenerateGachaEntries(poolId int, req *GenerateGachaEntryReq, apply bool) (*
 
 	// 校验并写入条目
 	if req.Replace {
-		if err := DB.Where("pool_id = ? AND `group` = ?", poolId, req.Group).Delete(&GachaCardEntry{}).Error; err != nil {
+		if err := DB.Where("pool_id = ? AND "+commonGroupCol+" = ?", poolId, req.Group).Delete(&GachaCardEntry{}).Error; err != nil {
 			return nil, err
 		}
 	}
