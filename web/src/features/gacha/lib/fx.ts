@@ -76,3 +76,29 @@ export function burst(x: number, y: number, colors: string[], count = 40, power 
 export function burstAtCenter(colors: string[], count = 60, power = 9) {
   burst(window.innerWidth / 2, window.innerHeight / 2, colors, count, power)
 }
+
+// rain 全屏粒子雨（自上而下，适合稀有卡高潮）。durationMs 后自动停止。
+export function rain(colors: string[], durationMs = 1800, count = 90) {
+  ensureCanvas()
+  const start = Date.now()
+  const interval = window.setInterval(() => {
+    if (!ctx || !canvas || Date.now() - start > durationMs) {
+      window.clearInterval(interval)
+      return
+    }
+    for (let i = 0; i < count / 10; i++) {
+      particles.push({
+        x: Math.random() * window.innerWidth,
+        y: -10 - Math.random() * 40,
+        vx: (Math.random() - 0.5) * 0.8,
+        vy: 2.5 + Math.random() * 3.5,
+        life: 1,
+        decay: 0.006 + Math.random() * 0.008,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size: 1.5 + Math.random() * 3,
+        gravity: 0.06,
+      })
+    }
+    if (!raf) raf = requestAnimationFrame(loop)
+  }, 60)
+}

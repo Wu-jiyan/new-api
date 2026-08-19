@@ -199,7 +199,7 @@ export default function GachaPage() {
         ))}
       </div>
 
-      {cards.length > 0 && <PullResult cards={cards} />}
+      {cards.length > 0 && <PullResult cards={cards} onClose={() => setCards([])} />}
       </div>
     </main>
   )

@@ -6,13 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fetchGachaCards } from '@/features/gacha/api'
-import {
-  qqLevelIcons,
-  qqLevelText,
-  RARITY_CARD_CLASS,
-  RARITY_LABEL,
-  RARITY_TEXT_CLASS,
-} from '@/features/gacha/level'
+import { QQLevel, RARITY_CARD_CLASS, RARITY_TEXT_CLASS, rarityName } from '@/features/gacha/level'
 import { formatQuotaWithCurrency } from '@/lib/currency'
 
 import type { UserGachaCard } from '@/features/gacha/types'
@@ -30,32 +24,21 @@ function StatusBadge({ status }: { status: number }) {
 }
 
 function CardView({ card, rating }: { card: UserGachaCard; rating?: string }) {
-  const icons = qqLevelIcons(card.merge_count ?? 1)
-  const levelText = qqLevelText(card.merge_count ?? 1)
-  const rarity = rating || ''
+  const rarity = rarityName(rating)
   return (
     <Card
       className={`relative flex flex-col gap-3 overflow-hidden border-2 p-4 shadow-lg shadow-primary/5 ${RARITY_CARD_CLASS[rarity] ?? 'border-border/70 bg-card/80'}`}
     >
-      {rarity && (
-        <span
-          className={`absolute top-2 right-3 text-[10px] font-bold tracking-widest uppercase ${RARITY_TEXT_CLASS[rarity] ?? 'text-muted-foreground'}`}
-        >
-          {RARITY_LABEL[rarity] ?? rarity}
-        </span>
-      )}
+      <span
+        className={`absolute top-2 right-3 text-[11px] font-black tracking-widest ${RARITY_TEXT_CLASS[rarity] ?? 'text-muted-foreground'}`}
+      >
+        {rarity}
+      </span>
       <div className='flex items-start justify-between gap-2'>
         <span className='truncate font-mono text-sm font-bold'>{card.model_name}</span>
         <StatusBadge status={card.status} />
       </div>
-      {levelText && (
-        <div className='flex items-center gap-2 text-xs'>
-          <span className='text-base leading-none'>{icons || '✨'}</span>
-          <span className='rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground'>
-            {levelText}
-          </span>
-        </div>
-      )}
+      {(card.merge_count ?? 1) > 1 && <QQLevel count={card.merge_count ?? 1} />}
       <div className='flex items-center justify-between text-xs'>
         <span className='text-muted-foreground'>分组</span>
         <code className='rounded bg-muted px-1.5 py-0.5'>{card.group}</code>
