@@ -21,7 +21,7 @@ func ListGachaPools(c *gin.Context) {
 	type poolView struct {
 		model.GachaPool
 		Entries []model.GachaCardEntry `json:"entries"`
-		EvValue int64                   `json:"ev_value"`
+		EvValue int64                  `json:"ev_value"`
 	}
 	views := make([]poolView, 0, len(pools))
 	for _, p := range pools {
@@ -116,6 +116,24 @@ func ListGachaCards(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
+	if len(cards) > 0 {
+		ids := make([]int, 0, len(cards))
+		byCardID := make(map[int]*model.UserGachaCard, len(cards))
+		for i := range cards {
+			ids = append(ids, cards[i].Id)
+			byCardID[cards[i].Id] = &cards[i]
+		}
+		var tokens []model.GachaCardToken
+		if err := model.DB.Where("card_id IN ? AND status = 0", ids).Find(&tokens).Error; err == nil {
+			for _, token := range tokens {
+				if card := byCardID[token.CardId]; card != nil {
+					card.TokenMasked = token.KeyPrefix + "…"
+					card.TokenStatus = token.Status
+					card.TokenExists = true
+				}
+			}
+		}
+	}
 	// 批量补模型档位（前端卡片分级展示）
 	ratings := map[string]string{}
 	names := make([]string, 0, len(cards))
@@ -135,6 +153,33 @@ func ListGachaCards(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": cards, "total": total, "ratings": ratings})
+}
+
+func ResetGachaCardToken(c *gin.Context) {
+	cardId, err := strconv.Atoi(c.Param("id"))
+	if err != nil || cardId <= 0 {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "invalid card id"})
+		return
+	}
+	token, plainKey, err := model.ResetGachaCardToken(c.GetInt("id"), cardId)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"card_token": plainKey, "token_prefix": token.KeyPrefix}})
+}
+
+func RevokeGachaCardToken(c *gin.Context) {
+	cardId, err := strconv.Atoi(c.Param("id"))
+	if err != nil || cardId <= 0 {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "invalid card id"})
+		return
+	}
+	if err := model.RevokeGachaCardToken(c.GetInt("id"), cardId); err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
 // GetGachaStats 我的抽卡统计（含近 N 次抽卡回本率，基于真实数据，仅供参考）。
@@ -183,13 +228,13 @@ func GetGachaStats(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
-			"total_pulls":   totalPulls,
-			"total_cost":    totalCost,
-			"by_rarity":     byRarity,
-			"recent_rtp":    recentRtp,
-			"recent_pulls":  recentPulls,
-			"recent_cost":   recentCost,
-			"recent_value":  recentValue,
+			"total_pulls":  totalPulls,
+			"total_cost":   totalCost,
+			"by_rarity":    byRarity,
+			"recent_rtp":   recentRtp,
+			"recent_pulls": recentPulls,
+			"recent_cost":  recentCost,
+			"recent_value": recentValue,
 		},
 	})
 }

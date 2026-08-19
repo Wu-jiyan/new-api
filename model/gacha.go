@@ -73,6 +73,9 @@ type UserGachaCard struct {
 	ExpiredTime  int64  `json:"expired_time" gorm:"bigint"` // -1 永久
 	CreatedTime  int64  `json:"created_time" gorm:"bigint"`
 	UpdatedTime  int64  `json:"updated_time" gorm:"bigint"`
+	TokenMasked  string `json:"token_masked" gorm:"-"`
+	TokenStatus  int    `json:"token_status" gorm:"-"`
+	TokenExists  bool   `json:"token_exists" gorm:"-"`
 }
 
 // GachaPullRecord 抽卡流水（pull_id 唯一索引做幂等）。
@@ -101,14 +104,16 @@ type GachaCardRefund struct {
 
 // PullCardResult 抽卡结果单卡（用于接口返回与流水快照）。
 type PullCardResult struct {
-	CardId     int    `json:"card_id"`
-	ModelName  string `json:"model_name"`
-	Group      string `json:"group"`
-	Rarity     string `json:"rarity"`
-	Quota      int64  `json:"quota"`
-	ExpireDays int    `json:"expire_days"`
-	ExpiredAt  int64  `json:"expired_at"`
-	MergeCount int    `json:"merge_count"`
+	CardId           int    `json:"card_id"`
+	ModelName        string `json:"model_name"`
+	Group            string `json:"group"`
+	Rarity           string `json:"rarity"`
+	Quota            int64  `json:"quota"`
+	ExpireDays       int    `json:"expire_days"`
+	ExpiredAt        int64  `json:"expired_at"`
+	MergeCount       int    `json:"merge_count"`
+	CardToken        string `json:"card_token,omitempty"`
+	CardTokenCreated bool   `json:"card_token_created"`
 }
 
 // ErrInsufficientGachaBalance 钱包余额不足。
@@ -436,15 +441,21 @@ func PullGachaCards(userId int, pool *GachaPool, entries []GachaCardEntry, count
 			if err := tx.Create(&card).Error; err != nil {
 				return err
 			}
+			_, plainToken, err := CreateGachaCardTokenTx(tx, &card)
+			if err != nil {
+				return err
+			}
 			pullCards = append(pullCards, PullCardResult{
-				CardId:     card.Id,
-				ModelName:  card.ModelName,
-				Group:      card.Group,
-				Rarity:     c.Rating,
-				Quota:      card.TotalQuota,
-				ExpireDays: c.Entry.ExpireDays,
-				ExpiredAt:  expiredAt,
-				MergeCount: 1,
+				CardId:           card.Id,
+				ModelName:        card.ModelName,
+				Group:            card.Group,
+				Rarity:           c.Rating,
+				Quota:            card.TotalQuota,
+				ExpireDays:       c.Entry.ExpireDays,
+				ExpiredAt:        expiredAt,
+				MergeCount:       1,
+				CardToken:        plainToken,
+				CardTokenCreated: true,
 			})
 		}
 
@@ -468,8 +479,12 @@ func PullGachaCards(userId int, pool *GachaPool, entries []GachaCardEntry, count
 			return err
 		}
 
-		// 写流水
-		cardsJSON, _ := json.Marshal(pullCards)
+		persistedCards := make([]PullCardResult, len(pullCards))
+		copy(persistedCards, pullCards)
+		for i := range persistedCards {
+			persistedCards[i].CardToken = ""
+		}
+		cardsJSON, _ := json.Marshal(persistedCards)
 		record := GachaPullRecord{
 			PullId:      pullId,
 			UserId:      userId,

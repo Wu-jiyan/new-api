@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Copy } from 'lucide-react'
+import { toast } from 'sonner'
+
+import { Button } from '@/components/ui/button'
 
 import { cn } from '@/lib/utils'
 import { formatQuotaWithCurrency } from '@/lib/currency'
@@ -56,6 +60,15 @@ export function PullResult({ cards, onClose }: { cards: PullCardResult[]; onClos
   const glowColor =
     { UR: 'rgba(236,72,153,0.55)', SSR: 'rgba(245,158,11,0.5)', SR: 'rgba(147,51,234,0.45)', R: 'rgba(59,130,246,0.4)' }[top] ??
     'rgba(100,116,139,0.3)'
+
+  async function copy(value: string) {
+    try {
+      await navigator.clipboard.writeText(value)
+      toast.success('令牌已复制')
+    } catch {
+      toast.error('复制失败，请手动复制')
+    }
+  }
 
   return (
     <div
@@ -127,6 +140,19 @@ export function PullResult({ cards, onClose }: { cards: PullCardResult[]; onClos
             )
           })}
         </div>
+
+        {done && cards.some((card) => card.card_token_created) && (
+          <div className='w-full max-w-xl space-y-2 rounded-xl border border-white/15 bg-black/25 p-3 text-left'>
+            <p className='text-sm font-semibold text-white'>新卡专属 API 令牌</p>
+            <p className='text-xs text-slate-300'>请立即复制保存，关闭后无法再次查看。</p>
+            {cards.filter((card) => card.card_token_created && card.card_token).map((card) => (
+              <div key={card.card_id} className='flex items-center gap-2 rounded-lg bg-black/30 p-2'>
+                <code className='min-w-0 flex-1 truncate font-mono text-xs text-amber-200'>{card.card_token}</code>
+                <Button size='sm' variant='secondary' className='shrink-0' onClick={(event) => { event.stopPropagation(); void copy(card.card_token!) }}><Copy className='size-3' />复制</Button>
+              </div>
+            ))}
+          </div>
+        )}
 
         <footer className='h-6'>
           {done ? (

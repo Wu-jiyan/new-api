@@ -36,3 +36,12 @@ export async function fetchGachaStats(): Promise<GachaStats | null> {
   const res = await api.get<{ success: boolean; data: GachaStats }>('/api/gacha/stats')
   return res.data?.data ?? null
 }
+
+export async function resetGachaCardToken(cardId: number): Promise<string> {
+  const res = await api.post<{ success: boolean; data: { card_token: string } }>(`/api/gacha/cards/${cardId}/token/reset`)
+  return res.data?.data?.card_token
+}
+
+export async function revokeGachaCardToken(cardId: number): Promise<void> {
+  await api.post(`/api/gacha/cards/${cardId}/token/revoke`)
+}

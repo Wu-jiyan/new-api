@@ -389,24 +389,38 @@ func TokenAuth() func(c *gin.Context) {
 			}
 		}
 		key := c.Request.Header.Get("Authorization")
+		credential := ""
 		parts := make([]string, 0)
 		if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
 			key = strings.TrimSpace(key[7:])
+			credential = key
 		}
 		if key == "" || key == "midjourney-proxy" {
 			key = c.Request.Header.Get("mj-api-secret")
 			if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
 				key = strings.TrimSpace(key[7:])
 			}
+			credential = key
 			key = strings.TrimPrefix(key, "sk-")
 			parts = strings.Split(key, "-")
 			key = parts[0]
 		} else {
+			credential = key
 			key = strings.TrimPrefix(key, "sk-")
 			parts = strings.Split(key, "-")
 			key = parts[0]
 		}
 		token, err := model.ValidateUserToken(key)
+		if err != nil && credential != "" {
+			if cardToken, cardErr := model.FindGachaCardToken(credential); cardErr == nil {
+				if err = setupGachaCardTokenContext(c, cardToken); err != nil {
+					abortWithOpenAiMessage(c, http.StatusForbidden, err.Error())
+					return
+				}
+				c.Next()
+				return
+			}
+		}
 		if token != nil {
 			id := c.GetInt("id")
 			if id == 0 {
@@ -481,6 +495,37 @@ func TokenAuth() func(c *gin.Context) {
 		}
 		c.Next()
 	}
+}
+
+func setupGachaCardTokenContext(c *gin.Context, token *model.GachaCardToken) error {
+	if token == nil || token.Status != 0 {
+		return errors.New("gacha card token is not usable")
+	}
+	card, err := model.GetGachaCardByUser(token.CardId, token.UserId)
+	if err != nil {
+		return errors.New("gacha card not found")
+	}
+	if card.Status != 0 || (card.ExpiredTime > 0 && card.ExpiredTime < common.GetTimestamp()) || card.RemainQuota <= 0 {
+		return errors.New("gacha card is not usable")
+	}
+	user, err := model.GetUserCache(token.UserId)
+	if err != nil {
+		return err
+	}
+	if user.Status != common.UserStatusEnabled {
+		return errors.New("user is disabled")
+	}
+	c.Set("id", token.UserId)
+	c.Set("token_id", 0)
+	c.Set("gacha_card_id", card.Id)
+	c.Set("gacha_card_token", true)
+	user.WriteContext(c)
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, card.Group)
+	common.SetContextKey(c, constant.ContextKeyTokenGroup, card.Group)
+	common.SetContextKey(c, constant.ContextKeyTokenCrossGroupRetry, false)
+	common.SetContextKey(c, constant.ContextKeyTokenModelLimitEnabled, true)
+	common.SetContextKey(c, constant.ContextKeyTokenModelLimit, map[string]bool{card.ModelName: true})
+	return nil
 }
 
 func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) error {

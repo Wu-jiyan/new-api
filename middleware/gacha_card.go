@@ -15,6 +15,17 @@ import (
 func GachaCardMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := strings.TrimSpace(c.GetHeader("New-Api-Card"))
+		if c.GetBool("gacha_card_token") {
+			if header != "" {
+				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": gin.H{
+					"message": "New-Api-Card cannot be used with a gacha card token",
+					"type":    "invalid_request_error",
+				}})
+				return
+			}
+			c.Next()
+			return
+		}
 		if header == "" {
 			c.Next()
 			return

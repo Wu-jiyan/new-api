@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Layers, PackageOpen } from 'lucide-react'
+import { Copy, KeyRound, Layers, PackageOpen, RotateCcw, ShieldOff } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { fetchGachaCards } from '@/features/gacha/api'
+import { fetchGachaCards, resetGachaCardToken, revokeGachaCardToken } from '@/features/gacha/api'
 import { QQLevel, RARITY_CARD_CLASS, RARITY_TEXT_CLASS, rarityName } from '@/features/gacha/level'
 import { formatQuotaWithCurrency } from '@/lib/currency'
 
@@ -25,6 +26,45 @@ function StatusBadge({ status }: { status: number }) {
 
 function CardView({ card, rating }: { card: UserGachaCard; rating?: string }) {
   const rarity = rarityName(rating)
+  const [token, setToken] = useState<string | null>(null)
+  const [tokenExists, setTokenExists] = useState(card.token_exists ?? false)
+  const [busy, setBusy] = useState(false)
+
+  async function copy(value: string) {
+    try {
+      await navigator.clipboard.writeText(value)
+      toast.success('令牌已复制')
+    } catch {
+      toast.error('复制失败，请手动复制')
+    }
+  }
+
+  async function reset() {
+    setBusy(true)
+    try {
+      const value = await resetGachaCardToken(card.id)
+      setToken(value)
+      toast.success('已生成新令牌，请立即复制保存')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '生成令牌失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function revoke() {
+    setBusy(true)
+    try {
+      await revokeGachaCardToken(card.id)
+      setToken(null)
+      setTokenExists(false)
+      toast.success('令牌已撤销')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '撤销令牌失败')
+    } finally {
+      setBusy(false)
+    }
+  }
   return (
     <Card
       className={`relative flex flex-col gap-3 overflow-hidden border-2 p-4 shadow-lg shadow-primary/5 ${RARITY_CARD_CLASS[rarity] ?? 'border-border/70 bg-card/80'}`}
@@ -61,12 +101,27 @@ function CardView({ card, rating }: { card: UserGachaCard; rating?: string }) {
             : new Date(card.expired_time * 1000).toLocaleDateString()}
         </span>
       </div>
-      <p className='mt-auto rounded-lg bg-muted/60 p-2 text-[11px] leading-relaxed text-muted-foreground'>
-        调用时携带请求头：
-        <code className='mt-1 block break-all rounded bg-background px-1.5 py-0.5 font-mono'>
-          New-Api-Card: {card.id}
-        </code>
-      </p>
+      <div className='mt-auto space-y-2 rounded-lg bg-muted/60 p-2 text-[11px] leading-relaxed text-muted-foreground'>
+        <div className='flex items-center justify-between gap-2'>
+          <span className='flex items-center gap-1'><KeyRound className='size-3' /> 专属 API 令牌</span>
+          {tokenExists && <span className='text-green-600'>已启用</span>}
+        </div>
+        {token ? (
+          <div className='space-y-1'>
+            <code className='block break-all rounded bg-background px-1.5 py-1 font-mono text-foreground'>{token}</code>
+            <p>请立即复制保存，关闭或刷新页面后无法再次查看。</p>
+            <Button size='sm' className='h-7 w-full' onClick={() => void copy(token)}><Copy className='size-3' />复制令牌</Button>
+          </div>
+        ) : (
+          <>
+            <code className='block rounded bg-background px-1.5 py-0.5 font-mono'>{card.token_masked ?? '尚未生成'}</code>
+            <div className='flex gap-2'>
+              <Button size='sm' className='h-7 flex-1' disabled={busy} onClick={() => void reset()}><RotateCcw className='size-3' />{tokenExists ? '重置' : '生成令牌'}</Button>
+              {tokenExists && <Button size='sm' variant='outline' className='h-7' disabled={busy} onClick={() => void revoke()}><ShieldOff className='size-3' />撤销</Button>}
+            </div>
+          </>
+        )}
+      </div>
     </Card>
   )
 }

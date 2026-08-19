@@ -28,7 +28,7 @@ func TestEntryDrawQuota(t *testing.T) {
 }
 
 func TestPullGachaCardsMerge(t *testing.T) {
-	require.NoError(t, DB.AutoMigrate(&GachaPool{}, &GachaCardEntry{}, &UserGachaCard{}, &GachaPullRecord{}, &Model{}, &User{}))
+	require.NoError(t, DB.AutoMigrate(&GachaPool{}, &GachaCardEntry{}, &UserGachaCard{}, &GachaCardToken{}, &GachaPullRecord{}, &Model{}, &User{}))
 
 	require.NoError(t, DB.Create(&Model{ModelName: "merge-model", Status: 1, Rating: "SR"}).Error)
 	t.Cleanup(func() { DB.Unscoped().Where("model_name = ?", "merge-model").Delete(&Model{}) })
@@ -48,6 +48,7 @@ func TestPullGachaCardsMerge(t *testing.T) {
 	t.Cleanup(func() {
 		DB.Unscoped().Delete(&user)
 		DB.Where("user_id = ?", user.Id).Delete(&UserGachaCard{})
+		DB.Where("user_id = ?", user.Id).Delete(&GachaCardToken{})
 		DB.Where("user_id = ?", user.Id).Delete(&GachaPullRecord{})
 		DB.Where("user_id = ?", user.Id).Delete(&Log{})
 	})
@@ -56,11 +57,21 @@ func TestPullGachaCardsMerge(t *testing.T) {
 	res1, err := PullGachaCards(user.Id, &pool, entries, 1, 100, "merge-pull-1")
 	require.NoError(t, err)
 	require.Equal(t, 1, res1.Cards[0].MergeCount)
+	require.NotEmpty(t, res1.Cards[0].CardToken)
+	require.True(t, res1.Cards[0].CardTokenCreated)
+	issuedToken := res1.Cards[0].CardToken
+	var record GachaPullRecord
+	require.NoError(t, DB.Where("pull_id = ?", "merge-pull-1").First(&record).Error)
+	require.NotContains(t, record.Cards, issuedToken)
 
 	res2, err := PullGachaCards(user.Id, &pool, entries, 1, 100, "merge-pull-2")
 	require.NoError(t, err)
 	require.Equal(t, 2, res2.Cards[0].MergeCount)
 	require.Equal(t, res1.Cards[0].CardId, res2.Cards[0].CardId, "重复卡应合并到同一张")
+	require.Empty(t, res2.Cards[0].CardToken)
+	require.False(t, res2.Cards[0].CardTokenCreated)
+	_, err = FindGachaCardToken(issuedToken)
+	require.NoError(t, err)
 
 	var cards []UserGachaCard
 	require.NoError(t, DB.Where("user_id = ?", user.Id).Find(&cards).Error)
@@ -97,8 +108,8 @@ func TestGenerateGachaEntriesPreview(t *testing.T) {
 	})
 
 	req := &GenerateGachaEntryReq{
-		Group:     "default",
-		Models:    []string{"g-model-sr", "g-model-ur"},
+		Group:      "default",
+		Models:     []string{"g-model-sr", "g-model-ur"},
 		ExpireDays: 30,
 	}
 	preview, err := GenerateGachaEntries(pool.Id, req, false)

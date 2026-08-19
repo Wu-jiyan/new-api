@@ -295,6 +295,7 @@ func migrateDB() error {
 		&GachaPool{},
 		&GachaCardEntry{},
 		&UserGachaCard{},
+		&GachaCardToken{},
 		&GachaPullRecord{},
 		&GachaCardRefund{},
 	)
@@ -358,6 +359,7 @@ func migrateDBFast() error {
 		{&SystemInstance{}, "SystemInstance"},
 		{&SystemTask{}, "SystemTask"},
 		{&SystemTaskLock{}, "SystemTaskLock"},
+		{&GachaCardToken{}, "GachaCardToken"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))

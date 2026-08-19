@@ -36,6 +36,8 @@ export interface PullCardResult {
   expire_days: number
   expired_at: number
   merge_count?: number
+  card_token?: string
+  card_token_created?: boolean
 }
 
 export interface PullResponse {
@@ -56,6 +58,9 @@ export interface UserGachaCard {
   merge_count?: number
   expired_time: number
   created_time: number
+  token_masked?: string
+  token_status?: number
+  token_exists?: boolean
 }
 
 export interface GachaStats {
