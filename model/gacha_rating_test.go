@@ -52,15 +52,35 @@ func TestMatchDeepSweScoreNormalized(t *testing.T) {
 	if s, ok := matchDeepSweScore("gpt-5.6-sol", scores); !ok || s != 73 {
 		t.Fatalf("normalized match gpt-5.6-sol = %v/%v, want 73/true", s, ok)
 	}
-	// 带版本后缀的模型不应前缀匹配基础版分数
-	if _, ok := matchDeepSweScore("claude-opus-5-max", scores); ok {
-		t.Fatal("suffixed model should not prefix-match base model")
-	}
-	if _, ok := matchDeepSweScore("deepseek-v4-flash-0731", map[string]float64{"deepseek-v4-flash": 53}); ok {
-		t.Fatal("versioned model should not match base model score")
-	}
 	if _, ok := matchDeepSweScore("unknown-model", scores); ok {
 		t.Fatal("unknown model should not match")
+	}
+}
+
+func TestMatchDeepSweScorePreferLongestPrefix(t *testing.T) {
+	// 榜单同时存在基础版与版本号：版本模型优先匹配自己（更长）的行，而非基础版
+	scores := map[string]float64{
+		"deepseek-v4-flash":      53,
+		"deepseek-v4-flash-0731": 78,
+	}
+	if s, ok := matchDeepSweScore("deepseek-v4-flash-0731", scores); !ok || s != 78 {
+		t.Fatalf("versioned model should prefer its own score, got %v/%v, want 78/true", s, ok)
+	}
+	if s, ok := matchDeepSweScore("deepseek-v4-flash", scores); !ok || s != 53 {
+		t.Fatalf("base model = %v/%v, want 53/true", s, ok)
+	}
+	// 即使版本行分数更低，也应使用版本行（更长 = 更具体），而不是分数更高的基础行
+	lower := map[string]float64{
+		"deepseek-v4-flash":      53,
+		"deepseek-v4-flash-0731": 40,
+	}
+	if s, ok := matchDeepSweScore("deepseek-v4-flash-0731", lower); !ok || s != 40 {
+		t.Fatalf("versioned model should pick longest prefix regardless of score, got %v/%v, want 40/true", s, ok)
+	}
+	// 榜单只有基础版时，版本模型继承基础版分数（保证同步不再为 0）
+	baseOnly := map[string]float64{"deepseek-v4-flash": 53}
+	if s, ok := matchDeepSweScore("deepseek-v4-flash-0731", baseOnly); !ok || s != 53 {
+		t.Fatalf("versioned model should inherit base score, got %v/%v, want 53/true", s, ok)
 	}
 }
 

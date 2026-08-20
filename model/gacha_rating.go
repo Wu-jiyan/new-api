@@ -133,6 +133,11 @@ func ApplyDeepSweScores(scores map[string]float64) (int, error) {
 	return updated, nil
 }
 
+// matchDeepSweScore 按模型名匹配榜单分数：
+//  1. 精确 / 归一化（. _ -> -，小写）精确匹配优先；
+//  2. 否则做最长前缀匹配：榜单名是系统模型名的真前缀时，优先选择名字更长（更具体）的条目，
+//     同长度时取分数更高者。这样带版本后缀的模型（如 deepseek-v4-flash-0731）在有独立行时
+//     使用自己的分数；榜单只有基础版时才继承基础版分数。
 func matchDeepSweScore(modelName string, scores map[string]float64) (float64, bool) {
 	if s, ok := scores[modelName]; ok {
 		return s, true
@@ -149,7 +154,26 @@ func matchDeepSweScore(modelName string, scores map[string]float64) (float64, bo
 	if s, ok := normScores[normModel]; ok {
 		return s, true
 	}
-	return 0, false
+	best := 0.0
+	bestLen := -1
+	found := false
+	for name, s := range normScores {
+		if name == "" || len(name) >= len(normModel) {
+			continue
+		}
+		if normModel[:len(name)] != name {
+			continue
+		}
+		if len(name) > bestLen || (len(name) == bestLen && s > best) {
+			bestLen = len(name)
+			best = s
+			found = true
+		}
+	}
+	if !found {
+		return 0, false
+	}
+	return best, true
 }
 
 // normalizeDeepSweName 将模型名归一化用于跨命名约定匹配：小写、. _ 统一为 -。
