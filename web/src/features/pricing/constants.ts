@@ -29,6 +29,7 @@ export const SORT_OPTIONS = {
   NAME: 'name',
   PRICE_LOW: 'price-low',
   PRICE_HIGH: 'price-high',
+  SCORE_HIGH: 'score-high',
 } as const
 
 export type SortOption = (typeof SORT_OPTIONS)[keyof typeof SORT_OPTIONS]
@@ -38,8 +39,14 @@ export function getSortLabels(t: TFunction): Record<SortOption, string> {
     [SORT_OPTIONS.NAME]: t('Name'),
     [SORT_OPTIONS.PRICE_LOW]: t('Price: Low to High'),
     [SORT_OPTIONS.PRICE_HIGH]: t('Price: High to Low'),
+    [SORT_OPTIONS.SCORE_HIGH]: t('DeepSWE Score: High to Low'),
   }
 }
+
+/** Rarity tiers from DeepSWE rating */
+export const RATING_TIERS = ['N', 'R', 'SR', 'SSR', 'UR'] as const
+
+export type RatingTier = (typeof RATING_TIERS)[number]
 
 /** Filter values */
 export const FILTER_ALL = 'all'

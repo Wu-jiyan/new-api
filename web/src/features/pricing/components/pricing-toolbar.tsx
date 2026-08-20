@@ -79,11 +79,13 @@ export interface PricingToolbarProps {
   vendorFilter: string
   groupFilter: string
   tagFilter: string
+  ratingFilter: string
   onQuotaTypeChange: (value: string) => void
   onEndpointTypeChange: (value: string) => void
   onVendorChange: (value: string) => void
   onGroupChange: (value: string) => void
   onTagChange: (value: string) => void
+  onRatingChange: (value: string) => void
   vendors: PricingVendor[]
   groups: string[]
   groupRatios?: Record<string, number>
@@ -291,11 +293,13 @@ export function PricingToolbar(props: PricingToolbarProps) {
               vendorFilter={props.vendorFilter}
               groupFilter={props.groupFilter}
               tagFilter={props.tagFilter}
+              ratingFilter={props.ratingFilter}
               onQuotaTypeChange={props.onQuotaTypeChange}
               onEndpointTypeChange={props.onEndpointTypeChange}
               onVendorChange={props.onVendorChange}
               onGroupChange={props.onGroupChange}
               onTagChange={props.onTagChange}
+              onRatingChange={props.onRatingChange}
               vendors={props.vendors}
               groups={props.groups}
               groupRatios={props.groupRatios}

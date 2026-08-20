@@ -34,6 +34,7 @@ import {
   ENDPOINT_TYPES,
   FILTER_ALL,
   QUOTA_TYPES,
+  RATING_TIERS,
   getEndpointTypeLabels,
   getQuotaTypeLabels,
 } from '../constants'
@@ -61,11 +62,13 @@ export interface PricingSidebarProps {
   vendorFilter: string
   groupFilter: string
   tagFilter: string
+  ratingFilter: string
   onQuotaTypeChange: (value: string) => void
   onEndpointTypeChange: (value: string) => void
   onVendorChange: (value: string) => void
   onGroupChange: (value: string) => void
   onTagChange: (value: string) => void
+  onRatingChange: (value: string) => void
   vendors: PricingVendor[]
   groups: string[]
   groupRatios?: Record<string, number>
@@ -245,6 +248,23 @@ export function PricingSidebar(props: PricingSidebarProps) {
       })),
   ]
 
+  const ratingOptions: FilterOption[] = [
+    {
+      value: FILTER_ALL,
+      label: t('All Ratings'),
+      count: props.models.length,
+    },
+    ...RATING_TIERS.map((tier) => ({
+      value: tier,
+      label: tier,
+      count: countBy(props.models, (model) => model.rating === tier),
+    })),
+  ]
+
+  const hasAnyRating = ratingOptions.some(
+    (option) => option.value !== FILTER_ALL && (option.count ?? 0) > 0
+  )
+
   return (
     <aside className={cn('rounded-xl border p-3', props.className)}>
       <div className='mb-2.5 flex items-center justify-between gap-2'>
@@ -304,6 +324,14 @@ export function PricingSidebar(props: PricingSidebarProps) {
           options={endpointOptions}
           onChange={props.onEndpointTypeChange}
         />
+        {hasAnyRating && (
+          <FilterSection
+            title={t('Rarity')}
+            value={props.ratingFilter}
+            options={ratingOptions}
+            onChange={props.onRatingChange}
+          />
+        )}
       </div>
     </aside>
   )

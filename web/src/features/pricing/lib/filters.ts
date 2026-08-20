@@ -99,6 +99,17 @@ export function filterByEndpointType(
 }
 
 /**
+ * Filter models by rating tier (N / R / SR / SSR / UR)
+ */
+export function filterByRating(
+  models: PricingModel[],
+  rating: string
+): PricingModel[] {
+  if (rating === FILTER_ALL) return models
+  return models.filter((m) => m.rating === rating)
+}
+
+/**
  * Get model price for sorting
  */
 function getModelPrice(model: PricingModel): number {
@@ -126,6 +137,15 @@ export function sortModels(
     case SORT_OPTIONS.PRICE_HIGH:
       sorted.sort((a, b) => getModelPrice(b) - getModelPrice(a))
       break
+    case SORT_OPTIONS.SCORE_HIGH:
+      // DeepSWE 分数从高到低，未评级模型排在最后
+      sorted.sort((a, b) => {
+        const hasA = a.rating_score != null && a.rating_score > 0
+        const hasB = b.rating_score != null && b.rating_score > 0
+        if (hasA !== hasB) return hasA ? -1 : 1
+        return (b.rating_score ?? 0) - (a.rating_score ?? 0)
+      })
+      break
   }
 
   return sorted
@@ -143,6 +163,7 @@ export function filterAndSortModels(
     quotaType: string
     endpointType: string
     tag: string
+    rating: string
     sortBy: string
   }
 ): PricingModel[] {
@@ -152,6 +173,7 @@ export function filterAndSortModels(
   result = filterByQuotaType(result, filters.quotaType)
   result = filterByEndpointType(result, filters.endpointType)
   result = filterByTag(result, filters.tag)
+  result = filterByRating(result, filters.rating)
   result = sortModels(result, filters.sortBy)
 
   return result
