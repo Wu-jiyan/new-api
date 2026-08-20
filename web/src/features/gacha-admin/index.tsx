@@ -736,6 +736,89 @@ function PoolsTab() {
   )
 }
 
+function RatingRow({
+  item,
+  onSave,
+}: {
+  item: ModelRatingItem
+  onSave: (id: number, rating: string, score: number) => Promise<void>
+}) {
+  const [rating, setRatingState] = useState(item.rating ?? '')
+  const [score, setScore] = useState(item.rating_score ?? 0)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setRatingState(item.rating ?? '')
+    setScore(item.rating_score ?? 0)
+  }, [item.id, item.rating, item.rating_score])
+
+  async function save() {
+    setSaving(true)
+    try {
+      await onSave(item.id, rating, score)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '保存失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className='flex items-center justify-between rounded-lg border px-3 py-2 text-sm'>
+      <div className='flex min-w-0 items-center gap-2'>
+        <span className='truncate font-mono'>{item.model_name}</span>
+        <RatingBadge rating={rating} />
+        {item.rating_source === 'manual' && <Badge variant='secondary'>手动</Badge>}
+      </div>
+      <div className='flex shrink-0 items-center gap-2'>
+        <Select value={rating} onValueChange={(v) => setRatingState(v ?? '')}>
+          <SelectTrigger className='h-7 w-24'>
+            <SelectValue placeholder='未分级' />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value=''>未分级</SelectItem>
+            {RARITIES.map((r) => (
+              <SelectItem key={r} value={r}>
+                {r}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className='relative'>
+          <Input
+            className='h-7 w-20 pr-7 text-right'
+            type='number'
+            step='0.1'
+            min='0'
+            max='100'
+            value={score || ''}
+            placeholder='分数'
+            onChange={(e) => setScore(Number(e.target.value))}
+          />
+          <span className='absolute top-1/2 right-2 -translate-y-1/2 text-[10px] text-muted-foreground'>%</span>
+        </div>
+        <Button size='sm' variant='outline' className='h-7' disabled={saving} onClick={() => void save()}>
+          保存
+        </Button>
+        {item.rating && (
+          <Button
+            size='sm'
+            variant='ghost'
+            className='h-7 px-2 text-muted-foreground hover:text-destructive'
+            onClick={() => {
+              setRatingState('')
+              setScore(0)
+              void onSave(item.id, '', 0)
+            }}
+          >
+            <Trash2 className='size-3.5' /> 重置为空
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function RatingsTab() {
   const [models, setModels] = useState<ModelRatingItem[]>([])
   const [keyword, setKeyword] = useState('')
@@ -771,13 +854,14 @@ function RatingsTab() {
     void load()
   }, [keyword, page])
 
-  async function changeRating(item: ModelRatingItem, rating: string) {
+  async function changeRating(id: number, rating: string, score: number) {
     try {
-      await setRating(item.id, rating, rating === '' ? 0 : (item.rating_score ?? 0))
-      toast.success(rating === '' ? '已重置为空' : '已更新')
+      await setRating(id, rating, score)
+      toast.success(rating === '' && score <= 0 ? '已重置为空' : '已保存')
       void load()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '更新失败')
+      throw error
     }
   }
 
@@ -901,43 +985,7 @@ function RatingsTab() {
           <span>手动设置会被固定，自动同步跳过；重置为空后可重新同步</span>
         </div>
         {models.map((item) => (
-          <div key={item.id} className='flex items-center justify-between rounded-lg border px-3 py-2 text-sm'>
-            <div className='flex min-w-0 items-center gap-2'>
-              <span className='truncate font-mono'>{item.model_name}</span>
-              <RatingBadge rating={item.rating} />
-              {item.rating_source === 'manual' && (
-                <Badge variant='secondary'>手动</Badge>
-              )}
-            </div>
-            <div className='flex shrink-0 items-center gap-2'>
-              {item.rating_score != null && item.rating_score > 0 && (
-                <span className='text-xs text-muted-foreground'>{item.rating_score.toFixed(1)}%</span>
-              )}
-              <Select value={item.rating ?? ''} onValueChange={(v) => void changeRating(item, v ?? '')}>
-                <SelectTrigger className='h-7 w-24'>
-                  <SelectValue placeholder='未分级' />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value=''>未分级</SelectItem>
-                  {RARITIES.map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {r}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {item.rating && (
-                <Button
-                  size='sm'
-                  variant='ghost'
-                  className='h-7 px-2 text-muted-foreground hover:text-destructive'
-                  onClick={() => void changeRating(item, '')}
-                >
-                  <Trash2 className='size-3.5' /> 重置为空
-                </Button>
-              )}
-            </div>
-          </div>
+          <RatingRow key={item.id} item={item} onSave={changeRating} />
         ))}
         {models.length === 0 && <p className='py-10 text-center text-sm text-muted-foreground'>暂无模型</p>}
         {total > PAGE_SIZE && (

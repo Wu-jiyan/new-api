@@ -51,8 +51,8 @@ func AdminListGachaRatings(c *gin.Context) {
 }
 
 // AdminSetGachaRating 手动设置模型分级。
-// rating 非空：覆盖后 source=manual，同步任务跳过。
-// rating 为空：清空分级（rating/score/source），后续可被 DeepSWE 同步重新覆盖。
+// rating 非空：覆盖后 source=manual，同步任务跳过；仅填分数时按阈值自动映射档位。
+// rating 为空且 score<=0：清空分级（rating/score/source），后续可被 DeepSWE 同步重新覆盖。
 func AdminSetGachaRating(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -71,13 +71,17 @@ func AdminSetGachaRating(c *gin.Context) {
 		c.JSON(200, gin.H{"success": false, "message": "rating must be N/R/SR/SSR/UR or empty"})
 		return
 	}
-	if req.Rating == "" {
+	rating := req.Rating
+	if rating == "" && req.RatingScore > 0 {
+		rating = model.MapScoreToRating(req.RatingScore)
+	}
+	if rating == "" {
 		if _, err := model.ResetGachaRatings([]int{id}); err != nil {
 			c.JSON(200, gin.H{"success": false, "message": err.Error()})
 			return
 		}
 	} else {
-		if err := model.UpdateModelRating(id, req.Rating, req.RatingScore, "manual"); err != nil {
+		if err := model.UpdateModelRating(id, rating, req.RatingScore, "manual"); err != nil {
 			c.JSON(200, gin.H{"success": false, "message": err.Error()})
 			return
 		}
