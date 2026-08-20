@@ -50,7 +50,9 @@ func AdminListGachaRatings(c *gin.Context) {
 	})
 }
 
-// AdminSetGachaRating 手动设置模型分级（覆盖后 source=manual，同步任务跳过）。
+// AdminSetGachaRating 手动设置模型分级。
+// rating 非空：覆盖后 source=manual，同步任务跳过。
+// rating 为空：清空分级（rating/score/source），后续可被 DeepSWE 同步重新覆盖。
 func AdminSetGachaRating(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -69,23 +71,52 @@ func AdminSetGachaRating(c *gin.Context) {
 		c.JSON(200, gin.H{"success": false, "message": "rating must be N/R/SR/SSR/UR or empty"})
 		return
 	}
-	if err := model.UpdateModelRating(id, req.Rating, req.RatingScore, "manual"); err != nil {
-		c.JSON(200, gin.H{"success": false, "message": err.Error()})
-		return
+	if req.Rating == "" {
+		if _, err := model.ResetGachaRatings([]int{id}); err != nil {
+			c.JSON(200, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+	} else {
+		if err := model.UpdateModelRating(id, req.Rating, req.RatingScore, "manual"); err != nil {
+			c.JSON(200, gin.H{"success": false, "message": err.Error()})
+			return
+		}
 	}
 	model.RefreshPricing()
 	c.JSON(200, gin.H{"success": true})
 }
 
-// AdminSyncGachaRatings 手动触发 DeepSWE 同步。
-func AdminSyncGachaRatings(c *gin.Context) {
-	n, err := service.SyncDeepSweRatingsNow()
+// AdminBatchResetGachaRatings 批量清空模型分级。
+func AdminBatchResetGachaRatings(c *gin.Context) {
+	var req struct {
+		Ids []int `json:"ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(200, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	n, err := model.ResetGachaRatings(req.Ids)
 	if err != nil {
 		c.JSON(200, gin.H{"success": false, "message": err.Error()})
 		return
 	}
 	model.RefreshPricing()
-	c.JSON(200, gin.H{"success": true, "message": "同步完成，更新 " + strconv.Itoa(n) + " 个模型"})
+	c.JSON(200, gin.H{"success": true, "data": n})
+}
+
+// AdminSyncGachaRatings 手动触发 DeepSWE 同步，返回同步详情。
+func AdminSyncGachaRatings(c *gin.Context) {
+	res, err := service.SyncDeepSweRatingsNow()
+	if err != nil {
+		c.JSON(200, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	model.RefreshPricing()
+	c.JSON(200, gin.H{
+		"success": true,
+		"data":    res,
+		"message": "同步完成，更新 " + strconv.Itoa(res.Updated) + " 个模型",
+	})
 }
 
 // AdminUpdateGachaRatingThresholds 更新档位阈值。

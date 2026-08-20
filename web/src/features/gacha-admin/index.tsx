@@ -23,6 +23,7 @@ import { formatQuotaWithCurrency } from '@/lib/currency'
 
 import {
   createPool,
+  batchResetRatings,
   deleteEntry,
   deletePool,
   fetchEconomics,
@@ -35,6 +36,7 @@ import {
   updatePool,
   updateThresholds,
   upsertEntry,
+  type GachaRatingSyncResult,
 } from './api'
 import type {
   GachaCardEntry,
@@ -740,6 +742,11 @@ function RatingsTab() {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [thresholds, setThresholds] = useState<RatingThresholds>({ ur: 65, ssr: 55, sr: 45, r: 30 })
+  const [lastSyncAt, setLastSyncAt] = useState(0)
+  const [lastSyncNum, setLastSyncNum] = useState(0)
+  const [syncResult, setSyncResult] = useState<GachaRatingSyncResult | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [resetting, setResetting] = useState(false)
   const PAGE_SIZE = 20
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -749,6 +756,8 @@ function RatingsTab() {
       setModels(res.data)
       setTotal(res.total)
       setThresholds(res.thresholds)
+      setLastSyncAt(res.lastSyncAt)
+      setLastSyncNum(res.lastSyncNum)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '加载失败')
     }
@@ -764,21 +773,41 @@ function RatingsTab() {
 
   async function changeRating(item: ModelRatingItem, rating: string) {
     try {
-      await setRating(item.id, rating, item.rating_score ?? 0)
-      toast.success('已更新')
+      await setRating(item.id, rating, rating === '' ? 0 : (item.rating_score ?? 0))
+      toast.success(rating === '' ? '已重置为空' : '已更新')
       void load()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '更新失败')
     }
   }
 
-  async function doSync() {
+  async function resetCurrentPage() {
+    if (models.length === 0) return
+    setResetting(true)
     try {
-      await syncRatings()
-      toast.success('同步完成')
+      const n = await batchResetRatings(models.map((m) => m.id))
+      toast.success(`已清空 ${n} 个模型的分级`)
+      void load()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '清空失败')
+    } finally {
+      setResetting(false)
+    }
+  }
+
+  async function doSync() {
+    setSyncing(true)
+    try {
+      const res = await syncRatings()
+      setSyncResult(res)
+      setLastSyncAt(Math.floor(Date.now() / 1000))
+      setLastSyncNum(res.updated)
+      toast.success(`同步完成，更新 ${res.updated} 个模型`)
       void load()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '同步失败')
+    } finally {
+      setSyncing(false)
     }
   }
 
@@ -791,6 +820,8 @@ function RatingsTab() {
     }
   }
 
+  const ratedCount = models.filter((m) => m.rating).length
+
   return (
     <div className='space-y-4'>
       <div className='flex flex-wrap items-center justify-between gap-3'>
@@ -800,12 +831,17 @@ function RatingsTab() {
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
         />
-        <Button size='sm' variant='outline' onClick={() => void doSync()}>
-          <RefreshCw className='mr-1.5 size-4' /> 同步 DeepSWE
-        </Button>
+        <div className='flex items-center gap-2'>
+          <Button size='sm' variant='outline' disabled={models.length === 0 || resetting} onClick={() => void resetCurrentPage()}>
+            <Trash2 className='mr-1.5 size-4' /> 清空当前页分级
+          </Button>
+          <Button size='sm' variant='outline' disabled={syncing} onClick={() => void doSync()}>
+            <RefreshCw className={`mr-1.5 size-4 ${syncing ? 'animate-spin' : ''}`} /> 同步 DeepSWE
+          </Button>
+        </div>
       </div>
       <Card className='p-4'>
-        <div className='flex flex-wrap items-center gap-2 text-xs'>
+        <div className='flex flex-wrap items-center gap-x-4 gap-y-2 text-xs'>
           <span className='font-semibold'>档位阈值：</span>
           {(['ur', 'ssr', 'sr', 'r'] as const).map((key) => (
             <label key={key} className='flex items-center gap-1'>
@@ -821,9 +857,49 @@ function RatingsTab() {
           <Button size='sm' variant='outline' onClick={() => void saveThresholds()}>
             保存阈值
           </Button>
+          <span className='ml-auto text-muted-foreground'>
+            {lastSyncAt > 0 ? (
+              <>
+                上次同步：{new Date(lastSyncAt * 1000).toLocaleString()} · 更新 {lastSyncNum} 个
+              </>
+            ) : (
+              '尚未同步'
+            )}
+          </span>
         </div>
       </Card>
+      {syncResult && (
+        <Card className='border-primary/30 bg-primary/5 p-4'>
+          <div className='flex items-center justify-between gap-2 text-sm'>
+            <span className='font-semibold'>同步结果</span>
+            <Button size='sm' variant='ghost' className='h-6 px-2' onClick={() => setSyncResult(null)}>
+              关闭
+            </Button>
+          </div>
+          <div className='mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground'>
+            <span className='text-green-600'>更新 {syncResult.updated}</span>
+            <span>无变化 {syncResult.unchanged}</span>
+            <span>未匹配 {syncResult.unmatched}</span>
+            <span>手动跳过 {syncResult.skipped_manual}</span>
+          </div>
+          {syncResult.updated_models.length > 0 && (
+            <div className='mt-2 max-h-32 space-y-1 overflow-y-auto'>
+              {syncResult.updated_models.map((m) => (
+                <div key={m.model_name} className='flex items-center gap-2 text-xs'>
+                  <span className='min-w-0 flex-1 truncate font-mono'>{m.model_name}</span>
+                  <RatingBadge rating={m.rating} />
+                  <span className='shrink-0 text-muted-foreground'>{m.rating_score.toFixed(1)}%</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
       <div className='space-y-1.5'>
+        <div className='flex items-center justify-between px-1 text-xs text-muted-foreground'>
+          <span>共 {total} 个模型 · 当前页已分级 {ratedCount}</span>
+          <span>手动设置会被固定，自动同步跳过；重置为空后可重新同步</span>
+        </div>
         {models.map((item) => (
           <div key={item.id} className='flex items-center justify-between rounded-lg border px-3 py-2 text-sm'>
             <div className='flex min-w-0 items-center gap-2'>
@@ -833,7 +909,7 @@ function RatingsTab() {
                 <Badge variant='secondary'>手动</Badge>
               )}
             </div>
-            <div className='flex shrink-0 items-center gap-3'>
+            <div className='flex shrink-0 items-center gap-2'>
               {item.rating_score != null && item.rating_score > 0 && (
                 <span className='text-xs text-muted-foreground'>{item.rating_score.toFixed(1)}%</span>
               )}
@@ -850,6 +926,16 @@ function RatingsTab() {
                   ))}
                 </SelectContent>
               </Select>
+              {item.rating && (
+                <Button
+                  size='sm'
+                  variant='ghost'
+                  className='h-7 px-2 text-muted-foreground hover:text-destructive'
+                  onClick={() => void changeRating(item, '')}
+                >
+                  <Trash2 className='size-3.5' /> 重置为空
+                </Button>
+              )}
             </div>
           </div>
         ))}

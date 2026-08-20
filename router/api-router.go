@@ -196,6 +196,7 @@ func SetApiRouter(router *gin.Engine) {
 			gachaAdminRoute.GET("/ratings", controller.AdminListGachaRatings)
 			gachaAdminRoute.POST("/sync-rating", controller.AdminSyncGachaRatings)
 			gachaAdminRoute.PUT("/ratings/:id", controller.AdminSetGachaRating)
+			gachaAdminRoute.POST("/ratings/reset", controller.AdminBatchResetGachaRatings)
 			gachaAdminRoute.PUT("/settings", controller.AdminUpdateGachaRatingThresholds)
 			gachaAdminRoute.GET("/pools", controller.AdminListGachaPools)
 			gachaAdminRoute.POST("/pools", controller.AdminCreateGachaPool)

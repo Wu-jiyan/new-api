@@ -99,25 +99,54 @@ func FetchDeepSweLeaderboard() (map[string]float64, error) {
 	return ParseDeepSweLeaderboard(body)
 }
 
+// GachaRatingSyncItem 同步结果中的单模型明细。
+type GachaRatingSyncItem struct {
+	ModelName string  `json:"model_name"`
+	Rating    string  `json:"rating"`
+	Score     float64 `json:"rating_score"`
+}
+
+// GachaRatingSyncResult DeepSWE 同步结果统计。
+type GachaRatingSyncResult struct {
+	Updated       int                   `json:"updated"`
+	Unchanged     int                   `json:"unchanged"`
+	SkippedManual int                   `json:"skipped_manual"`
+	Unmatched     int                   `json:"unmatched"`
+	UpdatedModels []GachaRatingSyncItem `json:"updated_models"`
+}
+
 // ApplyDeepSweScores 将 DeepSWE 分数写入模型分级。
 // 仅覆盖 RatingSource 为空或 "deepswe" 的模型；"manual" 不覆盖。
 // 返回更新行数。
 func ApplyDeepSweScores(scores map[string]float64) (int, error) {
-	var models []*Model
-	if err := DB.Where("deleted_at IS NULL").Find(&models).Error; err != nil {
+	res, err := ApplyDeepSweScoresDetailed(scores)
+	if err != nil {
 		return 0, err
 	}
-	updated := 0
+	return res.Updated, nil
+}
+
+// ApplyDeepSweScoresDetailed 同 ApplyDeepSweScores，额外返回同步详情
+// （更新/无变化/手动跳过/未匹配数量及更新明细），供管理端展示。
+func ApplyDeepSweScoresDetailed(scores map[string]float64) (*GachaRatingSyncResult, error) {
+	var models []*Model
+	if err := DB.Where("deleted_at IS NULL").Find(&models).Error; err != nil {
+		return nil, err
+	}
+	res := &GachaRatingSyncResult{UpdatedModels: []GachaRatingSyncItem{}}
 	for _, m := range models {
 		if m.RatingSource == "manual" {
+			res.SkippedManual++
 			continue
 		}
 		score, ok := matchDeepSweScore(m.ModelName, scores)
 		if !ok {
+			res.Unmatched++
 			continue
 		}
 		rating := MapScoreToRating(score)
 		if m.Rating == rating && m.RatingScore == score && m.RatingSource == "deepswe" {
+			res.Unchanged++
 			continue
 		}
 		if err := DB.Model(&Model{}).Where("id = ?", m.Id).
@@ -126,11 +155,23 @@ func ApplyDeepSweScores(scores map[string]float64) (int, error) {
 				"rating_score":  score,
 				"rating_source": "deepswe",
 			}).Error; err != nil {
-			return updated, err
+			return res, err
 		}
-		updated++
+		res.Updated++
+		res.UpdatedModels = append(res.UpdatedModels, GachaRatingSyncItem{ModelName: m.ModelName, Rating: rating, Score: score})
 	}
-	return updated, nil
+	return res, nil
+}
+
+// ResetGachaRatings 批量清空模型分级（rating/rating_score/rating_source），
+// 清空后该模型可被后续 DeepSWE 同步重新覆盖。返回受影响行数。
+func ResetGachaRatings(ids []int) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	res := DB.Model(&Model{}).Where("id IN ?", ids).
+		Updates(map[string]interface{}{"rating": "", "rating_score": 0, "rating_source": ""})
+	return res.RowsAffected, res.Error
 }
 
 // matchDeepSweScore 按模型名匹配榜单分数：

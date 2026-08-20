@@ -82,16 +82,16 @@ func GetGachaRatingSyncStatus() (lastSync int64, count int64) {
 	return gachaLastSyncAt.Load(), gachaSyncCount.Load()
 }
 
-// SyncDeepSweRatingsNow 手动触发一次同步（管理端按钮）。
-func SyncDeepSweRatingsNow() (int, error) {
+// SyncDeepSweRatingsNow 手动触发一次同步（管理端按钮），返回同步详情。
+func SyncDeepSweRatingsNow() (*model.GachaRatingSyncResult, error) {
 	scores, err := model.FetchDeepSweLeaderboard()
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	n, err := model.ApplyDeepSweScores(scores)
+	res, err := model.ApplyDeepSweScoresDetailed(scores)
 	if err == nil {
 		gachaLastSyncAt.Store(time.Now().Unix())
-		gachaSyncCount.Store(int64(n))
+		gachaSyncCount.Store(int64(res.Updated))
 	}
-	return n, err
+	return res, err
 }

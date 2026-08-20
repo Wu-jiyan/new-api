@@ -109,3 +109,48 @@ func TestApplyDeepSweScoresRealistic(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, n)
 }
+
+func TestApplyDeepSweScoresDetailedAndReset(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&Model{}))
+	names := []string{"gpt-5-6-sol", "deepseek-v4-flash-0731", "claude-opus-9", "manual-model"}
+	for _, name := range names {
+		require.NoError(t, DB.Where("model_name = ?", name).Unscoped().Delete(&Model{}).Error)
+		require.NoError(t, DB.Create(&Model{ModelName: name, Status: 1}).Error)
+		t.Cleanup(func() { require.NoError(t, DB.Where("model_name = ?", name).Unscoped().Delete(&Model{}).Error) })
+	}
+	// manual 模型应被同步跳过
+	require.NoError(t, DB.Model(&Model{}).Where("model_name = ?", "manual-model").
+		Updates(map[string]interface{}{"rating": "UR", "rating_score": 90, "rating_source": "manual"}).Error)
+
+	scores := map[string]float64{"gpt-5-6-sol": 73.6, "deepseek-v4-flash": 53}
+	res, err := ApplyDeepSweScoresDetailed(scores)
+	require.NoError(t, err)
+	require.Equal(t, 2, res.Updated) // 精确匹配 + 版本模型继承基础分
+	require.Equal(t, 0, res.Unchanged)
+	require.Equal(t, 1, res.SkippedManual)
+	require.Equal(t, 1, res.Unmatched) // claude-opus-9
+	require.Len(t, res.UpdatedModels, 2)
+
+	// 幂等：再次同步全部无变化
+	res2, err := ApplyDeepSweScoresDetailed(scores)
+	require.NoError(t, err)
+	require.Equal(t, 0, res2.Updated)
+	require.Equal(t, 2, res2.Unchanged)
+
+	// 重置为空后评分/来源清空，可再次被同步覆盖
+	var ids []int
+	require.NoError(t, DB.Model(&Model{}).
+		Where("model_name IN ?", []string{"gpt-5-6-sol", "deepseek-v4-flash-0731"}).Pluck("id", &ids).Error)
+	n, err := ResetGachaRatings(ids)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), n)
+	var m Model
+	require.NoError(t, DB.Where("model_name = ?", "gpt-5-6-sol").First(&m).Error)
+	require.Empty(t, m.Rating)
+	require.Empty(t, m.RatingSource)
+	require.Zero(t, m.RatingScore)
+
+	res3, err := ApplyDeepSweScoresDetailed(scores)
+	require.NoError(t, err)
+	require.Equal(t, 2, res3.Updated)
+}
