@@ -6,23 +6,26 @@ import (
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
-// ValidateGachaEntry 校验条目：模型存在、分组有倍率、模型在该分组有启用渠道。
-func ValidateGachaEntry(entry *GachaCardEntry) bool {
+// ValidateGachaEntryReason 校验条目：模型存在、分组有倍率、模型在该分组有启用渠道。
+// 校验通过返回空字符串，否则返回具体失败原因。
+func ValidateGachaEntryReason(entry *GachaCardEntry) string {
 	if entry == nil {
-		return false
+		return "条目为空"
 	}
-	var m Model
-	if err := DB.Where("model_name = ? AND deleted_at IS NULL", entry.ModelName).First(&m).Error; err != nil {
-		return false
+	if err := DB.Where("model_name = ?", entry.ModelName).First(&Model{}).Error; err != nil {
+		return "模型「" + entry.ModelName + "」不在模型列表中"
 	}
 	if !ratio_setting.ContainsGroupRatio(entry.Group) {
-		return false
+		return "分组「" + entry.Group + "」未配置分组倍率"
 	}
 	owners, err := GetPreferredModelOwnerChannelTypes([]string{entry.ModelName}, []string{entry.Group})
-	if err != nil || len(owners) == 0 {
-		return false
+	if err != nil {
+		return "查询渠道失败：" + err.Error()
 	}
-	return true
+	if len(owners) == 0 {
+		return "模型「" + entry.ModelName + "」在分组「" + entry.Group + "」下没有启用的渠道"
+	}
+	return ""
 }
 
 // ComputePoolExpectedValue 计算卡池期望价值（quota）。

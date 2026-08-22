@@ -310,8 +310,8 @@ func AdminUpsertGachaEntry(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "模型/分组/权重/额度必填且为正"})
 		return
 	}
-	if !model.ValidateGachaEntry(&entry) {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "模型或分组无效：模型须存在且该分组有启用渠道与分组倍率"})
+	if reason := model.ValidateGachaEntryReason(&entry); reason != "" {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": reason})
 		return
 	}
 	if entry.Id > 0 {

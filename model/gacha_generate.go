@@ -170,8 +170,8 @@ func GenerateGachaEntries(poolId int, req *GenerateGachaEntryReq, apply bool) (*
 		}
 	}
 	for _, e := range entries {
-		if !ValidateGachaEntry(&e) {
-			return nil, errors.New("模型或分组无效：" + e.ModelName + "（模型须存在且该分组有启用渠道与分组倍率）")
+		if reason := ValidateGachaEntryReason(&e); reason != "" {
+			return nil, errors.New(reason)
 		}
 		e.PoolId = poolId
 		if err := DB.Create(&e).Error; err != nil {
