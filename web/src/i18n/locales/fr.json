@@ -835,6 +835,7 @@
     "Character Gallery": "Galerie des personnages",
     "Character chat, storytelling, persona": "Discussion de personnages, narration, persona",
     "character.admin.addLine": "Ajouter une réplique",
+    "character.admin.removeLine": "Supprimer la réplique",
     "character.admin.create": "Créer un personnage",
     "character.admin.description": "Description du personnage",
     "character.admin.displayName": "Nom du personnage",

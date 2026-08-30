@@ -835,6 +835,7 @@
     "Character Gallery": "Галерея персонажей",
     "Character chat, storytelling, persona": "Диалог с персонажем, сторителлинг, персона",
     "character.admin.addLine": "Добавить реплику",
+    "character.admin.removeLine": "Удалить реплику",
     "character.admin.create": "Создать персонажа",
     "character.admin.description": "Описание персонажа",
     "character.admin.displayName": "Имя персонажа",

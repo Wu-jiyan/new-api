@@ -835,6 +835,7 @@
     "Character Gallery": "角色圖鑑",
     "Character chat, storytelling, persona": "角色對話、劇情創作、人設扮演",
     "character.admin.addLine": "新增台詞",
+    "character.admin.removeLine": "刪除台詞",
     "character.admin.create": "新增角色",
     "character.admin.description": "人設介紹",
     "character.admin.displayName": "角色名",

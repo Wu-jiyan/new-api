@@ -835,6 +835,7 @@
     "Character Gallery": "キャラクター図鑑",
     "Character chat, storytelling, persona": "キャラクター会話・ストーリーテリング・ペルソナ",
     "character.admin.addLine": "セリフを追加",
+    "character.admin.removeLine": "セリフを削除",
     "character.admin.create": "キャラクターを作成",
     "character.admin.description": "キャラクター紹介",
     "character.admin.displayName": "キャラクター名",

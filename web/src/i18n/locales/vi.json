@@ -835,6 +835,7 @@
     "Character Gallery": "Bộ sưu tập nhân vật",
     "Character chat, storytelling, persona": "Trò chuyện nhân vật, kể chuyện, nhân cách hoá",
     "character.admin.addLine": "Thêm lời thoại",
+    "character.admin.removeLine": "Xóa lời thoại",
     "character.admin.create": "Tạo nhân vật",
     "character.admin.description": "Mô tả nhân vật",
     "character.admin.displayName": "Tên nhân vật",

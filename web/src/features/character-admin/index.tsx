@@ -102,7 +102,13 @@ export default function CharacterAdminPage() {
   const refresh = () => qc.invalidateQueries({ queryKey: ['character-admin'] })
   const createMut = useMutation({
     mutationFn: createCharacter,
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (data) {
+        // 创建成功后直接进入编辑态，便于立即保存剧本/生成立绘
+        setEditing(data)
+        setForm(toForm(data))
+        setDrafts(parseStages(data))
+      }
       toast.success(t('common.success'))
       refresh()
     },
@@ -188,8 +194,12 @@ export default function CharacterAdminPage() {
 
   const onSaveScript = async (stage: number) => {
     if (!editing) return
-    await saveCharacterScript(editing.id, stage, drafts[stage].script)
-    toast.success(t('common.success'))
+    try {
+      await saveCharacterScript(editing.id, stage, drafts[stage].script)
+      toast.success(t('common.success'))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('Request failed'))
+    }
   }
 
   return (
@@ -405,6 +415,22 @@ export default function CharacterAdminPage() {
                               )
                             }
                           />
+                          <Button
+                            variant='ghost'
+                            size='icon-xs'
+                            aria-label={t('character.admin.removeLine')}
+                            onClick={() =>
+                              setDrafts((prev) =>
+                                prev.map((d, idx) =>
+                                  idx === i
+                                    ? { ...d, script: d.script.filter((_, si) => si !== li) }
+                                    : d
+                                )
+                              )
+                            }
+                          >
+                            <Trash2 className='h-4 w-4' />
+                          </Button>
                         </div>
                       ))}
                       <Button

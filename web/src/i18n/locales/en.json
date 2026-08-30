@@ -835,6 +835,7 @@
     "Character Gallery": "Character Gallery",
     "Character chat, storytelling, persona": "Character chat, storytelling, persona",
     "character.admin.addLine": "Add Line",
+    "character.admin.removeLine": "Remove line",
     "character.admin.create": "Create Character",
     "character.admin.description": "Character Description",
     "character.admin.displayName": "Character Name",
