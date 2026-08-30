@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   Activity,
+  BookOpen,
   Box,
   CreditCard,
   FileText,
@@ -116,6 +117,11 @@ export function useSidebarData(): SidebarData {
             title: t('Gacha Cards'),
             url: '/gacha/cards',
             icon: Layers,
+          },
+          {
+            title: t('Character Gallery'),
+            url: '/character',
+            icon: BookOpen,
           },
           {
             title: t('Wallet'),

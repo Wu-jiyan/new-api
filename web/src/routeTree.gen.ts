@@ -35,6 +35,7 @@ import { Route as RankingsIndexRouteImport } from './routes/rankings/index'
 import { Route as SetupIndexRouteImport } from './routes/setup/index'
 import { Route as authUserResetRouteImport } from './routes/(auth)/user/reset'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
+import { Route as AuthenticatedCharacterIndexRouteImport } from './routes/_authenticated/character/index'
 import { Route as AuthenticatedCharacterModelNameRouteImport } from './routes/_authenticated/character/$modelName'
 import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authenticated/chat/$chatId'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
@@ -202,6 +203,12 @@ const AuthenticatedChannelsIndexRoute =
   AuthenticatedChannelsIndexRouteImport.update({
     id: '/channels/',
     path: '/channels/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCharacterIndexRoute =
+  AuthenticatedCharacterIndexRouteImport.update({
+    id: '/character/',
+    path: '/character/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedCharacterModelNameRoute =
@@ -459,6 +466,7 @@ export interface FileRoutesByFullPath {
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
+  '/character/': typeof AuthenticatedCharacterIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/gacha/': typeof AuthenticatedGachaIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
@@ -522,6 +530,7 @@ export interface FileRoutesByTo {
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
+  '/character': typeof AuthenticatedCharacterIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/gacha': typeof AuthenticatedGachaIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
@@ -589,6 +598,7 @@ export interface FileRoutesById {
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
+  '/_authenticated/character/': typeof AuthenticatedCharacterIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/gacha/': typeof AuthenticatedGachaIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
@@ -655,6 +665,7 @@ export interface FileRouteTypes {
     | '/models/$section'
     | '/usage-logs/$section'
     | '/channels/'
+    | '/character/'
     | '/dashboard/'
     | '/gacha/'
     | '/keys/'
@@ -718,6 +729,7 @@ export interface FileRouteTypes {
     | '/models/$section'
     | '/usage-logs/$section'
     | '/channels'
+    | '/character'
     | '/dashboard'
     | '/gacha'
     | '/keys'
@@ -784,6 +796,7 @@ export interface FileRouteTypes {
     | '/_authenticated/models/$section'
     | '/_authenticated/usage-logs/$section'
     | '/_authenticated/channels/'
+    | '/_authenticated/character/'
     | '/_authenticated/dashboard/'
     | '/_authenticated/gacha/'
     | '/_authenticated/keys/'
@@ -1019,6 +1032,13 @@ declare module '@tanstack/react-router' {
       path: '/channels'
       fullPath: '/channels/'
       preLoaderRoute: typeof AuthenticatedChannelsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/character/': {
+      id: '/_authenticated/character/'
+      path: '/character'
+      fullPath: '/character/'
+      preLoaderRoute: typeof AuthenticatedCharacterIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/character/$modelName': {
@@ -1383,6 +1403,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedModelsSectionRoute: typeof AuthenticatedModelsSectionRoute
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
+  AuthenticatedCharacterIndexRoute: typeof AuthenticatedCharacterIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedGachaIndexRoute: typeof AuthenticatedGachaIndexRoute
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
@@ -1412,6 +1433,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedModelsSectionRoute: AuthenticatedModelsSectionRoute,
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
+  AuthenticatedCharacterIndexRoute: AuthenticatedCharacterIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
   AuthenticatedGachaIndexRoute: AuthenticatedGachaIndexRoute,
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,
