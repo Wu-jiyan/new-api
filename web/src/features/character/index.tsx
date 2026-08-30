@@ -46,18 +46,22 @@ export default function CharacterDetailPage() {
 
   if (isLoading) {
     return (
-      <div className='mx-auto max-w-5xl space-y-4 p-6'>
-        <Skeleton className='h-96 w-full rounded-xl' />
-        <Skeleton className='h-24 w-full' />
-      </div>
+      <main className='min-h-0 flex-1 overflow-y-auto'>
+        <div className='container mx-auto max-w-6xl space-y-6 py-8'>
+          <Skeleton className='h-96 w-full rounded-xl' />
+          <Skeleton className='h-24 w-full' />
+        </div>
+      </main>
     )
   }
 
   if (!character) {
     return (
-      <div className='mx-auto max-w-5xl p-6 text-center text-muted-foreground'>
-        {t('character.notFound')}
-      </div>
+      <main className='min-h-0 flex-1 overflow-y-auto'>
+        <div className='container mx-auto max-w-6xl py-8 text-center text-muted-foreground'>
+          {t('character.notFound')}
+        </div>
+      </main>
     )
   }
 
@@ -69,7 +73,8 @@ export default function CharacterDetailPage() {
   const shareDisabled = character.total_calls < 1 || !shareImageUrl
 
   return (
-    <div className='mx-auto max-w-5xl p-6'>
+    <main className='min-h-0 flex-1 overflow-y-auto'>
+      <div className='container mx-auto max-w-6xl space-y-6 py-8'>
       <Button
         variant='ghost'
         size='sm'
@@ -232,6 +237,7 @@ export default function CharacterDetailPage() {
         open={shareOpen}
         onOpenChange={setShareOpen}
       />
-    </div>
+      </div>
+    </main>
   )
 }

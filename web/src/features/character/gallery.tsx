@@ -136,32 +136,40 @@ export default function CharacterGalleryPage() {
 
   if (isLoading) {
     return (
-      <div className='mx-auto max-w-6xl space-y-6 p-6'>
-        <div className='space-y-2'>
-          <Skeleton className='h-5 w-28' />
-          <Skeleton className='h-8 w-44' />
+      <main className='min-h-0 flex-1 overflow-y-auto'>
+        <div className='container mx-auto max-w-6xl space-y-6 py-8'>
+          <div className='space-y-2'>
+            <Skeleton className='h-5 w-28' />
+            <Skeleton className='h-8 w-44' />
+          </div>
+          <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
+            <Skeleton className='h-24 rounded-xl' />
+            <Skeleton className='h-24 rounded-xl' />
+          </div>
+          <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'>
+            {Array.from({ length: 10 }).map((_, index) => (
+              <Skeleton key={index} className='aspect-[3/4] rounded-xl' />
+            ))}
+          </div>
         </div>
-        <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
-          <Skeleton className='h-24 rounded-xl' />
-          <Skeleton className='h-24 rounded-xl' />
-        </div>
-        <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'>
-          {Array.from({ length: 8 }).map((_, index) => (
-            <Skeleton key={index} className='aspect-[3/4] rounded-xl' />
-          ))}
-        </div>
-      </div>
+      </main>
     )
   }
 
   const list = characters ?? []
 
   return (
-    <div className='mx-auto max-w-6xl space-y-6 p-6'>
-      <div className='flex items-center gap-2 text-sm font-semibold tracking-[0.2em] text-primary uppercase'>
-        <BookOpen className='size-4' />
-        {t('character.gallery.title')}
-      </div>
+    <main className='min-h-0 flex-1 overflow-y-auto'>
+      <div className='container mx-auto max-w-6xl space-y-6 py-8'>
+        <div>
+          <h1 className='flex items-center gap-2 text-2xl font-bold'>
+            <BookOpen className='size-5' />
+            {t('character.gallery.title')}
+          </h1>
+          <p className='mt-1 text-sm text-muted-foreground'>
+            {t('character.gallery.subtitle')}
+          </p>
+        </div>
 
       <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
         <div className='rounded-xl border p-4'>
@@ -188,7 +196,7 @@ export default function CharacterGalleryPage() {
           <p>{t('character.gallery.empty')}</p>
         </div>
       ) : (
-        <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'>
+        <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'>
           {list.map((character) => (
             <CharacterCard
               key={character.id}
@@ -203,6 +211,7 @@ export default function CharacterGalleryPage() {
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </main>
   )
 }

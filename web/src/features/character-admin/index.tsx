@@ -225,24 +225,30 @@ export default function CharacterAdminPage() {
   }
 
   return (
-    <div className='mx-auto max-w-6xl space-y-4 p-6'>
-      <div className='flex items-center justify-between'>
-        <h1 className='text-xl font-bold'>{t('character.admin.title')}</h1>
-        <div className='flex items-center gap-2'>
-          <Input
-            placeholder={t('character.admin.search')}
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            className='w-56'
-          />
-          <Button onClick={startCreate}>
-            <Plus className='h-4 w-4' />
-            {t('character.admin.create')}
-          </Button>
+    <main className='min-h-0 flex-1 overflow-y-auto'>
+      <div className='container mx-auto max-w-6xl space-y-6 py-8'>
+        <div className='flex flex-wrap items-center justify-between gap-3'>
+          <div>
+            <h1 className='text-2xl font-bold'>{t('character.admin.title')}</h1>
+            <p className='mt-1 text-sm text-muted-foreground'>
+              {t('character.admin.subtitle')}
+            </p>
+          </div>
+          <div className='flex items-center gap-2'>
+            <Input
+              placeholder={t('character.admin.search')}
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              className='w-56'
+            />
+            <Button onClick={startCreate}>
+              <Plus className='h-4 w-4' />
+              {t('character.admin.create')}
+            </Button>
+          </div>
         </div>
-      </div>
 
-      <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
+      <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
         {list.map((item) => (
           <Card key={item.id}>
             <CardHeader className='pb-2'>
@@ -495,6 +501,7 @@ export default function CharacterAdminPage() {
           </CardContent>
         </Card>
       )}
-    </div>
+      </div>
+    </main>
   )
 }
