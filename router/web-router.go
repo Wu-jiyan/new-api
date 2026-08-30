@@ -22,6 +22,9 @@ type WebAssets struct {
 func SetWebRouter(router *gin.Engine, assets WebAssets, pluginDispatcher gin.HandlerFunc) {
 	frontendFS := common.EmbedFolder(assets.BuildFS, "web/dist")
 
+	// AI 角色立绘静态资源
+	router.Static("/uploads", "data/uploads")
+
 	router.NoRoute(
 		pluginDispatcher,
 		middleware.RouteTag("web"),
