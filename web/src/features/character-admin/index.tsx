@@ -6,9 +6,22 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxLabel,
+  ComboboxList,
+} from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+
+import { getPricing } from '@/features/pricing/api'
+import type { PricingModel } from '@/features/pricing/types'
 
 import {
   createCharacter,
@@ -22,6 +35,28 @@ import {
 import type { CharacterAdminItem } from './types'
 
 const STAGE_NAMES = ['初遇', '同行', '羁绊']
+
+/**
+ * 提取模型名前缀，如 deepseek-chat -> deepseek、gpt-4o -> gpt、glm-4 -> glm。
+ * 带渠道前缀（如 openai/gpt-4o）时先去掉渠道段。
+ */
+function extractModelPrefix(modelName: string): string {
+  const withoutVendor = modelName.replace(/^[A-Za-z0-9_-]+\//, '')
+  const match = withoutVendor.match(/^[A-Za-z0-9]+/)
+  return match ? match[0].toLowerCase() : 'other'
+}
+
+/** 按模型名前缀分组，前缀字母序排序（含 other 组） */
+function groupModelsByPrefix(models: PricingModel[]): [string, PricingModel[]][] {
+  const groups = new Map<string, PricingModel[]>()
+  for (const m of models) {
+    const prefix = extractModelPrefix(m.model_name)
+    const arr = groups.get(prefix) ?? []
+    arr.push(m)
+    groups.set(prefix, arr)
+  }
+  return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+}
 
 interface StageDraft {
   name: string
@@ -98,6 +133,12 @@ export default function CharacterAdminPage() {
     queryKey: ['character-admin', keyword],
     queryFn: () => fetchAdminCharacters(keyword),
   })
+
+  const { data: pricing } = useQuery({
+    queryKey: ['pricing-models'],
+    queryFn: getPricing,
+  })
+  const modelGroups = groupModelsByPrefix(pricing?.data ?? [])
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['character-admin'] })
 
@@ -243,12 +284,48 @@ export default function CharacterAdminPage() {
             <div className='grid gap-4 sm:grid-cols-2'>
               <div className='space-y-1.5'>
                 <Label>{t('character.admin.modelName')}</Label>
-                <Input
-                  value={form.model_name}
-                  disabled={!!editing}
-                  placeholder='deepseek-v3'
-                  onChange={(e) => setForm((prev) => ({ ...prev, model_name: e.target.value }))}
-                />
+                {editing ? (
+                  <Input value={form.model_name} disabled />
+                ) : (
+                  <Combobox
+                    items={modelGroups.flatMap(([, ms]) =>
+                      ms.map((m) => m.model_name)
+                    )}
+                    value={form.model_name}
+                    onValueChange={(value) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        model_name: value ?? '',
+                      }))
+                    }
+                  >
+                    <ComboboxInput
+                      placeholder={t('character.admin.selectModel')}
+                    />
+                    <ComboboxContent>
+                      <ComboboxList>
+                        {modelGroups.map(([prefix, ms]) => (
+                          <ComboboxGroup key={prefix}>
+                            <ComboboxLabel className='uppercase'>
+                              {prefix}
+                            </ComboboxLabel>
+                            {ms.map((m) => (
+                              <ComboboxItem
+                                key={m.model_name}
+                                value={m.model_name}
+                              >
+                                {m.model_name}
+                              </ComboboxItem>
+                            ))}
+                          </ComboboxGroup>
+                        ))}
+                        <ComboboxEmpty>
+                          {t('character.admin.noModels')}
+                        </ComboboxEmpty>
+                      </ComboboxList>
+                    </ComboboxContent>
+                  </Combobox>
+                )}
               </div>
               <div className='space-y-1.5'>
                 <Label>{t('character.admin.displayName')}</Label>

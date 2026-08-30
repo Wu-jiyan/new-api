@@ -34,6 +34,7 @@ import {
   Sparkles,
   Ticket,
   User,
+  UserRound,
   Users,
   Wallet,
 } from 'lucide-react'
@@ -166,7 +167,7 @@ export function useSidebarData(): SidebarData {
           {
             title: t('Character Admin'),
             url: '/character/admin',
-            icon: Sparkles,
+            icon: UserRound,
             requiredRole: ROLE.ADMIN,
           },
           {
