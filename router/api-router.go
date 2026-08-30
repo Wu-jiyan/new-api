@@ -212,6 +212,20 @@ func SetApiRouter(router *gin.Engine) {
 			gachaAdminRoute.POST("/pools/:id/generate", controller.AdminGenerateGachaEntries)
 		}
 
+		// AI Character (character system) admin management
+		characterAdminRoute := apiRouter.Group("/character/admin")
+		characterAdminRoute.Use(middleware.AdminAuth())
+		{
+			characterAdminRoute.GET("/characters", controller.AdminListCharacters)
+			characterAdminRoute.POST("/characters", controller.AdminCreateCharacter)
+			characterAdminRoute.PUT("/characters/:id", controller.AdminUpdateCharacter)
+			characterAdminRoute.DELETE("/characters/:id", controller.AdminDeleteCharacter)
+			characterAdminRoute.POST("/characters/:id/stages/:index/generate", controller.AdminGenerateCharacterImage)
+			characterAdminRoute.POST("/characters/:id/stages/:index/image", controller.AdminUploadCharacterImage)
+			characterAdminRoute.POST("/characters/:id/stages/:index/script", controller.AdminSaveCharacterScript)
+			characterAdminRoute.PUT("/thresholds", controller.AdminUpdateCharacterThresholds)
+		}
+
 		// Gacha (card pack) user endpoints
 		gachaRoute := apiRouter.Group("/gacha")
 		gachaRoute.Use(middleware.UserAuth())
@@ -222,6 +236,15 @@ func SetApiRouter(router *gin.Engine) {
 			gachaRoute.POST("/cards/:id/token/reset", controller.ResetGachaCardToken)
 			gachaRoute.POST("/cards/:id/token/revoke", controller.RevokeGachaCardToken)
 			gachaRoute.GET("/stats", controller.GetGachaStats)
+		}
+
+		// AI Character (character system) user endpoints
+		characterRoute := apiRouter.Group("/character")
+		characterRoute.Use(middleware.UserAuth())
+		{
+			characterRoute.GET("/characters", controller.ListCharacters)
+			characterRoute.GET("/:modelName", controller.GetCharacter)
+			characterRoute.GET("/:modelName/script/:stageIndex", controller.GetCharacterScript)
 		}
 
 		optionRoute := apiRouter.Group("/option")
