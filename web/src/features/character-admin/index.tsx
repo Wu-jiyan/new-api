@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, RefreshCw, Sparkles, Trash2, Upload } from 'lucide-react'
+import { Plus, Sparkles, Trash2, Upload } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -15,7 +15,6 @@ import {
   deleteCharacter,
   fetchAdminCharacters,
   generateCharacterImage,
-  saveCharacterScript,
   updateCharacter,
   uploadCharacterImage,
 } from './api'
@@ -89,6 +88,7 @@ export default function CharacterAdminPage() {
   const qc = useQueryClient()
   const [keyword, setKeyword] = useState('')
   const [editing, setEditing] = useState<CharacterAdminItem | null>(null)
+  const [creating, setCreating] = useState(false)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [drafts, setDrafts] = useState<StageDraft[]>(parseStages(null))
   const [generating, setGenerating] = useState<number | null>(null)
@@ -100,15 +100,17 @@ export default function CharacterAdminPage() {
   })
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['character-admin'] })
+  const closeEditor = () => {
+    setCreating(false)
+    setEditing(null)
+    setForm(EMPTY_FORM)
+    setDrafts(parseStages(null))
+  }
+
   const createMut = useMutation({
     mutationFn: createCharacter,
-    onSuccess: (data) => {
-      if (data) {
-        // 创建成功后直接进入编辑态，便于立即保存剧本/生成立绘
-        setEditing(data)
-        setForm(toForm(data))
-        setDrafts(parseStages(data))
-      }
+    onSuccess: () => {
+      closeEditor()
       toast.success(t('common.success'))
       refresh()
     },
@@ -121,6 +123,7 @@ export default function CharacterAdminPage() {
     mutationFn: ({ id, data }: { id: number; data: Partial<CharacterAdminItem> }) =>
       updateCharacter(id, data),
     onSuccess: () => {
+      closeEditor()
       toast.success(t('common.success'))
       refresh()
     },
@@ -138,12 +141,14 @@ export default function CharacterAdminPage() {
   })
 
   const startCreate = () => {
+    setCreating(true)
     setEditing(null)
     setForm(EMPTY_FORM)
     setDrafts(parseStages(null))
   }
 
   const startEdit = (item: CharacterAdminItem) => {
+    setCreating(false)
     setEditing(item)
     setForm(toForm(item))
     setDrafts(parseStages(item))
@@ -189,16 +194,6 @@ export default function CharacterAdminPage() {
       setDrafts((prev) => prev.map((d, i) => (i === stage ? { ...d, imageUrl: image_url } : d)))
     } catch (e) {
       toast.error(t('character.admin.generateFailed'))
-    }
-  }
-
-  const onSaveScript = async (stage: number) => {
-    if (!editing) return
-    try {
-      await saveCharacterScript(editing.id, stage, drafts[stage].script)
-      toast.success(t('common.success'))
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('Request failed'))
     }
   }
 
@@ -259,7 +254,7 @@ export default function CharacterAdminPage() {
         ))}
       </div>
 
-      {(editing !== null || !list.length) && (
+      {(editing !== null || creating || !list.length) && (
         <Card>
           <CardHeader>
             <CardTitle>{editing ? t('character.admin.edit') : t('character.admin.create')}</CardTitle>
@@ -448,17 +443,13 @@ export default function CharacterAdminPage() {
                         {t('character.admin.addLine')}
                       </Button>
                     </div>
-                    <Button variant='outline' size='sm' disabled={!editing} onClick={() => onSaveScript(i)}>
-                      <RefreshCw className='h-4 w-4' />
-                      {t('character.admin.saveScript')}
-                    </Button>
                   </div>
                 </div>
               </div>
             ))}
 
             <div className='flex justify-end gap-2'>
-              <Button variant='outline' onClick={() => { setEditing(null); setForm(EMPTY_FORM) }}>
+              <Button variant='outline' onClick={closeEditor}>
                 {t('common.cancel')}
               </Button>
               <Button onClick={save}>{t('common.save')}</Button>
