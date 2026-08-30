@@ -82,7 +82,7 @@ func GetCharacter(c *gin.Context) {
 	views := make([]stageView, 0, len(stages.Stages))
 	for i, st := range stages.Stages {
 		v := stageView{Index: st.Index, Name: st.Name, UnlockTokens: st.UnlockTokens, UnlockText: st.UnlockText}
-		if i <= maxStage {
+		if i <= maxStage && calls >= 1 {
 			v.ImageURL = st.ImageURL
 			v.Script = st.Script
 		}

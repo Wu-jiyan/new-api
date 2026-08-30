@@ -76,7 +76,7 @@ func getCachedUserUsage(userId int, modelName string) (int64, int64, error) {
 // 规则：阶段①（unlock_tokens=0）只要 calls>=1 即解锁；其余阶段 tokens >= unlock_tokens 且 calls>=1。
 // 进度只升不降。
 func RefreshUserCharacterProgress(userId int, modelName string, tokens int64, calls int64, stages CharacterStages) (int, error) {
-	maxStage := 0
+	maxStage := -1
 	for i := range stages.Stages {
 		st := stages.Stages[i]
 		if calls < 1 {
@@ -106,6 +106,8 @@ func RefreshUserCharacterProgress(userId int, modelName string, tokens int64, ca
 	p.TotalCalls = calls
 	p.UpdatedAt = common.GetTimestamp()
 	if p.Id == 0 {
+		// 新记录：直接采用本次计算结果（-1 表示从未调用、未解锁）
+		p.MaxStage = maxStage
 		return p.MaxStage, DB.Create(&p).Error
 	}
 	return p.MaxStage, DB.Model(&UserCharacterProgress{}).Where("id = ?", p.Id).

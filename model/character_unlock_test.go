@@ -49,8 +49,13 @@ func TestRefreshUserCharacterProgress(t *testing.T) {
 		{Index: 2, UnlockTokens: 50000000},
 	}}
 
+	// 从未调用 -> 未解锁（-1）
+	m, err := RefreshUserCharacterProgress(uid, "m1", 0, 0, stages)
+	require.NoError(t, err)
+	require.Equal(t, -1, m)
+
 	// 1 次调用、0 token -> 阶段0
-	m, err := RefreshUserCharacterProgress(uid, "m1", 0, 1, stages)
+	m, err = RefreshUserCharacterProgress(uid, "m1", 0, 1, stages)
 	require.NoError(t, err)
 	require.Equal(t, 0, m)
 
