@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { ArrowLeft, Lock, Sparkles } from 'lucide-react'
+import { ArrowLeft, Lock, MessagesSquare, Sparkles } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
 import { fetchCharacter, fetchCharacterScript } from './api'
+import { ChatPanel } from './components/chat-panel'
 import { ScriptPlayer } from './components/script-player'
 import type { CharacterStageView } from './types'
 
@@ -23,6 +24,7 @@ export default function CharacterDetailPage() {
   const { t } = useTranslation()
   const { modelName = '' } = useParams({ strict: false })
   const [activeStage, setActiveStage] = useState(0)
+  const [chatOpen, setChatOpen] = useState(false)
 
   const { data: character, isLoading } = useQuery({
     queryKey: ['character', modelName],
@@ -118,6 +120,24 @@ export default function CharacterDetailPage() {
 
           <p className='text-muted-foreground'>{character.description}</p>
 
+          {/* 对话入口 */}
+          <div className='flex flex-wrap items-center gap-3'>
+            <Button
+              variant='outline'
+              onClick={() => setChatOpen(true)}
+              disabled={character.total_calls < 1}
+              title={character.total_calls < 1 ? t('character.locked') : undefined}
+            >
+              <MessagesSquare className='mr-2 h-4 w-4' />
+              {t('character.chat.open')}
+            </Button>
+            {character.total_calls < 1 && (
+              <span className='text-xs text-muted-foreground'>
+                {t('character.unlockHint')}
+              </span>
+            )}
+          </div>
+
           {/* 阶段进度 */}
           <div>
             <div className='mb-2 flex items-center justify-between text-sm'>
@@ -179,6 +199,13 @@ export default function CharacterDetailPage() {
           )}
         </div>
       </div>
+
+      <ChatPanel
+        modelName={character.model_name}
+        characterName={character.display_name}
+        open={chatOpen}
+        onOpenChange={setChatOpen}
+      />
     </div>
   )
 }
