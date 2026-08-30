@@ -17,11 +17,19 @@ func ListCharacters(c *gin.Context) {
 		c.JSON(200, gin.H{"success": false, "message": err.Error()})
 		return
 	}
+	type stageView struct {
+		Index        int    `json:"index"`
+		Name         string `json:"name"`
+		ImageURL     string `json:"image_url"`
+		UnlockTokens int64  `json:"unlock_tokens"`
+		UnlockText   string `json:"unlock_text"`
+	}
 	type charView struct {
 		*model.Character
-		MaxStage    int   `json:"max_stage"`
-		TotalTokens int64 `json:"total_tokens"`
-		TotalCalls  int64 `json:"total_calls"`
+		MaxStage    int         `json:"max_stage"`
+		TotalTokens int64       `json:"total_tokens"`
+		TotalCalls  int64       `json:"total_calls"`
+		Stages      []stageView `json:"stages"`
 	}
 	views := make([]charView, 0, len(list))
 	for _, ch := range list {
@@ -30,7 +38,16 @@ func ListCharacters(c *gin.Context) {
 		if err != nil {
 			continue
 		}
-		views = append(views, charView{Character: ch, MaxStage: maxStage, TotalTokens: tokens, TotalCalls: calls})
+		sv := make([]stageView, 0, len(stages.Stages))
+		for i, st := range stages.Stages {
+			v := stageView{Index: st.Index, Name: st.Name, UnlockTokens: st.UnlockTokens, UnlockText: st.UnlockText}
+			// 仅对已调用（calls>=1）且已解锁的阶段暴露立绘，未解锁返回剪影
+			if i <= maxStage && calls >= 1 {
+				v.ImageURL = st.ImageURL
+			}
+			sv = append(sv, v)
+		}
+		views = append(views, charView{Character: ch, MaxStage: maxStage, TotalTokens: tokens, TotalCalls: calls, Stages: sv})
 	}
 	c.JSON(200, gin.H{"success": true, "data": views})
 }
