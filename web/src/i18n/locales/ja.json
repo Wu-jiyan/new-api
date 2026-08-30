@@ -850,6 +850,7 @@
     "character.admin.roleTitle": "称号",
     "character.admin.saveScript": "脚本を保存",
     "character.admin.selectModel": "モデルを選択",
+    "character.admin.needModel": "先にモデルを選択してください",
     "character.admin.script": "ミニドラマ脚本",
     "character.admin.search": "モデル/キャラクターを検索",
     "character.admin.speaker": "話者",

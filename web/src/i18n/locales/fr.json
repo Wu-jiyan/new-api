@@ -850,6 +850,7 @@
     "character.admin.roleTitle": "Titre",
     "character.admin.saveScript": "Enregistrer le script",
     "character.admin.selectModel": "Sélectionner un modèle",
+    "character.admin.needModel": "Veuillez d'abord sélectionner un modèle",
     "character.admin.script": "Script",
     "character.admin.search": "Rechercher modèle/personnage",
     "character.admin.speaker": "Intervenant",

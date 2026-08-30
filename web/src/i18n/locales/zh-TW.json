@@ -850,6 +850,7 @@
     "character.admin.roleTitle": "稱號",
     "character.admin.saveScript": "儲存劇本",
     "character.admin.selectModel": "選擇模型",
+    "character.admin.needModel": "請先選擇模型",
     "character.admin.script": "小劇場劇本",
     "character.admin.search": "搜尋模型/角色",
     "character.admin.speaker": "說話人",

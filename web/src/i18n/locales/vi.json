@@ -850,6 +850,7 @@
     "character.admin.roleTitle": "Tựa đề",
     "character.admin.saveScript": "Lưu kịch bản",
     "character.admin.selectModel": "Chọn mô hình",
+    "character.admin.needModel": "Vui lòng chọn mô hình trước",
     "character.admin.script": "Kịch bản",
     "character.admin.search": "Tìm kiếm mô hình/nhân vật",
     "character.admin.speaker": "Người nói",

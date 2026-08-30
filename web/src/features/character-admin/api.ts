@@ -2,26 +2,51 @@ import { api } from '@/lib/api'
 
 import type { CharacterAdminItem } from './types'
 
+/** 拉取平台全部模型名（admin 视角，不受用户分组过滤） */
+export async function fetchAdminModels(): Promise<string[]> {
+  const res = await api.get<{
+    success: boolean
+    message?: string
+    data?: { items?: { model_name: string }[] }
+  }>('/api/models', {
+    params: { page: 1, page_size: 100 },
+    skipErrorHandler: true,
+  })
+  if (!res.data?.success) {
+    throw new Error(res.data?.message ?? 'Failed to load models')
+  }
+  return (res.data?.data?.items ?? []).map((m) => m.model_name)
+}
+
 export async function fetchAdminCharacters(keyword?: string): Promise<CharacterAdminItem[]> {
   const params = keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''
-  const res = await api.get<{ success: boolean; data: CharacterAdminItem[] }>(
-    `/api/character/admin/characters${params}`
+  const res = await api.get<{ success: boolean; message?: string; data: CharacterAdminItem[] }>(
+    `/api/character/admin/characters${params}`,
+    { skipErrorHandler: true }
   )
+  if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to load characters')
   return res.data?.data ?? []
 }
 
 export async function createCharacter(
   data: Partial<CharacterAdminItem>
 ): Promise<CharacterAdminItem> {
-  const res = await api.post<{ success: boolean; data: CharacterAdminItem }>(
+  const res = await api.post<{ success: boolean; message?: string; data: CharacterAdminItem }>(
     '/api/character/admin/characters',
-    data
+    data,
+    { skipErrorHandler: true }
   )
+  if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to create character')
   return res.data?.data
 }
 
 export async function updateCharacter(id: number, data: Partial<CharacterAdminItem>): Promise<void> {
-  await api.put(`/api/character/admin/characters/${id}`, data)
+  const res = await api.put<{ success: boolean; message?: string }>(
+    `/api/character/admin/characters/${id}`,
+    data,
+    { skipErrorHandler: true }
+  )
+  if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to update character')
 }
 
 export async function deleteCharacter(id: number): Promise<void> {

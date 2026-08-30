@@ -850,6 +850,7 @@
     "character.admin.roleTitle": "Звание",
     "character.admin.saveScript": "Сохранить сценарий",
     "character.admin.selectModel": "Выбрать модель",
+    "character.admin.needModel": "Сначала выберите модель",
     "character.admin.script": "Сценарий",
     "character.admin.search": "Поиск модели/персонажа",
     "character.admin.speaker": "Говорящий",

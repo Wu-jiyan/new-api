@@ -20,13 +20,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
-import { getPricing } from '@/features/pricing/api'
-import type { PricingModel } from '@/features/pricing/types'
-
 import {
   createCharacter,
   deleteCharacter,
   fetchAdminCharacters,
+  fetchAdminModels,
   generateCharacterImage,
   saveCharacterScript,
   updateCharacter,
@@ -47,12 +45,12 @@ function extractModelPrefix(modelName: string): string {
 }
 
 /** 按模型名前缀分组，前缀字母序排序（含 other 组） */
-function groupModelsByPrefix(models: PricingModel[]): [string, PricingModel[]][] {
-  const groups = new Map<string, PricingModel[]>()
-  for (const m of models) {
-    const prefix = extractModelPrefix(m.model_name)
+function groupModelsByPrefix(models: string[]): [string, string[]][] {
+  const groups = new Map<string, string[]>()
+  for (const name of models) {
+    const prefix = extractModelPrefix(name)
     const arr = groups.get(prefix) ?? []
-    arr.push(m)
+    arr.push(name)
     groups.set(prefix, arr)
   }
   return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]))
@@ -134,11 +132,12 @@ export default function CharacterAdminPage() {
     queryFn: () => fetchAdminCharacters(keyword),
   })
 
-  const { data: pricing } = useQuery({
-    queryKey: ['pricing-models'],
-    queryFn: getPricing,
+  const { data: models = [] } = useQuery({
+    queryKey: ['admin-models'],
+    queryFn: fetchAdminModels,
+    retry: 1,
   })
-  const modelGroups = groupModelsByPrefix(pricing?.data ?? [])
+  const modelGroups = groupModelsByPrefix(models)
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['character-admin'] })
 
@@ -148,6 +147,9 @@ export default function CharacterAdminPage() {
       toast.success(t('common.success'))
       refresh()
     },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : t('Request failed'))
+    },
   })
 
   const updateMut = useMutation({
@@ -156,6 +158,9 @@ export default function CharacterAdminPage() {
     onSuccess: () => {
       toast.success(t('common.success'))
       refresh()
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : t('Request failed'))
     },
   })
 
@@ -180,6 +185,10 @@ export default function CharacterAdminPage() {
   }
 
   const save = () => {
+    if (!editing && !form.model_name) {
+      toast.error(t('character.admin.needModel'))
+      return
+    }
     const base = {
       display_name: form.display_name,
       title: form.title,
@@ -294,9 +303,7 @@ export default function CharacterAdminPage() {
                   <Input value={form.model_name} disabled />
                 ) : (
                   <Combobox
-                    items={modelGroups.flatMap(([, ms]) =>
-                      ms.map((m) => m.model_name)
-                    )}
+                    items={modelGroups.flatMap(([, ms]) => ms)}
                     value={form.model_name}
                     onValueChange={(value) =>
                       setForm((prev) => ({
@@ -315,12 +322,9 @@ export default function CharacterAdminPage() {
                             <ComboboxLabel className='uppercase'>
                               {prefix}
                             </ComboboxLabel>
-                            {ms.map((m) => (
-                              <ComboboxItem
-                                key={m.model_name}
-                                value={m.model_name}
-                              >
-                                {m.model_name}
+                            {ms.map((name) => (
+                              <ComboboxItem key={name} value={name}>
+                                {name}
                               </ComboboxItem>
                             ))}
                           </ComboboxGroup>

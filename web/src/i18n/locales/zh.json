@@ -850,6 +850,7 @@
     "character.admin.roleTitle": "称号",
     "character.admin.saveScript": "保存剧本",
     "character.admin.selectModel": "选择模型",
+    "character.admin.needModel": "请先选择模型",
     "character.admin.script": "小剧场剧本",
     "character.admin.search": "搜索模型/角色",
     "character.admin.speaker": "说话人",
