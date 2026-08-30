@@ -35,7 +35,7 @@ type Character struct {
 	Description  string `json:"description" gorm:"type:text"`
 	Tags         string `json:"tags" gorm:"type:text"`
 	SystemPrompt string `json:"system_prompt" gorm:"type:text"` // 二期对话人设
-	StagesJSON   string `json:"-" gorm:"type:text"`
+	StagesJSON   string `json:"stages_json" gorm:"type:text"`
 	Enabled      bool   `json:"enabled" gorm:"default:true"`
 	CreatedAt    int64  `json:"created_at" gorm:"bigint"`
 	UpdatedAt    int64  `json:"updated_at" gorm:"bigint"`
