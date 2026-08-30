@@ -845,6 +845,7 @@
     "character.admin.line": "Реплика",
     "character.admin.modelName": "Название модели",
     "character.admin.noImage": "Арта пока нет",
+    "character.admin.roleTitle": "Звание",
     "character.admin.saveScript": "Сохранить сценарий",
     "character.admin.script": "Сценарий",
     "character.admin.search": "Поиск модели/персонажа",

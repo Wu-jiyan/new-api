@@ -845,6 +845,7 @@
     "character.admin.line": "セリフ",
     "character.admin.modelName": "モデル名",
     "character.admin.noImage": "イラストなし",
+    "character.admin.roleTitle": "称号",
     "character.admin.saveScript": "脚本を保存",
     "character.admin.script": "ミニドラマ脚本",
     "character.admin.search": "モデル/キャラクターを検索",

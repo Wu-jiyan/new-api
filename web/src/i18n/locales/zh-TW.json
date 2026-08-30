@@ -845,6 +845,7 @@
     "character.admin.line": "台詞",
     "character.admin.modelName": "模型名",
     "character.admin.noImage": "暫無立繪",
+    "character.admin.roleTitle": "稱號",
     "character.admin.saveScript": "儲存劇本",
     "character.admin.script": "小劇場劇本",
     "character.admin.search": "搜尋模型/角色",

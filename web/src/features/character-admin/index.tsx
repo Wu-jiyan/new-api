@@ -258,7 +258,7 @@ export default function CharacterAdminPage() {
                 />
               </div>
               <div className='space-y-1.5'>
-                <Label>{t('character.admin.title')}</Label>
+                <Label>{t('character.admin.roleTitle')}</Label>
                 <Input
                   value={form.title}
                   onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}

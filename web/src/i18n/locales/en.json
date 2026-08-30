@@ -845,6 +845,7 @@
     "character.admin.line": "Line",
     "character.admin.modelName": "Model Name",
     "character.admin.noImage": "No artwork yet",
+    "character.admin.roleTitle": "Title",
     "character.admin.saveScript": "Save Script",
     "character.admin.script": "Script",
     "character.admin.search": "Search model/character",
