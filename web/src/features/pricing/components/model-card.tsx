@@ -16,10 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ChevronRight, Copy } from 'lucide-react'
+import { ChevronRight, Copy, Lock, Sparkles } from 'lucide-react'
 import { memo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from '@tanstack/react-router'
 
+import type { CharacterView } from '@/features/character/types'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
@@ -50,11 +52,13 @@ export interface ModelCardProps {
   showRechargePrice?: boolean
   selectedGroup?: string
   perf?: ModelPerfBadgeData
+  character?: CharacterView
 }
 
 export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const { t } = useTranslation()
   const { copyToClipboard } = useCopyToClipboard()
+  const navigate = useNavigate()
   const tokenUnit = props.tokenUnit ?? DEFAULT_TOKEN_UNIT
   const priceRate = props.priceRate ?? 1
   const usdExchangeRate = props.usdExchangeRate ?? 1
@@ -72,6 +76,14 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     Boolean(props.model.billing_expr)
   const isUnconfiguredTaskUsage = isUnconfiguredTaskUsageModel(props.model)
   const hasCachedPrice = isTokenBased && props.model.cache_ratio != null
+  const character = props.character
+  const stage0Image = character?.stages?.[0]?.image_url
+  const showPortrait = Boolean(
+    character && character.max_stage >= 0 && stage0Image
+  )
+  const showSilhouette = Boolean(character && !showPortrait)
+  const portraitUrl =
+    character?.stages?.[character.max_stage]?.image_url || stage0Image
   const dynamicPriceOptions = {
     tokenUnit,
     showRechargePrice,
@@ -102,6 +114,14 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation()
     copyToClipboard(props.model.model_name || '')
+  }
+
+  const handleCharacterClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    navigate({
+      to: '/character/$modelName',
+      params: { modelName: props.model.model_name || '' },
+    })
   }
 
   let priceSummary: ReactNode
@@ -245,12 +265,48 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   return (
     <div
       className={cn(
-        'group relative flex flex-col rounded-xl border p-3 transition-colors sm:p-5',
+        'group relative flex flex-col overflow-hidden rounded-xl border p-3 transition-colors sm:p-5',
         'hover:bg-muted/20'
       )}
     >
+      {/* Character portrait / silhouette background */}
+      {showPortrait && portraitUrl && (
+        <div className='pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]'>
+          <img
+            src={portraitUrl}
+            alt=''
+            className='absolute inset-y-0 right-0 h-full w-2/5 object-cover object-top opacity-70'
+            style={{
+              maskImage: 'linear-gradient(to left, black 30%, transparent 100%)',
+              WebkitMaskImage:
+                'linear-gradient(to left, black 30%, transparent 100%)',
+            }}
+          />
+          <div className='absolute inset-0 bg-gradient-to-r from-background/95 via-background/70 to-transparent' />
+        </div>
+      )}
+      {showSilhouette && (
+        <div className='pointer-events-none absolute inset-0 flex items-end justify-end overflow-hidden rounded-[inherit] p-3'>
+          <div className='relative h-3/4 w-2/5'>
+            <div
+              className='bg-muted-foreground/10 absolute inset-0 rounded-t-full'
+              style={{
+                maskImage:
+                  'radial-gradient(ellipse at center, black, transparent)',
+                WebkitMaskImage:
+                  'radial-gradient(ellipse at center, black, transparent)',
+              }}
+            />
+            <div className='text-muted-foreground absolute right-0 bottom-0 flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]'>
+              <Lock className='h-3 w-3' />
+              {t('character.unlockHint')}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header: icon + name + price + actions */}
-      <div className='flex items-start justify-between gap-2.5 sm:gap-3'>
+      <div className='relative flex items-start justify-between gap-2.5 sm:gap-3'>
         <div className='flex min-w-0 items-start gap-2.5 sm:gap-3'>
           <div className='bg-muted/40 flex size-9 shrink-0 items-center justify-center rounded-lg sm:size-10 sm:rounded-xl'>
             {modelIcon || (
@@ -273,6 +329,16 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         </div>
 
         <div className='flex shrink-0 items-center gap-1.5'>
+          {character && (
+            <button
+              type='button'
+              onClick={handleCharacterClick}
+              className='text-muted-foreground hover:text-foreground hover:bg-muted inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors sm:px-2.5 sm:py-1.5'
+            >
+              <Sparkles className='size-3.5' />
+              {t('character.entry')}
+            </button>
+          )}
           <button
             type='button'
             onClick={props.onClick}
@@ -293,12 +359,12 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       </div>
 
       {/* Description */}
-      <p className='text-muted-foreground mt-2 line-clamp-1 flex-1 text-[13px] leading-relaxed sm:mt-4 sm:line-clamp-2 sm:min-h-[2.5rem]'>
+      <p className='text-muted-foreground relative mt-2 line-clamp-1 flex-1 text-[13px] leading-relaxed sm:mt-4 sm:line-clamp-2 sm:min-h-[2.5rem]'>
         {props.model.description || t('No description available.')}
       </p>
 
       {/* Footer: left metadata and right performance summary share row alignment */}
-      <div className='mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1 sm:mt-4'>
+      <div className='relative mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1 sm:mt-4'>
         <div className='flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1'>
           {primaryGroup && (
             <span className='text-muted-foreground text-sm font-medium'>

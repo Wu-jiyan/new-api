@@ -21,6 +21,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { CharacterView } from '@/features/character/types'
 import { Button } from '@/components/ui/button'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 
@@ -37,7 +38,10 @@ export interface ModelCardGridProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   selectedGroup?: string
+  characterMap?: ReadonlyMap<string, CharacterView>
 }
+
+const EMPTY_CHARACTER_MAP = new Map<string, CharacterView>()
 
 export function ModelCardGrid(props: ModelCardGridProps) {
   const { t } = useTranslation()
@@ -67,6 +71,8 @@ export function ModelCardGrid(props: ModelCardGridProps) {
     return map
   }, [perfQuery.data])
 
+  const characterMap = props.characterMap ?? EMPTY_CHARACTER_MAP
+
   if (props.models.length === 0) {
     return null
   }
@@ -84,6 +90,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
             showRechargePrice={props.showRechargePrice}
             selectedGroup={props.selectedGroup}
             perf={perfMap.get(model.model_name || '')}
+            character={characterMap.get(model.model_name || '')}
             onClick={() => props.onModelClick(model.model_name || '')}
           />
         ))}

@@ -18,7 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
 
+import { fetchCharacters } from '@/features/character/api'
+import type { CharacterView } from '@/features/character/types'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
 
@@ -85,6 +88,19 @@ export function Pricing() {
     clearSearch,
   } = useFilters(models || [])
 
+  // 拉取启用角色列表（登录用户视角：含解锁阶段），构建 model_name -> CharacterView 映射。
+  // Pricing 为公共页，游客/未登录请求会 401，失败时静默降级为空映射。
+  const { data: characters } = useQuery({
+    queryKey: ['characters'],
+    queryFn: fetchCharacters,
+    retry: false,
+    staleTime: 60 * 1000,
+  })
+  const characterMap = useMemo(
+    () => new Map((characters ?? []).map((c) => [c.model_name, c])),
+    [characters]
+  )
+
   const handleModelClick = useCallback((modelName: string) => {
     setSelectedModelName(modelName)
   }, [])
@@ -133,6 +149,7 @@ export function Pricing() {
           tokenUnit={tokenUnit}
           showRechargePrice={showRechargePrice}
           selectedGroup={groupFilter}
+          characterMap={characterMap}
         />
       )
     }
