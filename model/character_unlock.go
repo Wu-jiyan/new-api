@@ -1,13 +1,21 @@
 package model
 
 import (
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 )
 
+// escapeLike 转义 LIKE 模式中的通配符，使 model_name 作为字面前缀匹配。
+func escapeLike(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return r.Replace(s)
+}
+
 // GetUserCharacterUsage 聚合用户对某模型的累计成功调用统计。
+// 角色 model_name 为前缀（如 deepseek），统计其名下所有模型（deepseek-chat、deepseek-reasoner…）的调用。
 // 统计源：logs 表（LOG_DB）中 LogTypeConsume 记录，token = prompt + completion。
 func GetUserCharacterUsage(userId int, modelName string) (tokens int64, calls int64, err error) {
 	var row struct {
@@ -16,7 +24,7 @@ func GetUserCharacterUsage(userId int, modelName string) (tokens int64, calls in
 	}
 	err = LOG_DB.Table("logs").
 		Select("COALESCE(sum(prompt_tokens), 0) + COALESCE(sum(completion_tokens), 0) as total_tokens, count(*) as total_calls").
-		Where("user_id = ? AND model_name = ? AND type = ?", userId, modelName, LogTypeConsume).
+		Where("user_id = ? AND model_name LIKE ? ESCAPE '\\' AND type = ?", userId, escapeLike(modelName)+"%", LogTypeConsume).
 		Scan(&row).Error
 	if err != nil {
 		return 0, 0, err

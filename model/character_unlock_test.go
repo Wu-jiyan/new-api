@@ -11,14 +11,17 @@ func TestGetUserCharacterUsage(t *testing.T) {
 	require.NoError(t, LOG_DB.AutoMigrate(&Log{}))
 	modelName := "char-test-model"
 	uid := 424242
-	require.NoError(t, LOG_DB.Where("user_id = ? AND model_name = ?", uid, modelName).Delete(&Log{}).Error)
-	t.Cleanup(func() {
-		require.NoError(t, LOG_DB.Where("user_id = ? AND model_name = ?", uid, modelName).Delete(&Log{}).Error)
-	})
+	prefixClean := func() {
+		require.NoError(t, LOG_DB.Where("user_id = ? AND model_name LIKE ?", uid, modelName+"%").Delete(&Log{}).Error)
+	}
+	prefixClean()
+	t.Cleanup(prefixClean)
 	now := common.GetTimestamp()
 	logs := []*Log{
 		{UserId: uid, ModelName: modelName, Type: LogTypeConsume, PromptTokens: 1000, CompletionTokens: 500, CreatedAt: now},
 		{UserId: uid, ModelName: modelName, Type: LogTypeConsume, PromptTokens: 2000, CompletionTokens: 1000, CreatedAt: now},
+		// 同前缀的其他模型名也应计入（前缀匹配）
+		{UserId: uid, ModelName: modelName + "-suffix", Type: LogTypeConsume, PromptTokens: 500, CompletionTokens: 250, CreatedAt: now},
 		{UserId: uid, ModelName: modelName, Type: LogTypeError, PromptTokens: 9999, CompletionTokens: 9999, CreatedAt: now}, // 不计
 		{UserId: uid, ModelName: "other-model", Type: LogTypeConsume, PromptTokens: 9000, CompletionTokens: 0, CreatedAt: now}, // 不计
 	}
@@ -28,8 +31,8 @@ func TestGetUserCharacterUsage(t *testing.T) {
 
 	tokens, calls, err := GetUserCharacterUsage(uid, modelName)
 	require.NoError(t, err)
-	require.Equal(t, int64(4500), tokens)
-	require.Equal(t, int64(2), calls)
+	require.Equal(t, int64(5250), tokens)
+	require.Equal(t, int64(3), calls)
 }
 
 func TestRefreshUserCharacterProgress(t *testing.T) {

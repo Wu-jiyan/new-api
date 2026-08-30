@@ -77,6 +77,7 @@ func AdminUpdateCharacter(c *gin.Context) {
 		return
 	}
 	var req struct {
+		ModelName    string `json:"model_name"`
 		DisplayName  string `json:"display_name"`
 		Title        string `json:"title"`
 		Description  string `json:"description"`
@@ -92,6 +93,19 @@ func AdminUpdateCharacter(c *gin.Context) {
 	updates := map[string]interface{}{
 		"display_name": req.DisplayName, "title": req.Title, "description": req.Description,
 		"tags": req.Tags, "system_prompt": req.SystemPrompt, "updated_at": common.GetTimestamp(),
+	}
+	if req.ModelName != "" {
+		var cnt int64
+		if err := model.DB.Model(&model.Character{}).
+			Where("model_name = ? AND id != ?", req.ModelName, id).Count(&cnt).Error; err != nil {
+			c.JSON(200, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		if cnt > 0 {
+			c.JSON(200, gin.H{"success": false, "message": "该模型已存在角色配置"})
+			return
+		}
+		updates["model_name"] = req.ModelName
 	}
 	if req.StagesJSON != "" {
 		var stages model.CharacterStages

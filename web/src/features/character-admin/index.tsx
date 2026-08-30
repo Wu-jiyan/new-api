@@ -6,16 +6,6 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxGroup,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxLabel,
-  ComboboxList,
-} from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -24,7 +14,6 @@ import {
   createCharacter,
   deleteCharacter,
   fetchAdminCharacters,
-  fetchAdminModels,
   generateCharacterImage,
   saveCharacterScript,
   updateCharacter,
@@ -33,28 +22,6 @@ import {
 import type { CharacterAdminItem } from './types'
 
 const STAGE_NAMES = ['初遇', '同行', '羁绊']
-
-/**
- * 提取模型名前缀，如 deepseek-chat -> deepseek、gpt-4o -> gpt、glm-4 -> glm。
- * 带渠道前缀（如 openai/gpt-4o）时先去掉渠道段。
- */
-function extractModelPrefix(modelName: string): string {
-  const withoutVendor = modelName.replace(/^[A-Za-z0-9_-]+\//, '')
-  const match = withoutVendor.match(/^[A-Za-z0-9]+/)
-  return match ? match[0].toLowerCase() : 'other'
-}
-
-/** 按模型名前缀分组，前缀字母序排序（含 other 组） */
-function groupModelsByPrefix(models: string[]): [string, string[]][] {
-  const groups = new Map<string, string[]>()
-  for (const name of models) {
-    const prefix = extractModelPrefix(name)
-    const arr = groups.get(prefix) ?? []
-    arr.push(name)
-    groups.set(prefix, arr)
-  }
-  return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-}
 
 interface StageDraft {
   name: string
@@ -132,15 +99,7 @@ export default function CharacterAdminPage() {
     queryFn: () => fetchAdminCharacters(keyword),
   })
 
-  const { data: models = [] } = useQuery({
-    queryKey: ['admin-models'],
-    queryFn: fetchAdminModels,
-    retry: 1,
-  })
-  const modelGroups = groupModelsByPrefix(models)
-
   const refresh = () => qc.invalidateQueries({ queryKey: ['character-admin'] })
-
   const createMut = useMutation({
     mutationFn: createCharacter,
     onSuccess: () => {
@@ -299,43 +258,19 @@ export default function CharacterAdminPage() {
             <div className='grid gap-4 sm:grid-cols-2'>
               <div className='space-y-1.5'>
                 <Label>{t('character.admin.modelName')}</Label>
-                {editing ? (
-                  <Input value={form.model_name} disabled />
-                ) : (
-                  <Combobox
-                    items={modelGroups.flatMap(([, ms]) => ms)}
-                    value={form.model_name}
-                    onValueChange={(value) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        model_name: value ?? '',
-                      }))
-                    }
-                  >
-                    <ComboboxInput
-                      placeholder={t('character.admin.selectModel')}
-                    />
-                    <ComboboxContent>
-                      <ComboboxList>
-                        {modelGroups.map(([prefix, ms]) => (
-                          <ComboboxGroup key={prefix}>
-                            <ComboboxLabel className='uppercase'>
-                              {prefix}
-                            </ComboboxLabel>
-                            {ms.map((name) => (
-                              <ComboboxItem key={name} value={name}>
-                                {name}
-                              </ComboboxItem>
-                            ))}
-                          </ComboboxGroup>
-                        ))}
-                        <ComboboxEmpty>
-                          {t('character.admin.noModels')}
-                        </ComboboxEmpty>
-                      </ComboboxList>
-                    </ComboboxContent>
-                  </Combobox>
-                )}
+                <Input
+                  value={form.model_name}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      model_name: e.target.value.trim(),
+                    }))
+                  }
+                  placeholder={t('character.admin.modelNamePlaceholder')}
+                />
+                <p className='text-xs text-muted-foreground'>
+                  {t('character.admin.modelNameHint')}
+                </p>
               </div>
               <div className='space-y-1.5'>
                 <Label>{t('character.admin.displayName')}</Label>
