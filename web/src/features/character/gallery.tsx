@@ -165,11 +165,15 @@ export default function CharacterGalleryPage() {
 
       <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
         <div className='rounded-xl border p-4'>
+          <p className='text-muted-foreground text-sm'>
+            {t('character.gallery.collected')}
+          </p>
           <p className='mt-1 text-2xl font-bold'>
-            {t('character.gallery.collected', {
-              collected: stats.collected,
-              total: stats.total,
-            })}
+            {stats.collected}
+            <span className='text-muted-foreground font-normal'>
+              {' '}
+              / {stats.total}
+            </span>
           </p>
         </div>
         <div className='rounded-xl border p-4'>

@@ -879,7 +879,7 @@
     "character.unlockHint": "Mở khóa sau khi sử dụng",
     "character.usedTokens": "Token đã dùng",
     "character.gallery.calls": "Tổng lượt gọi",
-    "character.gallery.collected": "Đã thu thập {{collected}}/{{total}}",
+    "character.gallery.collected": "Đã thu thập",
     "character.gallery.empty": "Chưa có nhân vật",
     "character.gallery.locked": "Đã khóa",
     "character.gallery.title": "Bộ sưu tập nhân vật",

@@ -879,7 +879,7 @@
     "character.unlockHint": "Se débloque après utilisation",
     "character.usedTokens": "Tokens consommés",
     "character.gallery.calls": "Appels au total",
-    "character.gallery.collected": "Collectionnés {{collected}}/{{total}}",
+    "character.gallery.collected": "Collectionnés",
     "character.gallery.empty": "Aucun personnage pour le moment",
     "character.gallery.locked": "Verrouillé",
     "character.gallery.title": "Galerie des personnages",

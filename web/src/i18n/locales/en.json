@@ -879,7 +879,7 @@
     "character.unlockHint": "Unlocks after use",
     "character.usedTokens": "Tokens used",
     "character.gallery.calls": "Total calls",
-    "character.gallery.collected": "Collected {{collected}}/{{total}}",
+    "character.gallery.collected": "Collected",
     "character.gallery.empty": "No characters yet",
     "character.gallery.locked": "Locked",
     "character.gallery.title": "Character Gallery",

@@ -879,7 +879,7 @@
     "character.unlockHint": "利用後に解放",
     "character.usedTokens": "消費トークン",
     "character.gallery.calls": "総呼び出し",
-    "character.gallery.collected": "収集 {{collected}}/{{total}}",
+    "character.gallery.collected": "収集",
     "character.gallery.empty": "キャラクターがいません",
     "character.gallery.locked": "未解放",
     "character.gallery.title": "キャラクター図鑑",

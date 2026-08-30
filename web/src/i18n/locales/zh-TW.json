@@ -879,7 +879,7 @@
     "character.unlockHint": "呼叫後解鎖",
     "character.usedTokens": "已消耗",
     "character.gallery.calls": "總呼叫次數",
-    "character.gallery.collected": "已收集 {{collected}}/{{total}}",
+    "character.gallery.collected": "已收集",
     "character.gallery.empty": "暫無角色",
     "character.gallery.locked": "未解鎖",
     "character.gallery.title": "角色圖鑑",

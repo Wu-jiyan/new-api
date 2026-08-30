@@ -879,7 +879,7 @@
     "character.unlockHint": "Разблокируется после использования",
     "character.usedTokens": "Использовано токенов",
     "character.gallery.calls": "Всего вызовов",
-    "character.gallery.collected": "Собрано {{collected}}/{{total}}",
+    "character.gallery.collected": "Собрано",
     "character.gallery.empty": "Пока нет персонажей",
     "character.gallery.locked": "Заблокировано",
     "character.gallery.title": "Галерея персонажей",
