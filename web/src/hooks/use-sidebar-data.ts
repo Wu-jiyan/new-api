@@ -164,6 +164,12 @@ export function useSidebarData(): SidebarData {
             requiredRole: ROLE.ADMIN,
           },
           {
+            title: t('Character Admin'),
+            url: '/character/admin',
+            icon: Sparkles,
+            requiredRole: ROLE.ADMIN,
+          },
+          {
             title: t('System Info'),
             url: '/system-info',
             icon: ServerCog,
