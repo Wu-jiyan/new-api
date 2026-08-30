@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 
 import { fetchCharacter, fetchCharacterScript } from './api'
 import { ScriptPlayer } from './components/script-player'
-import type { CharacterStageView, CharacterView } from './types'
+import type { CharacterStageView } from './types'
 
 function formatTokens(tokens: number): string {
   if (tokens >= 1_000_000_000) return `${(tokens / 1_000_000_000).toFixed(1)}B`

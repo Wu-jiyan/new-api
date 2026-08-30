@@ -35,6 +35,7 @@ import { Route as RankingsIndexRouteImport } from './routes/rankings/index'
 import { Route as SetupIndexRouteImport } from './routes/setup/index'
 import { Route as authUserResetRouteImport } from './routes/(auth)/user/reset'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
+import { Route as AuthenticatedCharacterModelNameRouteImport } from './routes/_authenticated/character/$modelName'
 import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authenticated/chat/$chatId'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedDashboardSectionRouteImport } from './routes/_authenticated/dashboard/$section'
@@ -55,6 +56,7 @@ import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_aut
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
+import { Route as AuthenticatedCharacterAdminIndexRouteImport } from './routes/_authenticated/character/admin/index'
 import { Route as AuthenticatedGachaAdminIndexRouteImport } from './routes/_authenticated/gacha/admin/index'
 import { Route as AuthenticatedGachaCardsIndexRouteImport } from './routes/_authenticated/gacha/cards/index'
 import { Route as AuthenticatedSystemSettingsAuthIndexRouteImport } from './routes/_authenticated/system-settings/auth/index'
@@ -202,6 +204,12 @@ const AuthenticatedChannelsIndexRoute =
     path: '/channels/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCharacterModelNameRoute =
+  AuthenticatedCharacterModelNameRouteImport.update({
+    id: '/character/$modelName',
+    path: '/character/$modelName',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedChatChatIdRoute = AuthenticatedChatChatIdRouteImport.update({
   id: '/chat/$chatId',
   path: '/chat/$chatId',
@@ -317,6 +325,12 @@ const PricingModelIdIndexRoute = PricingModelIdIndexRouteImport.update({
   path: '/pricing/$modelId/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedCharacterAdminIndexRoute =
+  AuthenticatedCharacterAdminIndexRouteImport.update({
+    id: '/character/admin/',
+    path: '/character/admin/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedGachaAdminIndexRoute =
   AuthenticatedGachaAdminIndexRouteImport.update({
     id: '/gacha/admin/',
@@ -438,6 +452,7 @@ export interface FileRoutesByFullPath {
   '/rankings/': typeof RankingsIndexRoute
   '/setup/': typeof SetupIndexRoute
   '/user/reset': typeof authUserResetRoute
+  '/character/$modelName': typeof AuthenticatedCharacterModelNameRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -466,6 +481,7 @@ export interface FileRoutesByFullPath {
   '/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
+  '/character/admin/': typeof AuthenticatedCharacterAdminIndexRoute
   '/gacha/admin/': typeof AuthenticatedGachaAdminIndexRoute
   '/gacha/cards/': typeof AuthenticatedGachaCardsIndexRoute
   '/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
@@ -499,6 +515,7 @@ export interface FileRoutesByTo {
   '/rankings': typeof RankingsIndexRoute
   '/setup': typeof SetupIndexRoute
   '/user/reset': typeof authUserResetRoute
+  '/character/$modelName': typeof AuthenticatedCharacterModelNameRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -527,6 +544,7 @@ export interface FileRoutesByTo {
   '/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
+  '/character/admin': typeof AuthenticatedCharacterAdminIndexRoute
   '/gacha/admin': typeof AuthenticatedGachaAdminIndexRoute
   '/gacha/cards': typeof AuthenticatedGachaCardsIndexRoute
   '/system-settings/auth': typeof AuthenticatedSystemSettingsAuthIndexRoute
@@ -564,6 +582,7 @@ export interface FileRoutesById {
   '/rankings/': typeof RankingsIndexRoute
   '/setup/': typeof SetupIndexRoute
   '/(auth)/user/reset': typeof authUserResetRoute
+  '/_authenticated/character/$modelName': typeof AuthenticatedCharacterModelNameRoute
   '/_authenticated/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/_authenticated/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -592,6 +611,7 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
   '/_authenticated/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/_authenticated/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
+  '/_authenticated/character/admin/': typeof AuthenticatedCharacterAdminIndexRoute
   '/_authenticated/gacha/admin/': typeof AuthenticatedGachaAdminIndexRoute
   '/_authenticated/gacha/cards/': typeof AuthenticatedGachaCardsIndexRoute
   '/_authenticated/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
@@ -628,6 +648,7 @@ export interface FileRouteTypes {
     | '/rankings/'
     | '/setup/'
     | '/user/reset'
+    | '/character/$modelName'
     | '/chat/$chatId'
     | '/dashboard/$section'
     | '/errors/$error'
@@ -656,6 +677,7 @@ export interface FileRouteTypes {
     | '/system-settings/operations/$section'
     | '/system-settings/security/$section'
     | '/system-settings/site/$section'
+    | '/character/admin/'
     | '/gacha/admin/'
     | '/gacha/cards/'
     | '/system-settings/auth/'
@@ -689,6 +711,7 @@ export interface FileRouteTypes {
     | '/rankings'
     | '/setup'
     | '/user/reset'
+    | '/character/$modelName'
     | '/chat/$chatId'
     | '/dashboard/$section'
     | '/errors/$error'
@@ -717,6 +740,7 @@ export interface FileRouteTypes {
     | '/system-settings/operations/$section'
     | '/system-settings/security/$section'
     | '/system-settings/site/$section'
+    | '/character/admin'
     | '/gacha/admin'
     | '/gacha/cards'
     | '/system-settings/auth'
@@ -753,6 +777,7 @@ export interface FileRouteTypes {
     | '/rankings/'
     | '/setup/'
     | '/(auth)/user/reset'
+    | '/_authenticated/character/$modelName'
     | '/_authenticated/chat/$chatId'
     | '/_authenticated/dashboard/$section'
     | '/_authenticated/errors/$error'
@@ -781,6 +806,7 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/operations/$section'
     | '/_authenticated/system-settings/security/$section'
     | '/_authenticated/system-settings/site/$section'
+    | '/_authenticated/character/admin/'
     | '/_authenticated/gacha/admin/'
     | '/_authenticated/gacha/cards/'
     | '/_authenticated/system-settings/auth/'
@@ -995,6 +1021,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChannelsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/character/$modelName': {
+      id: '/_authenticated/character/$modelName'
+      path: '/character/$modelName'
+      fullPath: '/character/$modelName'
+      preLoaderRoute: typeof AuthenticatedCharacterModelNameRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/chat/$chatId': {
       id: '/_authenticated/chat/$chatId'
       path: '/chat/$chatId'
@@ -1134,6 +1167,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/pricing/$modelId/'
       preLoaderRoute: typeof PricingModelIdIndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/character/admin/': {
+      id: '/_authenticated/character/admin/'
+      path: '/character/admin'
+      fullPath: '/character/admin/'
+      preLoaderRoute: typeof AuthenticatedCharacterAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/gacha/admin/': {
       id: '/_authenticated/gacha/admin/'
@@ -1336,6 +1376,7 @@ const AuthenticatedSystemSettingsRouteRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedSystemSettingsRouteRoute: typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   AuthenticatedChat2linkRoute: typeof AuthenticatedChat2linkRoute
+  AuthenticatedCharacterModelNameRoute: typeof AuthenticatedCharacterModelNameRoute
   AuthenticatedChatChatIdRoute: typeof AuthenticatedChatChatIdRoute
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
@@ -1355,6 +1396,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUsageLogsIndexRoute: typeof AuthenticatedUsageLogsIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
   AuthenticatedWalletIndexRoute: typeof AuthenticatedWalletIndexRoute
+  AuthenticatedCharacterAdminIndexRoute: typeof AuthenticatedCharacterAdminIndexRoute
   AuthenticatedGachaAdminIndexRoute: typeof AuthenticatedGachaAdminIndexRoute
   AuthenticatedGachaCardsIndexRoute: typeof AuthenticatedGachaCardsIndexRoute
 }
@@ -1363,6 +1405,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSystemSettingsRouteRoute:
     AuthenticatedSystemSettingsRouteRouteWithChildren,
   AuthenticatedChat2linkRoute: AuthenticatedChat2linkRoute,
+  AuthenticatedCharacterModelNameRoute: AuthenticatedCharacterModelNameRoute,
   AuthenticatedChatChatIdRoute: AuthenticatedChatChatIdRoute,
   AuthenticatedDashboardSectionRoute: AuthenticatedDashboardSectionRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
@@ -1383,6 +1426,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedUsageLogsIndexRoute: AuthenticatedUsageLogsIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
   AuthenticatedWalletIndexRoute: AuthenticatedWalletIndexRoute,
+  AuthenticatedCharacterAdminIndexRoute: AuthenticatedCharacterAdminIndexRoute,
   AuthenticatedGachaAdminIndexRoute: AuthenticatedGachaAdminIndexRoute,
   AuthenticatedGachaCardsIndexRoute: AuthenticatedGachaCardsIndexRoute,
 }

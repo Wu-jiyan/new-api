@@ -57,7 +57,7 @@ function parseStages(item: CharacterAdminItem | null): StageDraft[] {
       script: stages[i]?.script ?? [],
     }))
   } catch {
-    return STAGE_NAMES.map((name, i) => ({ name, unlockTokens: 0, imageUrl: '', script: [] }))
+    return STAGE_NAMES.map((name) => ({ name, unlockTokens: 0, imageUrl: '', script: [] }))
   }
 }
 
@@ -307,7 +307,9 @@ export default function CharacterAdminPage() {
                       {t('character.admin.upload')}
                     </Button>
                     <input
-                      ref={(el) => (fileRefs.current[i] = el)}
+                      ref={(el) => {
+                        fileRefs.current[i] = el
+                      }}
                       type='file'
                       accept='image/*'
                       className='hidden'

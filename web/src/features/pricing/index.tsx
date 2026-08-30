@@ -21,7 +21,6 @@ import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
 import { fetchCharacters } from '@/features/character/api'
-import type { CharacterView } from '@/features/character/types'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
 
