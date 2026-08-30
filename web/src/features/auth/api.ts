@@ -22,6 +22,10 @@ import { api, refreshAuthentication, type RefreshOutcome } from '@/lib/api'
 import { buildCaptchaParams, type CaptchaPayload } from '@/lib/captcha'
 import { useAuthStore } from '@/stores/auth-store'
 
+import {
+  clearPasswordEncryptionCache,
+  encryptPassword,
+} from './lib/password-encryption'
 import { getAffiliateCode } from './lib/storage'
 import type { TelegramAuthorization } from './lib/telegram-login'
 import type {
@@ -42,17 +46,39 @@ import type {
 // ----------------------------------------------------------------------------
 
 // User login with username and password
-export async function login(payload: LoginPayload) {
+export async function login(payload: LoginPayload): Promise<LoginResponse> {
   const captchaParams = buildCaptchaParams(payload.captcha)
-  const res = await api.post<LoginResponse>(
-    `/api/user/login${toQueryString(captchaParams)}`,
-    {
-      username: payload.username,
-      password: payload.password,
-    },
-    { skipAuthRefresh: true }
-  )
-  return res.data
+  try {
+    let passwordFields:
+      | { password: string }
+      | { password_encrypted: string; encryption_key_id: string }
+    if (payload.passwordEncryptionEnabled) {
+      const encryptedPassword = await encryptPassword(payload.password)
+      passwordFields = {
+        password_encrypted: encryptedPassword.password_encrypted,
+        encryption_key_id: encryptedPassword.encryption_key_id,
+      }
+    } else {
+      passwordFields = { password: payload.password }
+    }
+    const res = await api.post<LoginResponse>(
+      `/api/user/login${toQueryString(captchaParams)}`,
+      {
+        username: payload.username,
+        ...passwordFields,
+      },
+      { skipAuthRefresh: true }
+    )
+    if (payload.passwordEncryptionEnabled && !res.data?.success) {
+      clearPasswordEncryptionCache()
+    }
+    return res.data
+  } catch (error: unknown) {
+    if (payload.passwordEncryptionEnabled) {
+      clearPasswordEncryptionCache()
+    }
+    throw error
+  }
 }
 
 // 将校验参数拼接到查询串，保持与既有 turnstile 查询参数风格一致
