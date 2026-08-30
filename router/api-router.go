@@ -245,6 +245,7 @@ func SetApiRouter(router *gin.Engine) {
 			characterRoute.GET("/characters", controller.ListCharacters)
 			characterRoute.GET("/:modelName", controller.GetCharacter)
 			characterRoute.GET("/:modelName/script/:stageIndex", controller.GetCharacterScript)
+			characterRoute.POST("/:modelName/chat", controller.CharacterChat)
 		}
 
 		optionRoute := apiRouter.Group("/option")
