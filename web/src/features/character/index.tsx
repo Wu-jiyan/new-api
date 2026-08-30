@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { ArrowLeft, Lock, MessagesSquare, Sparkles } from 'lucide-react'
+import { ArrowLeft, Lock, MessagesSquare, Share2, Sparkles } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { fetchCharacter, fetchCharacterScript } from './api'
 import { ChatPanel } from './components/chat-panel'
 import { ScriptPlayer } from './components/script-player'
+import { ShareCard } from './components/share-card'
 import type { CharacterStageView } from './types'
 
 function formatTokens(tokens: number): string {
@@ -25,6 +26,7 @@ export default function CharacterDetailPage() {
   const { modelName = '' } = useParams({ strict: false })
   const [activeStage, setActiveStage] = useState(0)
   const [chatOpen, setChatOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
 
   const { data: character, isLoading } = useQuery({
     queryKey: ['character', modelName],
@@ -60,6 +62,11 @@ export default function CharacterDetailPage() {
   }
 
   const showStage = character.max_stage >= activeStage
+
+  const shareImageUrl = character.stages[character.max_stage]?.image_url
+  const shareStageName =
+    character.stages[character.max_stage]?.name ?? currentStage?.name ?? ''
+  const shareDisabled = character.total_calls < 1 || !shareImageUrl
 
   return (
     <div className='mx-auto max-w-5xl p-6'>
@@ -130,6 +137,15 @@ export default function CharacterDetailPage() {
             >
               <MessagesSquare className='mr-2 h-4 w-4' />
               {t('character.chat.open')}
+            </Button>
+            <Button
+              variant='outline'
+              onClick={() => setShareOpen(true)}
+              disabled={shareDisabled}
+              title={shareDisabled ? t('character.locked') : undefined}
+            >
+              <Share2 className='mr-2 h-4 w-4' />
+              {t('character.share.title')}
             </Button>
             {character.total_calls < 1 && (
               <span className='text-xs text-muted-foreground'>
@@ -205,6 +221,16 @@ export default function CharacterDetailPage() {
         characterName={character.display_name}
         open={chatOpen}
         onOpenChange={setChatOpen}
+      />
+
+      <ShareCard
+        modelName={character.model_name}
+        displayName={character.display_name}
+        title={character.title ?? ''}
+        stageName={shareStageName}
+        imageUrl={shareImageUrl ?? ''}
+        open={shareOpen}
+        onOpenChange={setShareOpen}
       />
     </div>
   )
