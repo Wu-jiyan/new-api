@@ -224,6 +224,10 @@ func SetApiRouter(router *gin.Engine) {
 			characterAdminRoute.POST("/characters/:id/stages/:index/image", controller.AdminUploadCharacterImage)
 			characterAdminRoute.POST("/characters/:id/stages/:index/script", controller.AdminSaveCharacterScript)
 			characterAdminRoute.PUT("/thresholds", controller.AdminUpdateCharacterThresholds)
+			characterAdminRoute.GET("/backgrounds", controller.AdminListCharacterBackgrounds)
+			characterAdminRoute.POST("/backgrounds/upload", controller.AdminUploadCharacterBackground)
+			characterAdminRoute.POST("/backgrounds/generate", controller.AdminGenerateCharacterBackground)
+			characterAdminRoute.DELETE("/backgrounds/:id", controller.AdminDeleteCharacterBackground)
 		}
 
 		// Gacha (card pack) user endpoints
@@ -243,7 +247,9 @@ func SetApiRouter(router *gin.Engine) {
 		characterRoute.Use(middleware.UserAuth())
 		{
 			characterRoute.GET("/characters", controller.ListCharacters)
+			characterRoute.GET("/backgrounds", controller.ListCharacterBackgrounds)
 			characterRoute.GET("/:modelName", controller.GetCharacter)
+			characterRoute.POST("/:modelName/unlock", controller.UnlockCharacter)
 			characterRoute.GET("/:modelName/script/:stageIndex", controller.GetCharacterScript)
 			characterRoute.POST("/:modelName/chat", controller.CharacterChat)
 		}

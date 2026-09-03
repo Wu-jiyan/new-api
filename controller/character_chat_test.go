@@ -74,6 +74,17 @@ func insertConsumeLog(t *testing.T, userId int, modelName string) {
 	}).Error)
 }
 
+// unlockStage0 手动解锁阶段 0（新状态机下 max_stage 仅由手动解锁推进）
+func unlockStage0(t *testing.T, userId int, modelName string) {
+	t.Helper()
+	var ch model.Character
+	require.NoError(t, model.DB.Where("model_name = ?", modelName).First(&ch).Error)
+	state, err := model.GetUserCharacterState(userId, &ch)
+	require.NoError(t, err)
+	_, err = model.UnlockUserCharacterStage(userId, modelName, state, ch.AffinityRequired, ch.Stages(), 0)
+	require.NoError(t, err)
+}
+
 func TestCharacterChatCharacterNotFound(t *testing.T) {
 	setupCharacterChatTestDB(t)
 	require.NoError(t, model.DB.AutoMigrate(&model.Character{}, &model.UserCharacterProgress{}, &model.Log{}))
@@ -117,7 +128,8 @@ func TestCharacterChatForward(t *testing.T) {
 		systemPrompt = "你是观测者，请回答用户问题"
 	)
 	createChatCharacter(t, modelName, systemPrompt)
-	insertConsumeLog(t, userId, modelName) // 已调用过 -> 解锁
+	insertConsumeLog(t, userId, modelName) // 已调用过（达标）
+	unlockStage0(t, userId, modelName)     // 手动解锁阶段 0 -> 可对话
 	t.Cleanup(func() {
 		model.DB.Where("model_name = ?", modelName).Delete(&model.Character{})
 		model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).Delete(&model.UserCharacterProgress{})
@@ -126,15 +138,17 @@ func TestCharacterChatForward(t *testing.T) {
 
 	// 替换包级转发函数，捕获上游请求并返回模拟 SSE 响应
 	var captured struct {
-		url     string
-		body    []byte
-		cookies []*http.Cookie
+		url        string
+		body       []byte
+		authHeader string
+		cookies    []*http.Cookie
 	}
 	origForward := characterChatForward
-	characterChatForward = func(ctx context.Context, url string, cookies []*http.Cookie, body []byte) (*http.Response, error) {
+	characterChatForward = func(ctx context.Context, url string, src *http.Request, body []byte) (*http.Response, error) {
 		captured.url = url
 		captured.body = body
-		captured.cookies = cookies
+		captured.authHeader = src.Header.Get("Authorization")
+		captured.cookies = src.Cookies()
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Status:     "200 OK",
@@ -148,6 +162,7 @@ func TestCharacterChatForward(t *testing.T) {
 	reqBody := `{"messages":[{"role":"user","content":"你好"}],"stream":false}`
 	req := httptest.NewRequest(http.MethodPost, "/api/character/"+modelName+"/chat", strings.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer test-dashboard-token")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -157,7 +172,8 @@ func TestCharacterChatForward(t *testing.T) {
 
 	// 上游 URL 指向本实例 /pg/chat/completions
 	require.Equal(t, fmt.Sprintf("http://127.0.0.1:%d/pg/chat/completions", *common.Port), captured.url)
-	// Cookie 透传（测试请求无 cookie，转发函数仍被调用且不 panic）
+	// Authorization header 与会话 cookie 透传（保证内部转发认证通过）
+	require.Equal(t, "Bearer test-dashboard-token", captured.authHeader)
 	require.NotNil(t, captured.cookies)
 
 	// 请求体构造正确：model = 角色 ModelName、system prompt 插入头部、stream=true
@@ -185,6 +201,7 @@ func TestCharacterChatUpstreamError(t *testing.T) {
 	)
 	createChatCharacter(t, modelName, "人设")
 	insertConsumeLog(t, userId, modelName)
+	unlockStage0(t, userId, modelName)
 	t.Cleanup(func() {
 		model.DB.Where("model_name = ?", modelName).Delete(&model.Character{})
 		model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).Delete(&model.UserCharacterProgress{})
@@ -192,7 +209,7 @@ func TestCharacterChatUpstreamError(t *testing.T) {
 	})
 
 	origForward := characterChatForward
-	characterChatForward = func(ctx context.Context, url string, cookies []*http.Cookie, body []byte) (*http.Response, error) {
+	characterChatForward = func(ctx context.Context, url string, src *http.Request, body []byte) (*http.Response, error) {
 		return nil, fmt.Errorf("connection refused")
 	}
 	t.Cleanup(func() { characterChatForward = origForward })

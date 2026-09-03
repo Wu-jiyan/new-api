@@ -25,6 +25,7 @@ func setupCharacterUserRouter() *gin.Engine {
 		rg.GET("/characters", ListCharacters)
 		rg.GET("/:modelName", GetCharacter)
 		rg.GET("/:modelName/script/:stageIndex", GetCharacterScript)
+		rg.POST("/:modelName/unlock", UnlockCharacter)
 	}
 	return r
 }
@@ -74,11 +75,31 @@ func TestUserGetCharacterScriptLocked(t *testing.T) {
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/character/char-lock-model/script/1", nil))
 	require.Equal(t, http.StatusForbidden, w.Code)
 
-	// 写入进度：阶段1 已解锁（首次请求已生成 MaxStage=0 进度记录，先删除避免唯一索引冲突）
-	model.DB.Where("user_id = ? AND model_name = ?", 424250, "char-lock-model").Delete(&model.UserCharacterProgress{})
-	require.NoError(t, model.DB.Create(&model.UserCharacterProgress{
-		UserID: 424250, ModelName: "char-lock-model", TotalTokens: 12000000, TotalCalls: 3, MaxStage: 1,
-	}).Error)
+	// 写入真实调用日志（阶段1 阈值 10M tokens）使其达标
+	now := common.GetTimestamp()
+	for i := 0; i < 3; i++ {
+		require.NoError(t, model.LOG_DB.Create(&model.Log{
+			UserId: 424250, ModelName: "char-lock-model", Type: model.LogTypeConsume,
+			PromptTokens: 4000000, CompletionTokens: 0, CreatedAt: now,
+		}).Error)
+	}
+	model.ClearCharacterUsageCache()
+
+	// 达标后不会自动解锁 -> script/1 仍 403
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/character/char-lock-model/script/1", nil))
+	require.Equal(t, http.StatusForbidden, w.Code)
+
+	postUnlock := func(stage int) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/character/char-lock-model/unlock",
+			strings.NewReader(fmt.Sprintf(`{"stage": %d}`, stage)))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		return w
+	}
+	require.Contains(t, postUnlock(0).Body.String(), `"success":true`)
+	require.Contains(t, postUnlock(1).Body.String(), `"success":true`)
 
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/character/char-lock-model/script/1", nil))
@@ -90,4 +111,55 @@ func TestUserGetCharacterScriptLocked(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	require.True(t, resp.Success)
 	require.Len(t, resp.Data, 1)
+}
+
+func TestUserUnlockCharacterAffinityGate(t *testing.T) {
+	setupCharacterUserTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.Character{}, &model.UserCharacterProgress{}, &model.Log{}))
+	const (
+		modelName = "char-aff-model"
+		uid       = 424251
+	)
+	ch := &model.Character{ModelName: modelName, DisplayName: "好感角色", AffinityRequired: 85}
+	require.NoError(t, ch.SetStages(model.CharacterStages{Stages: []model.CharacterStage{
+		{Index: 0, Name: "初遇", UnlockTokens: 0},
+	}}))
+	require.NoError(t, model.DB.Create(ch).Error)
+	t.Cleanup(func() {
+		model.DB.Where("model_name = ?", modelName).Delete(&model.Character{})
+		model.DB.Where("user_id = ? AND model_name = ?", uid, modelName).Delete(&model.UserCharacterProgress{})
+		model.LOG_DB.Where("user_id = ? AND model_name = ?", uid, modelName).Delete(&model.Log{})
+	})
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	rg := r.Group("/api/character")
+	rg.Use(func(c *gin.Context) { c.Set("id", uid) })
+	rg.POST("/:modelName/unlock", UnlockCharacter)
+
+	postUnlock := func() *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/character/%s/unlock", modelName),
+			strings.NewReader(`{"stage": 0}`))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		return w
+	}
+
+	require.Contains(t, postUnlock().Body.String(), "解锁条件未满足") // 从未调用
+
+	require.NoError(t, model.LOG_DB.Create(&model.Log{
+		UserId: uid, ModelName: modelName, Type: model.LogTypeConsume,
+		PromptTokens: 100, CompletionTokens: 0, CreatedAt: common.GetTimestamp(),
+	}).Error)
+	model.ClearCharacterUsageCache()
+
+	require.Contains(t, postUnlock().Body.String(), "解锁条件未满足") // 好感 0 < 85
+
+	require.NoError(t, model.DB.Model(&model.UserCharacterProgress{}).
+		Where("user_id = ? AND model_name = ?", uid, modelName).
+		Updates(map[string]interface{}{"affinity": 90}).Error)
+	w := postUnlock()
+	require.Contains(t, w.Body.String(), `"success":true`)
+	require.Contains(t, w.Body.String(), `"max_stage":0`)
 }
