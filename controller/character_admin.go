@@ -77,14 +77,15 @@ func AdminUpdateCharacter(c *gin.Context) {
 		return
 	}
 	var req struct {
-		ModelName    string `json:"model_name"`
-		DisplayName  string `json:"display_name"`
-		Title        string `json:"title"`
-		Description  string `json:"description"`
-		Tags         string `json:"tags"`
-		SystemPrompt string `json:"system_prompt"`
-		StagesJSON   string `json:"stages_json"`
-		Enabled      *bool  `json:"enabled"`
+		ModelName        string `json:"model_name"`
+		DisplayName      string `json:"display_name"`
+		Title            string `json:"title"`
+		Description      string `json:"description"`
+		Tags             string `json:"tags"`
+		SystemPrompt     string `json:"system_prompt"`
+		AffinityRequired *int   `json:"affinity_required"`
+		StagesJSON       string `json:"stages_json"`
+		Enabled          *bool  `json:"enabled"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(200, gin.H{"success": false, "message": err.Error()})
@@ -117,6 +118,9 @@ func AdminUpdateCharacter(c *gin.Context) {
 	}
 	if req.Enabled != nil {
 		updates["enabled"] = *req.Enabled
+	}
+	if req.AffinityRequired != nil {
+		updates["affinity_required"] = *req.AffinityRequired
 	}
 	if err := model.DB.Model(&model.Character{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 		c.JSON(200, gin.H{"success": false, "message": err.Error()})
@@ -159,7 +163,7 @@ func AdminUpdateCharacterThresholds(c *gin.Context) {
 	c.JSON(200, gin.H{"success": true, "data": model.CharacterStageThresholdsValue})
 }
 
-// AdminUploadCharacterImage 手动上传立绘（multipart: file）
+// AdminUploadCharacterImage 手动上传角色素材（multipart: file + type[portrait/background/pose] + pose_name）
 func AdminUploadCharacterImage(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -196,16 +200,53 @@ func AdminUploadCharacterImage(c *gin.Context) {
 		c.JSON(200, gin.H{"success": false, "message": "角色不存在"})
 		return
 	}
-	url, err := model.SaveCharacterImage(ch.ModelName, stage, data)
-	if err != nil {
-		c.JSON(200, gin.H{"success": false, "message": err.Error()})
+	assetType := c.PostForm("type")
+	if assetType == "" {
+		assetType = "portrait"
+	}
+	switch assetType {
+	case "background":
+		url, _, err := model.SaveCharacterAsset(ch.ModelName, stage, "bg", data)
+		if err != nil {
+			c.JSON(200, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		if err := updateCharacterStageBackground(&ch, stage, url); err != nil {
+			c.JSON(200, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{"success": true, "data": gin.H{"background_url": url}})
+		return
+	case "pose":
+		poseName := c.PostForm("pose_name")
+		if poseName == "" {
+			c.JSON(200, gin.H{"success": false, "message": "缺少 pose_name 字段"})
+			return
+		}
+		url, _, err := model.SaveCharacterAsset(ch.ModelName, stage, "poses/"+poseName, data)
+		if err != nil {
+			c.JSON(200, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		if err := updateCharacterStagePose(&ch, stage, poseName, url); err != nil {
+			c.JSON(200, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{"success": true, "data": gin.H{"pose_name": poseName, "image_url": url}})
+		return
+	default: // portrait
+		url, _, err := model.SaveCharacterImage(ch.ModelName, stage, data)
+		if err != nil {
+			c.JSON(200, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		if err := updateCharacterStageImage(&ch, stage, url); err != nil {
+			c.JSON(200, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{"success": true, "data": gin.H{"image_url": url}})
 		return
 	}
-	if err := updateCharacterStageImage(&ch, stage, url); err != nil {
-		c.JSON(200, gin.H{"success": false, "message": err.Error()})
-		return
-	}
-	c.JSON(200, gin.H{"success": true, "data": gin.H{"image_url": url}})
 }
 
 // AdminGenerateCharacterImage AI 生成立绘：内部调用平台自身 /v1/images/generations。
@@ -221,11 +262,22 @@ func AdminGenerateCharacterImage(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Prompt string `json:"prompt"`
-		Style  string `json:"style"`
+		Prompt     string `json:"prompt"`
+		Style      string `json:"style"`
+		Type       string `json:"type"`        // portrait/background/pose
+		PoseName   string `json:"pose_name"`   // type=pose 时必填
+		PosePrompt string `json:"pose_prompt"` // 姿态描述（生成提示词用，可选）
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(200, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	assetType := req.Type
+	if assetType == "" {
+		assetType = "portrait"
+	}
+	if assetType == "pose" && req.PoseName == "" {
+		c.JSON(200, gin.H{"success": false, "message": "缺少 pose_name 字段"})
 		return
 	}
 	var ch model.Character
@@ -244,18 +296,22 @@ func AdminGenerateCharacterImage(c *gin.Context) {
 	}
 	prompt := req.Prompt
 	if prompt == "" {
-		prompt = buildCharacterImagePrompt(&ch, stage)
+		prompt = buildCharacterImagePrompt(&ch, stage, assetType, req.PoseName, req.PosePrompt)
 	}
 	if req.Style != "" {
 		prompt = req.Style + "。" + prompt
 	}
 
+	imgSize := "1024x1536"
+	if assetType == "background" {
+		imgSize = "1536x1024"
+	}
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d", *common.Port)
 	payload, _ := json.Marshal(map[string]interface{}{
 		"model":  imgModel,
 		"prompt": prompt,
 		"n":      1,
-		"size":   "1024x1536",
+		"size":   imgSize,
 	})
 	httpReq, err := http.NewRequest(http.MethodPost, baseURL+"/v1/images/generations", bytes.NewReader(payload))
 	if err != nil {
@@ -308,16 +364,44 @@ func AdminGenerateCharacterImage(c *gin.Context) {
 		c.JSON(200, gin.H{"success": false, "message": "生图响应缺少图片数据"})
 		return
 	}
-	url, err := model.SaveCharacterImage(ch.ModelName, stage, imageData)
-	if err != nil {
-		c.JSON(200, gin.H{"success": false, "message": err.Error()})
+	switch assetType {
+	case "background":
+		url, _, err := model.SaveCharacterAsset(ch.ModelName, stage, "bg", imageData)
+		if err != nil {
+			c.JSON(200, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		if err := updateCharacterStageBackground(&ch, stage, url); err != nil {
+			c.JSON(200, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{"success": true, "data": gin.H{"background_url": url}})
+		return
+	case "pose":
+		url, _, err := model.SaveCharacterAsset(ch.ModelName, stage, "poses/"+req.PoseName, imageData)
+		if err != nil {
+			c.JSON(200, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		if err := updateCharacterStagePose(&ch, stage, req.PoseName, url); err != nil {
+			c.JSON(200, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{"success": true, "data": gin.H{"pose_name": req.PoseName, "image_url": url}})
+		return
+	default: // portrait
+		url, _, err := model.SaveCharacterImage(ch.ModelName, stage, imageData)
+		if err != nil {
+			c.JSON(200, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		if err := updateCharacterStageImage(&ch, stage, url); err != nil {
+			c.JSON(200, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{"success": true, "data": gin.H{"image_url": url}})
 		return
 	}
-	if err := updateCharacterStageImage(&ch, stage, url); err != nil {
-		c.JSON(200, gin.H{"success": false, "message": err.Error()})
-		return
-	}
-	c.JSON(200, gin.H{"success": true, "data": gin.H{"image_url": url}})
 }
 
 // AdminSaveCharacterScript 保存某阶段小剧场剧本
@@ -376,8 +460,20 @@ func updateCharacterStageImage(ch *model.Character, stage int, url string) error
 		Updates(map[string]interface{}{"stages_json": ch.StagesJSON, "updated_at": common.GetTimestamp()}).Error
 }
 
-// buildCharacterImagePrompt 基于角色人设自动组装生图提示词
-func buildCharacterImagePrompt(ch *model.Character, stage int) string {
+// buildCharacterImagePrompt 按素材类型组装生图提示词
+func buildCharacterImagePrompt(ch *model.Character, stage int, assetType, poseName, posePrompt string) string {
+	switch assetType {
+	case "background":
+		return buildCharacterBackgroundPrompt(ch)
+	case "pose":
+		return buildCharacterPosePrompt(ch, stage, poseName, posePrompt)
+	default:
+		return buildCharacterPortraitPrompt(ch, stage)
+	}
+}
+
+// buildCharacterPortraitPrompt 展示立绘提示词（完整画面，含氛围背景）
+func buildCharacterPortraitPrompt(ch *model.Character, stage int) string {
 	stageName := "初遇"
 	switch stage {
 	case 1:
@@ -386,6 +482,90 @@ func buildCharacterImagePrompt(ch *model.Character, stage int) string {
 		stageName = "羁绊"
 	}
 	return fmt.Sprintf("日本动漫美少女立绘，角色名：%s，称号：%s，人设：%s，阶段：%s，全身像，竖版构图，精致细节", ch.DisplayName, ch.Title, ch.Description, stageName)
+}
+
+// buildCharacterBackgroundPrompt 剧情空白背景提示词：无人物/文字/比例敏感元素，适配多分辨率裁切
+func buildCharacterBackgroundPrompt(ch *model.Character) string {
+	style := ch.Title
+	if style == "" {
+		style = ch.Description
+	}
+	return fmt.Sprintf("干净的空场景背景，适合作为动漫美少女角色立绘的场景，风格与角色（%s：%s）一致，无人物，无文字，无标志性物体，元素均匀分布可任意裁切，柔和光影氛围，横向构图", ch.DisplayName, style)
+}
+
+// posePromptOf 姿态名的简单语义映射（生成提示词用）
+func posePromptOf(poseName string) string {
+	switch poseName {
+	case "normal":
+		return "平静站立，双手自然下垂，表情温和"
+	case "happy":
+		return "开心微笑，微微挥手，表情明朗"
+	case "shy":
+		return "害羞低头，脸颊微红，目光躲闪"
+	case "sad":
+		return "低落垂眸，神情忧郁"
+	case "angry":
+		return "生气叉腰，眉头微皱"
+	case "surprised":
+		return "惊讶睁大眼睛，捂嘴"
+	default:
+		return "自然站姿，表情柔和"
+	}
+}
+
+// buildCharacterPosePrompt 剧情姿态立绘提示词：透明背景、光影与背景一致
+func buildCharacterPosePrompt(ch *model.Character, stage int, poseName, posePrompt string) string {
+	if posePrompt == "" {
+		posePrompt = posePromptOf(poseName)
+	}
+	stageName := "初遇"
+	switch stage {
+	case 1:
+		stageName = "同行"
+	case 2:
+		stageName = "羁绊"
+	}
+	return fmt.Sprintf("日本动漫美少女立绘，角色名：%s，称号：%s，人设：%s，阶段：%s，全身像，动作表情：%s，纯透明背景 PNG，不要背景不要地面不要任何场景元素，人物完整，竖版构图，光影柔和与场景背景一致", ch.DisplayName, ch.Title, ch.Description, stageName, posePrompt)
+}
+
+// updateCharacterStageBackground 更新阶段剧情背景 URL 并持久化
+func updateCharacterStageBackground(ch *model.Character, stage int, url string) error {
+	stages := ch.Stages()
+	if stage >= len(stages.Stages) {
+		return fmt.Errorf("阶段不存在")
+	}
+	stages.Stages[stage].BackgroundURL = url
+	if err := ch.SetStages(stages); err != nil {
+		return err
+	}
+	return model.DB.Model(&model.Character{}).Where("id = ?", ch.Id).
+		Updates(map[string]interface{}{"stages_json": ch.StagesJSON, "updated_at": common.GetTimestamp()}).Error
+}
+
+// updateCharacterStagePose 更新/追加阶段姿态立绘（同名覆盖）并持久化
+func updateCharacterStagePose(ch *model.Character, stage int, poseName, url string) error {
+	stages := ch.Stages()
+	if stage >= len(stages.Stages) {
+		return fmt.Errorf("阶段不存在")
+	}
+	poses := stages.Stages[stage].Poses
+	found := false
+	for i := range poses {
+		if poses[i].Name == poseName {
+			poses[i].ImageURL = url
+			found = true
+			break
+		}
+	}
+	if !found {
+		poses = append(poses, model.CharacterPose{Name: poseName, ImageURL: url})
+	}
+	stages.Stages[stage].Poses = poses
+	if err := ch.SetStages(stages); err != nil {
+		return err
+	}
+	return model.DB.Model(&model.Character{}).Where("id = ?", ch.Id).
+		Updates(map[string]interface{}{"stages_json": ch.StagesJSON, "updated_at": common.GetTimestamp()}).Error
 }
 
 // downloadImage 下载远端图片（生图返回 url 时）
