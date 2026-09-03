@@ -23,3 +23,23 @@ export async function fetchCharacterScript(
   )
   return res.data?.data ?? []
 }
+
+export interface UnlockResult {
+  max_stage: number
+  affinity: number
+  total_tokens: number
+  total_calls: number
+}
+
+export async function unlockCharacter(
+  modelName: string,
+  stage: number
+): Promise<UnlockResult> {
+  const res = await api.post<{ success: boolean; message?: string; data: UnlockResult }>(
+    `/api/character/${encodeURIComponent(modelName)}/unlock`,
+    { stage },
+    { skipErrorHandler: true }
+  )
+  if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to unlock')
+  return res.data?.data
+}

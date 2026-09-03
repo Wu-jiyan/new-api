@@ -718,3 +718,50 @@ For commercial licensing, please contact support@quantumnous.com
     display: none;
   }
 }
+
+/* ── Character unlock animations ── */
+@keyframes unlock-ring {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+.unlock-ring {
+  position: absolute;
+  width: 140px;
+  height: 140px;
+  border-radius: 9999px;
+  border: 3px solid rgb(255 255 255 / 0.85);
+  animation: unlock-ring 0.6s ease-out forwards;
+}
+
+@keyframes unlock-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(250 204 21 / 0);
+  }
+  50% {
+    box-shadow: 0 0 16px 4px rgb(250 204 21 / 0.45);
+  }
+}
+.unlock-glow {
+  animation: unlock-glow 1.6s ease-in-out infinite;
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.fade-in-up {
+  animation: fade-in-up 0.4s ease-out both;
+}
