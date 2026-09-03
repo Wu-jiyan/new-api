@@ -82,60 +82,90 @@ func getCachedUserUsage(userId int, modelName string) (int64, int64, error) {
 	return tokens, calls, nil
 }
 
-// RefreshUserCharacterProgress 计算用户对某模型的最新解锁阶段并持久化，返回最新 MaxStage。
-// 规则：阶段①（unlock_tokens=0）只要 calls>=1 即解锁；其余阶段 tokens >= unlock_tokens 且 calls>=1。
-// 从未调用（calls<1）时强制回写 -1（未解锁），以修复历史脏数据（旧版本曾把未解锁误记为 0）。
-func RefreshUserCharacterProgress(userId int, modelName string, tokens int64, calls int64, stages CharacterStages) (int, error) {
-	maxStage := -1
-	if calls >= 1 {
-		for i := range stages.Stages {
-			st := stages.Stages[i]
-			if st.UnlockTokens <= 0 {
-				maxStage = i
-				continue
-			}
-			if tokens >= st.UnlockTokens {
-				maxStage = i
-				continue
-			}
-			break // 阈值递增，命中不了更高阶段
-		}
-	}
+// UserCharacterState 用户对某角色的解锁进度快照（达标判定输入）
+type UserCharacterState struct {
+	MaxStage int   // 已手动解锁最深阶段；未解锁为 -1
+	Tokens   int64
+	Calls    int64
+	Affinity int
+}
 
-	var p UserCharacterProgress
-	err := DB.Where("user_id = ? AND model_name = ?", userId, modelName).First(&p).Error
+var (
+	ErrUnlockStageNotFound = errors.New("character stage not found")
+	ErrUnlockOutOfOrder    = errors.New("must unlock previous stage first")
+	ErrUnlockNotEligible   = errors.New("character stage not eligible")
+)
+
+// GetUserCharacterState 聚合用户对某角色的进度并惰性刷新统计。
+// 语义：MaxStage 仅由 UnlockUserCharacterStage 手动推进；从未调用（calls<1）强制回写 -1。
+func GetUserCharacterState(userId int, ch *Character) (*UserCharacterState, error) {
+	tokens, calls, err := getCachedUserUsage(userId, ch.ModelName)
 	if err != nil {
-		p = UserCharacterProgress{UserID: userId, ModelName: modelName}
+		return nil, err
+	}
+	var p UserCharacterProgress
+	err = DB.Where("user_id = ? AND model_name = ?", userId, ch.ModelName).First(&p).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		p = UserCharacterProgress{UserID: userId, ModelName: ch.ModelName, MaxStage: -1}
+		if err := DB.Create(&p).Error; err != nil {
+			return nil, err
+		}
+	} else if err != nil {
+		return nil, err
 	}
 	if calls < 1 {
-		// 从未调用：必定未解锁，强制回写（清理历史误解锁数据）
 		p.MaxStage = -1
 		p.LastUnlockAt = 0
-	} else if maxStage > p.MaxStage {
-		p.MaxStage = maxStage
-		p.LastUnlockAt = common.GetTimestamp()
 	}
 	p.TotalTokens = tokens
 	p.TotalCalls = calls
 	p.UpdatedAt = common.GetTimestamp()
-	if p.Id == 0 {
-		return p.MaxStage, DB.Create(&p).Error
-	}
-	return p.MaxStage, DB.Model(&UserCharacterProgress{}).Where("id = ?", p.Id).
+	if err := DB.Model(&UserCharacterProgress{}).Where("id = ?", p.Id).
 		Updates(map[string]interface{}{
 			"total_tokens": p.TotalTokens, "total_calls": p.TotalCalls,
-			"max_stage": p.MaxStage, "last_unlock_at": p.LastUnlockAt, "updated_at": p.UpdatedAt,
-		}).Error
+			"max_stage": p.MaxStage, "last_unlock_at": p.LastUnlockAt,
+			"affinity": p.Affinity, "updated_at": p.UpdatedAt,
+		}).Error; err != nil {
+		return nil, err
+	}
+	return &UserCharacterState{MaxStage: p.MaxStage, Tokens: tokens, Calls: calls, Affinity: p.Affinity}, nil
 }
 
-// GetUserCharacterStage 用户视角的角色解锁阶段（带缓存聚合，惰性刷新）。
-func GetUserCharacterStage(userId int, modelName string, stages CharacterStages) (int, int64, int64, error) {
-	tokens, calls, err := getCachedUserUsage(userId, modelName)
-	if err != nil {
-		return 0, 0, 0, err
+// IsStageEligible 判定单阶段是否达标（calls>=1 且 token/好感双门槛均满足，不含顺序约束）
+func (s *UserCharacterState) IsStageEligible(st CharacterStage, characterAffinityRequired int) bool {
+	if s.Calls < 1 {
+		return false
 	}
-	maxStage, err := RefreshUserCharacterProgress(userId, modelName, tokens, calls, stages)
-	return maxStage, tokens, calls, err
+	if st.UnlockTokens > 0 && s.Tokens < st.UnlockTokens {
+		return false
+	}
+	if s.Affinity < st.AffinityRequired || s.Affinity < characterAffinityRequired {
+		return false
+	}
+	return true
+}
+
+// UnlockUserCharacterStage 顺序手动解锁：仅允许解锁 MaxStage+1 且达标的阶段，返回新 MaxStage。
+func UnlockUserCharacterStage(userId int, modelName string, state *UserCharacterState,
+	characterAffinityRequired int, stages CharacterStages, stageIdx int) (int, error) {
+	if stageIdx < 0 || stageIdx >= len(stages.Stages) {
+		return state.MaxStage, ErrUnlockStageNotFound
+	}
+	if stageIdx != state.MaxStage+1 {
+		return state.MaxStage, ErrUnlockOutOfOrder
+	}
+	if !state.IsStageEligible(stages.Stages[stageIdx], characterAffinityRequired) {
+		return state.MaxStage, ErrUnlockNotEligible
+	}
+	if err := DB.Model(&UserCharacterProgress{}).
+		Where("user_id = ? AND model_name = ?", userId, modelName).
+		Updates(map[string]interface{}{
+			"max_stage": stageIdx, "last_unlock_at": common.GetTimestamp(),
+			"updated_at": common.GetTimestamp(),
+		}).Error; err != nil {
+		return state.MaxStage, err
+	}
+	return stageIdx, nil
 }
 
 // GainAffinity 增加用户对该角色的好感，封顶 100、下限 0。
