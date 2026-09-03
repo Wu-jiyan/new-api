@@ -1,17 +1,29 @@
-import { useQuery } from '@tanstack/react-query'
-import { useParams } from '@tanstack/react-router'
-import { ArrowLeft, Lock, MessagesSquare, Share2, Sparkles } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate, useParams } from '@tanstack/react-router'
+import {
+  ArrowLeft,
+  Heart,
+  Loader2,
+  Lock,
+  LockKeyhole,
+  MessagesSquare,
+  Play,
+  Share2,
+  Sparkles,
+  Unlock,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
-import { fetchCharacter, fetchCharacterScript } from './api'
-import { ChatPanel } from './components/chat-panel'
-import { ScriptPlayer } from './components/script-player'
+import { fetchCharacter, unlockCharacter } from './api'
+import { Lightbox } from './components/lightbox'
 import { ShareCard } from './components/share-card'
+import { StoryPlayer } from './components/story-player'
 import type { CharacterStageView } from './types'
 
 function formatTokens(tokens: number): string {
@@ -23,10 +35,12 @@ function formatTokens(tokens: number): string {
 
 export default function CharacterDetailPage() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { modelName = '' } = useParams({ strict: false })
   const [activeStage, setActiveStage] = useState(0)
-  const [chatOpen, setChatOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  const [storyOpen, setStoryOpen] = useState(false)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
 
   const { data: character, isLoading } = useQuery({
     queryKey: ['character', modelName],
@@ -34,15 +48,28 @@ export default function CharacterDetailPage() {
     enabled: !!modelName,
   })
 
-  const { data: script } = useQuery({
-    queryKey: ['character-script', modelName, activeStage],
-    queryFn: () => fetchCharacterScript(modelName, activeStage),
-    enabled: !!character && activeStage <= (character?.max_stage ?? 0),
-  })
-
   const currentStage = useMemo<CharacterStageView | undefined>(() => {
     return character?.stages.find((s) => s.index === activeStage)
   }, [character, activeStage])
+
+  const qc = useQueryClient()
+  const [unlocking, setUnlocking] = useState(false)
+  const [unlockFx, setUnlockFx] = useState(false)
+
+  const unlockStage = async (index: number) => {
+    if (unlocking || !character) return
+    setUnlocking(true)
+    try {
+      await unlockCharacter(character.model_name, index)
+      setUnlockFx(true)
+      setActiveStage(index)
+      setTimeout(() => qc.invalidateQueries({ queryKey: ['character', modelName] }), 600)
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : t('character.unlockFailed'))
+    } finally {
+      setUnlocking(false)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -65,12 +92,16 @@ export default function CharacterDetailPage() {
     )
   }
 
-  const showStage = character.max_stage >= activeStage
+  const currentClaimed = currentStage?.claimed ?? false
+  const currentEligible = currentStage?.eligible ?? false
+  const activeImage = currentClaimed
+    ? currentStage?.image_url
+    : currentStage?.silhouette_url
 
   const shareImageUrl = character.stages[character.max_stage]?.image_url
   const shareStageName =
     character.stages[character.max_stage]?.name ?? currentStage?.name ?? ''
-  const shareDisabled = character.total_calls < 1 || !shareImageUrl
+  const shareDisabled = character.max_stage < 0 || !shareImageUrl
 
   return (
     <main className='min-h-0 flex-1 overflow-y-auto'>
@@ -88,11 +119,15 @@ export default function CharacterDetailPage() {
       <div className='grid gap-6 lg:grid-cols-[minmax(0,380px)_1fr]'>
         {/* 立绘区 */}
         <div className='relative aspect-[3/4] overflow-hidden rounded-2xl border bg-gradient-to-b from-muted to-background'>
-          {showStage && currentStage?.image_url ? (
+          {activeImage ? (
             <img
-              src={currentStage.image_url}
+              src={activeImage}
               alt={character.display_name}
-              className='h-full w-full object-cover object-top'
+              className={cn(
+                'h-full w-full cursor-zoom-in object-cover object-top',
+                !currentClaimed && 'opacity-60'
+              )}
+              onClick={() => setLightboxOpen(true)}
             />
           ) : (
             <div className='flex h-full flex-col items-center justify-center gap-3 text-muted-foreground'>
@@ -136,7 +171,12 @@ export default function CharacterDetailPage() {
           <div className='flex flex-wrap items-center gap-3'>
             <Button
               variant='outline'
-              onClick={() => setChatOpen(true)}
+              onClick={() =>
+                navigate({
+                  to: '/playground',
+                  search: { character: character.model_name },
+                })
+              }
               disabled={character.total_calls < 1}
               title={character.total_calls < 1 ? t('character.locked') : undefined}
             >
@@ -159,6 +199,27 @@ export default function CharacterDetailPage() {
             )}
           </div>
 
+          {/* 好感 */}
+          <div>
+            <div className='flex items-center justify-between text-sm'>
+              <span className='flex items-center gap-1 font-medium'>
+                <Heart className='h-4 w-4 fill-current text-rose-500' />
+                {t('character.affinity')}
+              </span>
+              <span className='text-muted-foreground'>
+                {character.affinity}/100
+                {character.affinity_required > 0 &&
+                  ` · ${t('character.admin.affinityRequired')} ${character.affinity_required}`}
+              </span>
+            </div>
+            <div className='bg-muted mt-2 h-1.5 w-full overflow-hidden rounded-full'>
+              <div
+                className='bg-rose-500 h-full rounded-full transition-all duration-300'
+                style={{ width: `${Math.max(0, Math.min(100, character.affinity))}%` }}
+              />
+            </div>
+          </div>
+
           {/* 阶段进度 */}
           <div>
             <div className='mb-2 flex items-center justify-between text-sm'>
@@ -169,64 +230,127 @@ export default function CharacterDetailPage() {
             </div>
             <div className='space-y-2'>
               {character.stages.map((stage) => {
-                const unlocked = stage.index <= character.max_stage
+                const tokenPct =
+                  stage.unlock_tokens > 0
+                    ? Math.min(
+                        100,
+                        Math.round((character.total_tokens / stage.unlock_tokens) * 100)
+                      )
+                    : 100
+                const affinityReady =
+                  stage.affinity_required === undefined ||
+                  character.affinity >= stage.affinity_required
+                const right = stage.claimed ? (
+                  <span className='text-xs text-primary'>{t('character.unlocked')}</span>
+                ) : stage.eligible ? (
+                  <Button
+                    size='sm'
+                    variant='default'
+                    disabled={unlocking}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      unlockStage(stage.index)
+                    }}
+                  >
+                    <Unlock className='mr-1 h-3.5 w-3.5' />
+                    {t('character.unlock')}
+                  </Button>
+                ) : (
+                  <span className='text-xs text-muted-foreground'>
+                    {stage.affinity_required && !affinityReady
+                      ? `♥ ${character.affinity}/${stage.affinity_required}`
+                      : `${formatTokens(stage.unlock_tokens)} tokens`}
+                  </span>
+                )
+                const icon = stage.claimed ? (
+                  <Sparkles className='h-4 w-4 text-primary' />
+                ) : stage.eligible ? (
+                  <LockKeyhole className='h-4 w-4 text-amber-500' />
+                ) : (
+                  <Lock className='h-4 w-4 text-muted-foreground' />
+                )
                 return (
                   <button
                     key={stage.index}
                     className={cn(
-                      'flex w-full items-center justify-between rounded-lg border px-4 py-2.5 text-left transition-colors',
-                      unlocked ? 'hover:bg-accent' : 'opacity-60',
+                      'relative flex w-full items-center justify-between gap-2 overflow-hidden rounded-lg border px-4 py-2.5 text-left transition-colors',
+                      stage.claimed ? 'hover:bg-accent' : 'opacity-80',
                       activeStage === stage.index && 'border-primary bg-accent'
                     )}
                     onClick={() => setActiveStage(stage.index)}
                   >
-                    <div className='flex items-center gap-2'>
-                      {unlocked ? (
-                        <Sparkles className='h-4 w-4 text-primary' />
-                      ) : (
-                        <Lock className='h-4 w-4 text-muted-foreground' />
-                      )}
-                      <span className='font-medium'>{stage.name}</span>
-                    </div>
-                    {unlocked ? (
-                      <span className='text-xs text-primary'>{t('character.unlocked')}</span>
-                    ) : (
-                      <span className='text-xs text-muted-foreground'>
-                        {formatTokens(stage.unlock_tokens)} tokens
+                    {!stage.claimed && !stage.eligible && tokenPct < 100 && (
+                      <span className='bg-muted absolute inset-x-0 bottom-0 h-1'>
+                        <span
+                          className='bg-primary/70 block h-full transition-all duration-300'
+                          style={{ width: `${tokenPct}%` }}
+                        />
                       </span>
                     )}
+                    <div className='flex items-center gap-2'>
+                      {icon}
+                      <span className='font-medium'>{stage.name}</span>
+                    </div>
+                    {right}
                   </button>
                 )
               })}
             </div>
           </div>
 
-          {/* 小剧场 */}
-          {showStage ? (
-            script && script.length > 0 ? (
-              <ScriptPlayer
-                scripts={script}
-                onEnded={() => {
-                  if (activeStage < character.max_stage) setActiveStage(activeStage + 1)
-                }}
-              />
+          {/* 进入剧情 / 解锁 */}
+          <div className='relative'>
+            {unlockFx && (
+              <span className='pointer-events-none absolute inset-0 z-10 flex items-center justify-center'>
+                <span className='unlock-ring' />
+              </span>
+            )}
+            {currentClaimed ? (
+              <Button
+                variant='outline'
+                size='lg'
+                className='w-full gap-2'
+                onClick={() => setStoryOpen(true)}
+              >
+                <Play className='h-5 w-5' />
+                {t('character.story.enter')}
+              </Button>
+            ) : currentEligible ? (
+              <Button
+                variant='default'
+                size='lg'
+                className='unlock-glow w-full gap-2'
+                disabled={unlocking}
+                onClick={() => unlockStage(activeStage)}
+              >
+                {unlocking ? (
+                  <Loader2 className='h-5 w-5 animate-spin' />
+                ) : (
+                  <LockKeyhole className='h-5 w-5' />
+                )}
+                {t('character.unlock')}
+                {currentStage?.name}
+              </Button>
             ) : (
-              <p className='text-sm text-muted-foreground'>{t('character.noScript')}</p>
-            )
-          ) : (
-            <p className='text-sm text-muted-foreground'>
-              {currentStage?.unlock_text ?? t('character.locked')}
-            </p>
-          )}
+              <Button
+                variant='outline'
+                size='lg'
+                className='w-full gap-2'
+                disabled
+                title={t('character.locked')}
+              >
+                <Play className='h-5 w-5' />
+                {t('character.story.enter')}
+              </Button>
+            )}
+            {!currentClaimed && (
+              <p className='mt-2 text-sm text-muted-foreground'>
+                {currentStage?.unlock_text ?? t('character.locked')}
+              </p>
+            )}
+          </div>
         </div>
       </div>
-
-      <ChatPanel
-        modelName={character.model_name}
-        characterName={character.display_name}
-        open={chatOpen}
-        onOpenChange={setChatOpen}
-      />
 
       <ShareCard
         modelName={character.model_name}
@@ -236,6 +360,20 @@ export default function CharacterDetailPage() {
         imageUrl={shareImageUrl ?? ''}
         open={shareOpen}
         onOpenChange={setShareOpen}
+      />
+
+      <StoryPlayer
+        open={storyOpen}
+        onOpenChange={setStoryOpen}
+        character={character}
+        stageIndex={activeStage}
+      />
+
+      <Lightbox
+        open={lightboxOpen}
+        src={activeImage}
+        alt={character.display_name}
+        onOpenChange={setLightboxOpen}
       />
       </div>
     </main>
