@@ -22,7 +22,7 @@ func TestGetUserCharacterUsage(t *testing.T) {
 		{UserId: uid, ModelName: modelName, Type: LogTypeConsume, PromptTokens: 2000, CompletionTokens: 1000, CreatedAt: now},
 		// 同前缀的其他模型名也应计入（前缀匹配）
 		{UserId: uid, ModelName: modelName + "-suffix", Type: LogTypeConsume, PromptTokens: 500, CompletionTokens: 250, CreatedAt: now},
-		{UserId: uid, ModelName: modelName, Type: LogTypeError, PromptTokens: 9999, CompletionTokens: 9999, CreatedAt: now}, // 不计
+		{UserId: uid, ModelName: modelName, Type: LogTypeError, PromptTokens: 9999, CompletionTokens: 9999, CreatedAt: now},    // 不计
 		{UserId: uid, ModelName: "other-model", Type: LogTypeConsume, PromptTokens: 9000, CompletionTokens: 0, CreatedAt: now}, // 不计
 	}
 	for _, l := range logs {
@@ -74,8 +74,47 @@ func TestRefreshUserCharacterProgress(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, m)
 
-	// 0 调用 -> 阶段0（首次未调用不解锁）
+	// 0 调用 -> 强制未解锁（清理历史误解锁数据）
 	m, err = RefreshUserCharacterProgress(uid, "m1", 99999999, 0, stages)
 	require.NoError(t, err)
-	require.Equal(t, 2, m) // 已有进度不受影响
+	require.Equal(t, -1, m)
+}
+
+func TestUserCharacterProgressAffinityDefaults(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&UserCharacterProgress{}))
+	uid := 424244
+	require.NoError(t, DB.Where("user_id = ?", uid).Delete(&UserCharacterProgress{}).Error)
+	t.Cleanup(func() {
+		require.NoError(t, DB.Where("user_id = ?", uid).Delete(&UserCharacterProgress{}).Error)
+	})
+	p := UserCharacterProgress{UserID: uid, ModelName: "aff-model", MaxStage: -1}
+	require.NoError(t, DB.Create(&p).Error)
+
+	var got UserCharacterProgress
+	require.NoError(t, DB.Where("user_id = ? AND model_name = ?", uid, "aff-model").First(&got).Error)
+	require.Equal(t, 0, got.Affinity)
+}
+
+func TestGainAffinity(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&UserCharacterProgress{}))
+	uid := 424245
+	require.NoError(t, DB.Where("user_id = ?", uid).Delete(&UserCharacterProgress{}).Error)
+	t.Cleanup(func() {
+		require.NoError(t, DB.Where("user_id = ?", uid).Delete(&UserCharacterProgress{}).Error)
+	})
+	require.NoError(t, DB.Create(&UserCharacterProgress{UserID: uid, ModelName: "aff-model2", MaxStage: -1}).Error)
+
+	require.NoError(t, GainAffinity(uid, "aff-model2", 30))
+	require.NoError(t, GainAffinity(uid, "aff-model2", 50))
+	var got UserCharacterProgress
+	require.NoError(t, DB.Where("user_id = ? AND model_name = ?", uid, "aff-model2").First(&got).Error)
+	require.Equal(t, 80, got.Affinity)
+
+	require.NoError(t, GainAffinity(uid, "aff-model2", 50)) // 封顶 100
+	require.NoError(t, DB.Where("user_id = ? AND model_name = ?", uid, "aff-model2").First(&got).Error)
+	require.Equal(t, 100, got.Affinity)
+
+	require.NoError(t, GainAffinity(uid, "aff-model2", -200)) // 下限 0
+	require.NoError(t, DB.Where("user_id = ? AND model_name = ?", uid, "aff-model2").First(&got).Error)
+	require.Equal(t, 0, got.Affinity)
 }
