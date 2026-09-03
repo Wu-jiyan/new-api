@@ -1,13 +1,17 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { BookOpen, Lock } from 'lucide-react'
-import { useMemo } from 'react'
+import { BookOpen, ChevronRight, Loader2, Lock, LockKeyhole, Play, ZoomIn } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
-import { fetchCharacters } from './api'
+import { fetchCharacters, unlockCharacter } from './api'
+import { Lightbox } from './components/lightbox'
+import { StoryPlayer } from './components/story-player'
 import type { CharacterStageView, CharacterView } from './types'
 
 function formatTokens(tokens: number): string {
@@ -17,12 +21,16 @@ function formatTokens(tokens: number): string {
   return `${tokens}`
 }
 
-function isUnlocked(character: CharacterView): boolean {
-  return character.max_stage >= 0 && character.total_calls >= 1
+function isClaimed(character: CharacterView): boolean {
+  return character.max_stage >= 0
 }
 
 function getCurrentStage(character: CharacterView): CharacterStageView | undefined {
   return character.stages.find((stage) => stage.index === character.max_stage)
+}
+
+function getEligibleStage(character: CharacterView): CharacterStageView | undefined {
+  return character.stages.find((stage) => stage.eligible)
 }
 
 function getNextStage(character: CharacterView): CharacterStageView | undefined {
@@ -44,24 +52,62 @@ interface CharacterCardProps {
 
 function CharacterCard({ character, onClick }: CharacterCardProps) {
   const { t } = useTranslation()
-  const unlocked = isUnlocked(character)
-  const currentStage = unlocked ? getCurrentStage(character) : undefined
-  const imageUrl = unlocked ? currentStage?.image_url : undefined
+  const qc = useQueryClient()
+  const [storyOpen, setStoryOpen] = useState(false)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [unlocking, setUnlocking] = useState(false)
+  const [unlockFx, setUnlockFx] = useState(false)
+  const claimed = isClaimed(character)
+  const currentStage = claimed ? getCurrentStage(character) : undefined
+  const eligibleStage = getEligibleStage(character)
+  const imageUrl = claimed
+    ? currentStage?.image_url
+    : (character.stages[0]?.silhouette_url ?? undefined)
   const nextStage = getNextStage(character)
   const progress = getProgress(character)
 
+  const handleUnlock = async () => {
+    if (!eligibleStage || unlocking) return
+    setUnlocking(true)
+    try {
+      await unlockCharacter(character.model_name, eligibleStage.index)
+      setUnlockFx(true)
+      setUnlocking(false)
+      setTimeout(() => qc.invalidateQueries({ queryKey: ['characters'] }), 600)
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : t('character.unlockFailed'))
+      setUnlocking(false)
+    }
+  }
+
   return (
-    <button
-      type='button'
+    <>
+    <div
+      role='button'
+      tabIndex={0}
       onClick={onClick}
-      className='group relative flex flex-col overflow-hidden rounded-xl border bg-background text-left transition-colors hover:bg-muted/20'
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick()
+        }
+      }}
+      className='group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border bg-background text-left transition-colors hover:bg-muted/20'
     >
-      <div className='bg-muted/40 relative aspect-[3/4] w-full overflow-hidden'>
+      <div className='bg-muted/40 group/image relative aspect-[3/4] w-full overflow-hidden'>
         {imageUrl ? (
           <img
             src={imageUrl}
             alt={character.display_name}
-            className='h-full w-full object-cover object-top transition-transform duration-300 group-hover:scale-105'
+            className={cn(
+              'h-full w-full cursor-zoom-in object-cover object-top transition-transform duration-300 group-hover:scale-105',
+              !claimed && 'opacity-60',
+              unlockFx && 'fade-in-up'
+            )}
+            onClick={(e) => {
+              e.stopPropagation()
+              setLightboxOpen(true)
+            }}
           />
         ) : (
           <div className='flex h-full flex-col items-center justify-center gap-2 bg-gradient-to-b from-muted/60 to-background text-muted-foreground'>
@@ -79,23 +125,58 @@ function CharacterCard({ character, onClick }: CharacterCardProps) {
         <span
           className={cn(
             'absolute top-2 right-2 rounded-full px-2 py-0.5 text-xs font-medium',
-            unlocked
+            claimed
               ? 'bg-background/85 text-primary'
               : 'bg-background/85 text-muted-foreground'
           )}
         >
-          {unlocked ? currentStage?.name ?? t('character.unlocked') : t('character.gallery.locked')}
+          {claimed
+            ? currentStage?.name ?? t('character.unlocked')
+            : eligibleStage
+              ? t('character.unlockReady')
+              : t('character.gallery.locked')}
         </span>
+        {imageUrl && (
+          <span className='pointer-events-none absolute right-2 bottom-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[11px] text-white opacity-0 backdrop-blur-sm transition-opacity group-hover/image:opacity-100'>
+            <ZoomIn className='size-3' />
+            {t('character.gallery.viewImage')}
+          </span>
+        )}
+        {unlockFx && (
+          <span className='pointer-events-none absolute inset-0 flex items-center justify-center'>
+            <span className='unlock-ring' />
+          </span>
+        )}
+        {!claimed && eligibleStage && (
+          <button
+            type='button'
+            onClick={(e) => {
+              e.stopPropagation()
+              handleUnlock()
+            }}
+            className='unlock-glow absolute right-2 bottom-2 flex items-center gap-1 rounded-full bg-amber-400 px-3 py-1.5 text-xs font-semibold text-black'
+          >
+            {unlocking ? (
+              <Loader2 className='size-3.5 animate-spin' />
+            ) : (
+              <LockKeyhole className='size-3.5' />
+            )}
+            {t('character.unlock')}
+          </button>
+        )}
       </div>
 
       <div className='flex-1 space-y-2 p-3 sm:p-4'>
-        <div>
-          <h3 className='text-foreground truncate text-sm leading-tight font-bold'>
-            {character.display_name}
-          </h3>
-          {character.title && (
-            <p className='text-muted-foreground mt-0.5 truncate text-xs'>{character.title}</p>
-          )}
+        <div className='group/title flex items-center justify-between gap-2'>
+          <div className='min-w-0'>
+            <h3 className='text-foreground truncate text-sm leading-tight font-bold transition-colors group-hover/title:text-primary'>
+              {character.display_name}
+            </h3>
+            {character.title && (
+              <p className='text-muted-foreground mt-0.5 truncate text-xs'>{character.title}</p>
+            )}
+          </div>
+          <ChevronRight className='text-muted-foreground/60 size-4 shrink-0 transition-transform group-hover/title:translate-x-0.5' />
         </div>
 
         <div className='space-y-1'>
@@ -111,7 +192,32 @@ function CharacterCard({ character, onClick }: CharacterCardProps) {
           </div>
         </div>
       </div>
-    </button>
+
+      {claimed && (
+        <div className='border-t p-2'>
+          <Button
+            variant='ghost'
+            size='sm'
+            className='w-full'
+            onClick={(e) => {
+              e.stopPropagation()
+              setStoryOpen(true)
+            }}
+          >
+            <Play className='mr-1.5 h-4 w-4' />
+            {t('character.story.enter')}
+          </Button>
+        </div>
+      )}
+    </div>
+    <StoryPlayer open={storyOpen} onOpenChange={setStoryOpen} character={character} />
+    <Lightbox
+      open={lightboxOpen}
+      src={imageUrl}
+      alt={character.display_name}
+      onOpenChange={setLightboxOpen}
+    />
+    </>
   )
 }
 
@@ -129,7 +235,7 @@ export default function CharacterGalleryPage() {
     const list = characters ?? []
     return {
       total: list.length,
-      collected: list.filter(isUnlocked).length,
+      collected: list.filter(isClaimed).length,
       totalCalls: list.reduce((sum, character) => sum + character.total_calls, 0),
     }
   }, [characters])
