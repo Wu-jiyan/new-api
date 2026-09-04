@@ -83,6 +83,15 @@ func TestAppendAndRecentAndPagedMessages(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, page2, 0)
 	require.False(t, hasMore2)
+
+	// 摘要待归档段：返回 id > afterId 的最新 limit 条（升序）
+	since, err := ListRecentCharacterChatMessagesSince(s.Id, um.Id, 10)
+	require.NoError(t, err)
+	require.Len(t, since, 1)
+	require.Equal(t, "assistant", since[0].Role)
+	since2, err := ListRecentCharacterChatMessagesSince(s.Id, am.Id, 10)
+	require.NoError(t, err)
+	require.Len(t, since2, 0)
 }
 
 func TestHourlyAffinityDeltaSum(t *testing.T) {

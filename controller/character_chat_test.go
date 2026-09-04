@@ -324,3 +324,125 @@ func TestCharacterChatAppliesAffinity(t *testing.T) {
 	require.NoError(t, model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).First(&p).Error)
 	require.Equal(t, 3, p.Affinity)
 }
+
+func TestExtractNonStreamContent(t *testing.T) {
+	// 非流式 OpenAI 响应体取 choices[0].message.content
+	body := `{"choices":[{"message":{"role":"assistant","content":"摘要文本"}}]}`
+	got, ok := extractNonStreamContent(body)
+	require.True(t, ok)
+	require.Equal(t, "摘要文本", got)
+	_, ok2 := extractNonStreamContent("oops")
+	require.False(t, ok2)
+}
+
+func TestCharacterChatFromStoryBuildsInitialContext(t *testing.T) {
+	setupCharacterChatTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.Character{}, &model.UserCharacterProgress{}, &model.Log{},
+		&model.CharacterBackground{}, &model.CharacterChatSession{}, &model.CharacterChatMessage{}))
+	const (
+		modelName = "char-chat-story"
+		userId    = 424272
+	)
+	ch := &model.Character{ModelName: modelName, DisplayName: "剧情角色", SystemPrompt: "你是她", Enabled: true}
+	stages := model.CharacterStages{Stages: []model.CharacterStage{
+		{Index: 0, Name: "初遇", UnlockTokens: 0,
+			Script: []model.CharacterScript{
+				{Speaker: "她", Text: "欢迎来到我的机房。"},
+				{Speaker: "她", Text: "今晚一起看星星吧。"},
+			}},
+	}}
+	require.NoError(t, ch.SetStages(stages))
+	require.NoError(t, model.DB.Create(ch).Error)
+	insertConsumeLog(t, userId, modelName)
+	unlockStage0(t, userId, modelName)
+	t.Cleanup(func() {
+		model.DB.Where("model_name = ?", modelName).Delete(&model.Character{})
+		model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).Delete(&model.UserCharacterProgress{})
+		model.LOG_DB.Where("user_id = ? AND model_name = ?", userId, modelName).Delete(&model.Log{})
+		model.DB.Where("user_id = ?", userId).Delete(&model.CharacterChatSession{})
+	})
+
+	// 两次上游调用：先非流式剧情压缩，再流式主对话
+	call := 0
+	origForward := characterChatForward
+	characterChatForward = func(ctx context.Context, url string, src *http.Request, body []byte) (*http.Response, error) {
+		call++
+		if call == 1 {
+			// 剧情压缩（stream=false）
+			return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}},
+				Body: io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"你在机房遇到了一位少女，她邀你一同观星。"}}]}`))}, nil
+		}
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body: io.NopCloser(strings.NewReader("data: {\"choices\":[{\"delta\":{\"content\":\"{\\\"reply\\\":\\\"来吧，今晚的星空正好。\\\"}\"}}]}\n\ndata: [DONE]\n\n"))}, nil
+	}
+	t.Cleanup(func() { characterChatForward = origForward })
+
+	r := setupCharacterChatRouter(userId)
+	req := httptest.NewRequest(http.MethodPost, "/api/character/"+modelName+"/chat",
+		strings.NewReader(`{"from_story":true,"stage_index":0}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, 2, call) // 剧情压缩 + 主对话
+
+	var sess model.CharacterChatSession
+	require.NoError(t, model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).First(&sess).Error)
+	require.Contains(t, sess.InitialContext, "机房")
+	require.Equal(t, 2, sess.MessageCount) // 开场白 user + assistant
+	var first model.CharacterChatMessage
+	require.NoError(t, model.DB.Where("session_id = ? AND role = ?", sess.Id, "user").Order("id ASC").First(&first).Error)
+	require.Contains(t, first.Content, "初遇") // 模板开场白
+}
+
+func TestCharacterChatTriggersSummary(t *testing.T) {
+	setupCharacterChatTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.Character{}, &model.UserCharacterProgress{}, &model.Log{},
+		&model.CharacterBackground{}, &model.CharacterChatSession{}, &model.CharacterChatMessage{}))
+	const (
+		modelName = "char-chat-summary"
+		userId    = 424273
+	)
+	createChatCharacter(t, modelName, "你是观测者")
+	insertConsumeLog(t, userId, modelName)
+	unlockStage0(t, userId, modelName)
+	sess, err := model.GetOrCreateCharacterChatSession(userId, modelName, 0)
+	require.NoError(t, err)
+	// 预置 61 条历史（summary_through 0 -> 差值 61 >= 60）
+	for i := 0; i < 61; i++ {
+		_, err := model.AddCharacterChatUserMessage(sess, fmt.Sprintf("历史消息%d", i))
+		require.NoError(t, err)
+		_, err = model.AddCharacterChatAssistantMessage(sess, fmt.Sprintf("回复%d", i), model.CharacterChatVisual{}, 0)
+		require.NoError(t, err)
+	}
+	t.Cleanup(func() {
+		model.DB.Where("model_name = ?", modelName).Delete(&model.Character{})
+		model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).Delete(&model.UserCharacterProgress{})
+		model.LOG_DB.Where("user_id = ? AND model_name = ?", userId, modelName).Delete(&model.Log{})
+		model.DB.Where("user_id = ?", userId).Delete(&model.CharacterChatSession{})
+	})
+	call := 0
+	origForward := characterChatForward
+	characterChatForward = func(ctx context.Context, url string, src *http.Request, body []byte) (*http.Response, error) {
+		call++
+		if call == 1 { // 主对话 SSE
+			return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}},
+				Body: io.NopCloser(strings.NewReader("data: {\"choices\":[{\"delta\":{\"content\":\"{\\\"reply\\\":\\\"记得我们聊过观星\\\"}\"}}]}\n\ndata: [DONE]\n\n"))}, nil
+		}
+		// 摘要调用（stream=false）
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"你们一起看过星星。"}}]}`))}, nil
+	}
+	t.Cleanup(func() { characterChatForward = origForward })
+	r := setupCharacterChatRouter(userId)
+	req := httptest.NewRequest(http.MethodPost, "/api/character/"+modelName+"/chat", strings.NewReader(`{"content":"再聊聊"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, 2, call)
+	var latest model.CharacterChatSession
+	require.NoError(t, model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).First(&latest).Error)
+	require.Contains(t, latest.Summary, "星星")
+	require.Equal(t, latest.MessageCount, latest.SummaryThrough)
+}

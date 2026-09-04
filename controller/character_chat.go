@@ -1,10 +1,14 @@
 package controller
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -175,6 +179,7 @@ func CharacterChat(c *gin.Context) {
 		return // 上游错误已原样透传，不落库 assistant
 	}
 	persistCharacterAssistant(session, userId, modelName, raw.String())
+	maybeSummarizeCharacterSession(c.Request, &ch, session)
 }
 
 // persistCharacterAssistant 流结束聚合：提取文本 → 容错解析 → 应用好感 → 落库 assistant。
@@ -195,6 +200,134 @@ func persistCharacterAssistant(session *model.CharacterChatSession, userId int, 
 	_, _ = model.AddCharacterChatAssistantMessage(session, reply, visual, delta)
 }
 
-// ensureCharacterChatInitialContext 空实现占位；任务 4 填充（小剧场脚本摘要 → session.InitialContext）。
+// ensureCharacterChatInitialContext 首次 from_story 进入时：把小剧场剧本压缩为 initial_context 落库。
+// 生成失败或剧本为空则静默跳过（会话照常进行）。
 func ensureCharacterChatInitialContext(c *gin.Context, ch *model.Character, stage model.CharacterStage, session *model.CharacterChatSession) {
+	if strings.TrimSpace(session.InitialContext) != "" {
+		return
+	}
+	if len(stage.Script) == 0 {
+		return
+	}
+	sys := "你是 galgame 剧情编辑。请把下面的小剧场剧本压缩成不超过 400 字的中文剧情概要，保留：人物关系、关键事件、当前所处场景、尚未了结的悬念。只输出概要正文，不要任何解释或标题。"
+	msgs := []map[string]string{
+		{"role": "system", "content": sys},
+		{"role": "user", "content": scriptToText(stage.Script)},
+	}
+	summary, err := characterModelComplete(c.Request, ch.ModelName, msgs)
+	if err != nil || strings.TrimSpace(summary) == "" {
+		return // 静默失败：不阻断对话
+	}
+	session.InitialContext = strings.TrimSpace(summary)
+	_ = model.DB.Model(&model.CharacterChatSession{}).Where("id = ?", session.Id).
+		Updates(map[string]interface{}{"initial_context": session.InitialContext, "updated_at": common.GetTimestamp()}).Error
+}
+
+// extractNonStreamContent 解析非流式 chat/completions 响应中的助手文本
+func extractNonStreamContent(body string) (string, bool) {
+	var resp struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal([]byte(body), &resp); err != nil || len(resp.Choices) == 0 {
+		return "", false
+	}
+	if strings.TrimSpace(resp.Choices[0].Message.Content) == "" {
+		return "", false
+	}
+	return resp.Choices[0].Message.Content, true
+}
+
+// characterModelComplete 以独立 context 非流式调用一次角色模型（内部 /pg，计费到当前用户）。
+// 用于小剧场剧情压缩与滚动摘要等非用户直接响应场景。
+func characterModelComplete(src *http.Request, modelName string, messages []map[string]string) (string, error) {
+	body, err := model.BuildChatCompletionsBody(modelName, messages, false)
+	if err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	upstream := fmt.Sprintf("http://127.0.0.1:%d/pg/chat/completions", *common.Port)
+	resp, err := characterChatForward(ctx, upstream, src, body)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("summarize upstream status %d", resp.StatusCode)
+	}
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	text, ok := extractNonStreamContent(string(data))
+	if !ok {
+		return "", fmt.Errorf("summarize upstream empty content")
+	}
+	return text, nil
+}
+
+// maybeSummarizeCharacterSession 新消息落库后检查：message_count - summary_through >= gap 时
+// 对「待归档」消息段做一次滚动摘要覆盖写回。失败静默（水位不推进）。
+func maybeSummarizeCharacterSession(src *http.Request, ch *model.Character, session *model.CharacterChatSession) {
+	gap := session.MessageCount - session.SummaryThrough
+	if gap < model.CharacterChatSummaryGap {
+		return
+	}
+	// 待归档段：summary_through 之后最近的窗口条数（避免每轮重读全部）
+	pending, err := model.ListRecentCharacterChatMessagesSince(session.Id, session.SummaryThrough, model.CharacterChatWindowSize)
+	if err != nil || len(pending) == 0 {
+		return
+	}
+	var b strings.Builder
+	for _, m := range pending {
+		b.WriteString(m.Role)
+		b.WriteString(": ")
+		b.WriteString(m.Content)
+		b.WriteString("\n")
+	}
+	sys := "你是对话档案员。把「已有记忆摘要」与「新对话记录」合并，压缩成不超过 500 字的中文摘要：保留人物关系、发生过的关键事件、角色承诺与当前情感状态，按时间先后组织。只输出摘要正文。"
+	msgs := []map[string]string{
+		{"role": "system", "content": sys},
+		{"role": "user", "content": "已有记忆摘要：\n" + session.Summary + "\n\n新对话记录：\n" + b.String()},
+	}
+	out, err := characterModelComplete(src, ch.ModelName, msgs)
+	if err != nil || strings.TrimSpace(out) == "" {
+		return
+	}
+	updates := map[string]interface{}{
+		"summary": out, "summary_through": session.MessageCount, "updated_at": common.GetTimestamp(),
+	}
+	if err := model.DB.Model(&model.CharacterChatSession{}).Where("id = ?", session.Id).Updates(updates).Error; err == nil {
+		session.Summary = out
+		session.SummaryThrough = session.MessageCount
+	}
+}
+
+// scriptToText 将小剧场台词行转为模型输入文本
+func scriptToText(script []model.CharacterScript) string {
+	var b strings.Builder
+	for _, line := range script {
+		speaker := line.Speaker
+		if speaker == "" {
+			speaker = "旁白"
+		}
+		b.WriteString(speaker)
+		b.WriteString("：")
+		b.WriteString(line.Text)
+		b.WriteString("\n")
+		if len(line.Choices) > 0 {
+			for _, ch := range line.Choices {
+				b.WriteString("（选项）")
+				b.WriteString(ch.Text)
+				b.WriteString("→")
+				b.WriteString(ch.Reply)
+				b.WriteString("\n")
+			}
+		}
+	}
+	return b.String()
 }

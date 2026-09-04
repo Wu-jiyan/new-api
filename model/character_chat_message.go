@@ -63,6 +63,19 @@ func ListRecentCharacterChatMessages(sessionId int, limit int) ([]CharacterChatM
 	return list, nil
 }
 
+// ListRecentCharacterChatMessagesSince 返回 id > afterId 的最新 limit 条（升序）——摘要待归档段读取
+func ListRecentCharacterChatMessagesSince(sessionId int, afterId int, limit int) ([]CharacterChatMessage, error) {
+	var list []CharacterChatMessage
+	err := DB.Where("session_id = ? AND id > ?", sessionId, afterId).Order("id DESC").Limit(limit).Find(&list).Error
+	if err != nil {
+		return nil, err
+	}
+	for i, j := 0, len(list)-1; i < j; i, j = i+1, j-1 {
+		list[i], list[j] = list[j], list[i]
+	}
+	return list, nil
+}
+
 // ListCharacterChatMessagesPaged 倒序分页：cursorId>0 取 id<cursorId 的最新 limit 条；否则取最新 limit 条。
 // 返回升序列表与 hasMore（更旧消息是否还有）。
 func ListCharacterChatMessagesPaged(sessionId int, cursorId int, limit int) ([]CharacterChatMessage, bool, error) {
