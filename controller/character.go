@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-gonic/gin"
@@ -139,7 +137,7 @@ func GetCharacter(c *gin.Context) {
 		"id": ch.Id, "model_name": ch.ModelName, "display_name": ch.DisplayName,
 		"title": ch.Title, "description": ch.Description, "tags": ch.Tags,
 		"system_prompt": systemPrompt,
-		"max_stage": state.MaxStage, "affinity": state.Affinity, "affinity_required": ch.AffinityRequired,
+		"max_stage":     state.MaxStage, "affinity": state.Affinity, "affinity_required": ch.AffinityRequired,
 		"total_tokens": state.Tokens, "total_calls": state.Calls,
 		"stages": views, "backgrounds": backgrounds,
 	}})
@@ -200,71 +198,6 @@ var characterChatForward = func(ctx context.Context, url string, src *http.Reque
 		req.AddCookie(cookie)
 	}
 	return characterChatHTTPClient.Do(req)
-}
-
-// CharacterChat 角色对话：校验角色与解锁状态，构造请求并内部转发 /pg/chat/completions，
-// 将上游 SSE 流式响应原样透传给客户端。
-func CharacterChat(c *gin.Context) {
-	userId := c.GetInt("id")
-	modelName := c.Param("modelName")
-
-	var ch model.Character
-	if err := model.DB.Where("model_name = ? AND enabled = ?", modelName, true).First(&ch).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "角色不存在"})
-		return
-	}
-	state, err := model.GetUserCharacterState(userId, &ch)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
-		return
-	}
-	// max_stage 仅由手动解锁推进；从未调用会被回写为 -1
-	if state.MaxStage < 0 {
-		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "该角色尚未解锁"})
-		return
-	}
-
-	var req struct {
-		Messages []map[string]string `json:"messages"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request body"})
-		return
-	}
-	body, err := model.BuildCharacterChatRequest(ch.ModelName, ch.SystemPrompt, req.Messages)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
-		return
-	}
-
-	upstream := fmt.Sprintf("http://127.0.0.1:%d/pg/chat/completions", *common.Port)
-	resp, err := characterChatForward(c.Request.Context(), upstream, c.Request, body)
-	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"success": false, "message": "上游转发失败: " + err.Error()})
-		return
-	}
-	defer resp.Body.Close()
-
-	if ct := resp.Header.Get("Content-Type"); ct != "" {
-		c.Writer.Header().Set("Content-Type", ct)
-	}
-	c.Writer.WriteHeader(resp.StatusCode)
-	flusher, _ := c.Writer.(http.Flusher)
-	buf := make([]byte, 32*1024)
-	for {
-		n, rerr := resp.Body.Read(buf)
-		if n > 0 {
-			if _, werr := c.Writer.Write(buf[:n]); werr != nil {
-				return
-			}
-			if flusher != nil {
-				flusher.Flush()
-			}
-		}
-		if rerr != nil {
-			return
-		}
-	}
 }
 
 // UnlockCharacter 手动解锁角色阶段（顺序推进；需 calls>=1 且 token/好感双门槛达标）

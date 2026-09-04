@@ -50,6 +50,14 @@ func setupCharacterChatTestDB(t *testing.T) {
 	})
 }
 
+// migrateCharacterChatTables 迁移角色对话链路所需全部表
+func migrateCharacterChatTables(t *testing.T) {
+	t.Helper()
+	require.NoError(t, model.DB.AutoMigrate(&model.Character{}, &model.UserCharacterProgress{},
+		&model.Log{}, &model.CharacterBackground{},
+		&model.CharacterChatSession{}, &model.CharacterChatMessage{}))
+}
+
 // createChatCharacter 创建一个启用的测试角色
 func createChatCharacter(t *testing.T, modelName string, systemPrompt string) {
 	t.Helper()
@@ -87,11 +95,11 @@ func unlockStage0(t *testing.T, userId int, modelName string) {
 
 func TestCharacterChatCharacterNotFound(t *testing.T) {
 	setupCharacterChatTestDB(t)
-	require.NoError(t, model.DB.AutoMigrate(&model.Character{}, &model.UserCharacterProgress{}, &model.Log{}))
+	migrateCharacterChatTables(t)
 
 	r := setupCharacterChatRouter(424260)
 	req := httptest.NewRequest(http.MethodPost, "/api/character/ghost-model/chat",
-		strings.NewReader(`{"messages":[{"role":"user","content":"hi"}]}`))
+		strings.NewReader(`{"content":"hi"}`))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -101,7 +109,7 @@ func TestCharacterChatCharacterNotFound(t *testing.T) {
 
 func TestCharacterChatLocked(t *testing.T) {
 	setupCharacterChatTestDB(t)
-	require.NoError(t, model.DB.AutoMigrate(&model.Character{}, &model.UserCharacterProgress{}, &model.Log{}))
+	migrateCharacterChatTables(t)
 	createChatCharacter(t, "char-chat-locked", "你是观测者")
 	t.Cleanup(func() {
 		model.DB.Where("model_name = ?", "char-chat-locked").Delete(&model.Character{})
@@ -111,7 +119,7 @@ func TestCharacterChatLocked(t *testing.T) {
 	r := setupCharacterChatRouter(424261)
 	// 该用户从未调用过该模型 -> 403
 	req := httptest.NewRequest(http.MethodPost, "/api/character/char-chat-locked/chat",
-		strings.NewReader(`{"messages":[{"role":"user","content":"hi"}]}`))
+		strings.NewReader(`{"content":"hi"}`))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -121,7 +129,7 @@ func TestCharacterChatLocked(t *testing.T) {
 
 func TestCharacterChatForward(t *testing.T) {
 	setupCharacterChatTestDB(t)
-	require.NoError(t, model.DB.AutoMigrate(&model.Character{}, &model.UserCharacterProgress{}, &model.Log{}))
+	migrateCharacterChatTables(t)
 	const (
 		modelName    = "char-chat-open"
 		userId       = 424262
@@ -159,7 +167,7 @@ func TestCharacterChatForward(t *testing.T) {
 	t.Cleanup(func() { characterChatForward = origForward })
 
 	r := setupCharacterChatRouter(userId)
-	reqBody := `{"messages":[{"role":"user","content":"你好"}],"stream":false}`
+	reqBody := `{"content":"你好"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/character/"+modelName+"/chat", strings.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer test-dashboard-token")
@@ -176,7 +184,7 @@ func TestCharacterChatForward(t *testing.T) {
 	require.Equal(t, "Bearer test-dashboard-token", captured.authHeader)
 	require.NotNil(t, captured.cookies)
 
-	// 请求体构造正确：model = 角色 ModelName、system prompt 插入头部、stream=true
+	// 请求体构造正确：model = 角色 ModelName、system 含人设、user 原文紧随其后、stream=true
 	var forwarded struct {
 		Model    string              `json:"model"`
 		Messages []map[string]string `json:"messages"`
@@ -187,14 +195,14 @@ func TestCharacterChatForward(t *testing.T) {
 	require.True(t, forwarded.Stream)
 	require.Len(t, forwarded.Messages, 2)
 	require.Equal(t, "system", forwarded.Messages[0]["role"])
-	require.Equal(t, systemPrompt, forwarded.Messages[0]["content"])
+	require.Contains(t, forwarded.Messages[0]["content"], systemPrompt)
 	require.Equal(t, "user", forwarded.Messages[1]["role"])
 	require.Equal(t, "你好", forwarded.Messages[1]["content"])
 }
 
 func TestCharacterChatUpstreamError(t *testing.T) {
 	setupCharacterChatTestDB(t)
-	require.NoError(t, model.DB.AutoMigrate(&model.Character{}, &model.UserCharacterProgress{}, &model.Log{}))
+	migrateCharacterChatTables(t)
 	const (
 		modelName = "char-chat-err"
 		userId    = 424263
@@ -216,9 +224,59 @@ func TestCharacterChatUpstreamError(t *testing.T) {
 
 	r := setupCharacterChatRouter(userId)
 	req := httptest.NewRequest(http.MethodPost, "/api/character/"+modelName+"/chat",
-		strings.NewReader(`{"messages":[{"role":"user","content":"hi"}]}`))
+		strings.NewReader(`{"content":"hi"}`))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	require.Equal(t, http.StatusBadGateway, w.Code)
+}
+
+func TestCharacterChatPersistsSessionAndMessages(t *testing.T) {
+	setupCharacterChatTestDB(t)
+	migrateCharacterChatTables(t)
+	const (
+		modelName = "char-chat-persist"
+		userId    = 424270
+	)
+	createChatCharacter(t, modelName, "你是观测者")
+	insertConsumeLog(t, userId, modelName)
+	unlockStage0(t, userId, modelName)
+	t.Cleanup(func() {
+		model.DB.Where("model_name = ?", modelName).Delete(&model.Character{})
+		model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).Delete(&model.UserCharacterProgress{})
+		model.LOG_DB.Where("user_id = ? AND model_name = ?", userId, modelName).Delete(&model.Log{})
+		model.DB.Where("user_id = ?", userId).Delete(&model.CharacterChatSession{})
+	})
+
+	origForward := characterChatForward
+	characterChatForward = func(ctx context.Context, url string, src *http.Request, body []byte) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body: io.NopCloser(strings.NewReader(
+				"data: {\"choices\":[{\"delta\":{\"content\":\"{\\\"reply\\\":\\\"你好呀\\\",\\\"pose\\\":\\\"happy\\\"}\"}}]}\n\ndata: [DONE]\n\n")),
+		}, nil
+	}
+	t.Cleanup(func() { characterChatForward = origForward })
+
+	r := setupCharacterChatRouter(userId)
+	req := httptest.NewRequest(http.MethodPost, "/api/character/"+modelName+"/chat",
+		strings.NewReader(`{"content":"你好"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var sess model.CharacterChatSession
+	require.NoError(t, model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).First(&sess).Error)
+	require.Equal(t, 2, sess.MessageCount)
+	var msgs []model.CharacterChatMessage
+	require.NoError(t, model.DB.Where("session_id = ?", sess.Id).Order("id ASC").Find(&msgs).Error)
+	require.Len(t, msgs, 2)
+	require.Equal(t, "user", msgs[0].Role)
+	require.Equal(t, "你好", msgs[0].Content)
+	require.Equal(t, "assistant", msgs[1].Role)
+	require.Equal(t, "你好呀", msgs[1].Content) // 解析后的纯台词入库
+	require.Equal(t, "happy", msgs[1].Pose)
 }
