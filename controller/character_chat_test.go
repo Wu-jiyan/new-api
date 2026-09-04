@@ -280,3 +280,47 @@ func TestCharacterChatPersistsSessionAndMessages(t *testing.T) {
 	require.Equal(t, "你好呀", msgs[1].Content) // 解析后的纯台词入库
 	require.Equal(t, "happy", msgs[1].Pose)
 }
+
+func TestCharacterChatAppliesAffinity(t *testing.T) {
+	setupCharacterChatTestDB(t)
+	migrateCharacterChatTables(t)
+	const (
+		modelName = "char-chat-affinity"
+		userId    = 424271
+	)
+	createChatCharacter(t, modelName, "你是观测者")
+	insertConsumeLog(t, userId, modelName)
+	unlockStage0(t, userId, modelName)
+	t.Cleanup(func() {
+		model.DB.Where("model_name = ?", modelName).Delete(&model.Character{})
+		model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).Delete(&model.UserCharacterProgress{})
+		model.LOG_DB.Where("user_id = ? AND model_name = ?", userId, modelName).Delete(&model.Log{})
+		model.DB.Where("user_id = ?", userId).Delete(&model.CharacterChatSession{})
+	})
+	origForward := characterChatForward
+	characterChatForward = func(ctx context.Context, url string, src *http.Request, body []byte) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body: io.NopCloser(strings.NewReader(
+				"data: {\"choices\":[{\"delta\":{\"content\":\"{\\\"reply\\\":\\\"太好了\\\",\\\"affinity_delta\\\":3}\"}}]}\n\ndata: [DONE]\n\n")),
+		}, nil
+	}
+	t.Cleanup(func() { characterChatForward = origForward })
+	r := setupCharacterChatRouter(userId)
+	req := httptest.NewRequest(http.MethodPost, "/api/character/"+modelName+"/chat",
+		strings.NewReader(`{"content":"约好咯"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	var sess model.CharacterChatSession
+	require.NoError(t, model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).First(&sess).Error)
+	var am model.CharacterChatMessage
+	require.NoError(t, model.DB.Where("session_id = ? AND role = ?", sess.Id, "assistant").First(&am).Error)
+	require.Equal(t, 3, am.AffinityDelta)
+	var p model.UserCharacterProgress
+	require.NoError(t, model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).First(&p).Error)
+	require.Equal(t, 3, p.Affinity)
+}

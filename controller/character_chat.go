@@ -174,24 +174,25 @@ func CharacterChat(c *gin.Context) {
 	if resp.StatusCode != http.StatusOK {
 		return // 上游错误已原样透传，不落库 assistant
 	}
-	persistCharacterAssistant(session, raw.String())
+	persistCharacterAssistant(session, userId, modelName, raw.String())
 }
 
-// persistCharacterAssistant 流结束聚合：提取文本 → 容错解析 → 落库 assistant。
-// 提取失败（非标准流）不落库；解析失败落原文（视觉冗余为空）。
-func persistCharacterAssistant(session *model.CharacterChatSession, raw string) {
+// persistCharacterAssistant 流结束聚合：提取文本 → 容错解析 → 应用好感 → 落库 assistant。
+// 提取失败（非标准流）不落库；解析失败落原文（视觉冗余/好感为空）。
+func persistCharacterAssistant(session *model.CharacterChatSession, userId int, modelName string, raw string) {
 	text, ok := model.ExtractStreamContent(raw)
 	if !ok {
 		return
 	}
-	visual := model.CharacterChatVisual{}
 	reply := text
-	replyParsed, ok := model.ParseCharacterChatReply(text)
-	if ok {
-		reply = replyParsed.Reply
-		visual = model.CharacterChatVisual{Pose: replyParsed.Pose, Effect: replyParsed.Effect, Background: replyParsed.Background}
+	visual := model.CharacterChatVisual{}
+	delta := 0
+	if parsed, ok := model.ParseCharacterChatReply(text); ok {
+		reply = parsed.Reply
+		visual = model.CharacterChatVisual{Pose: parsed.Pose, Effect: parsed.Effect, Background: parsed.Background}
+		delta, _ = model.ApplyCharacterAffinityDelta(session.Id, userId, modelName, parsed.AffinityDelta, common.GetTimestamp())
 	}
-	_, _ = model.AddCharacterChatAssistantMessage(session, reply, visual, 0)
+	_, _ = model.AddCharacterChatAssistantMessage(session, reply, visual, delta)
 }
 
 // ensureCharacterChatInitialContext 空实现占位；任务 4 填充（小剧场脚本摘要 → session.InitialContext）。
