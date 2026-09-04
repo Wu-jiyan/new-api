@@ -351,6 +351,8 @@ func migrateDB() error {
 		&GachaCardRefund{},
 		&Character{},
 		&UserCharacterProgress{},
+		&CharacterChatSession{},
+		&CharacterChatMessage{},
 	)
 	if err != nil {
 		return err
