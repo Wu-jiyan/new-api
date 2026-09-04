@@ -1,6 +1,11 @@
 import { api } from '@/lib/api'
 
-import type { CharacterScript, CharacterView } from './types'
+import type {
+  CharacterChatMessagesPage,
+  CharacterChatMeta,
+  CharacterScript,
+  CharacterView,
+} from './types'
 
 export async function fetchCharacters(): Promise<CharacterView[]> {
   const res = await api.get<{ success: boolean; data: CharacterView[] }>('/api/character/characters')
@@ -42,4 +47,24 @@ export async function unlockCharacter(
   )
   if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to unlock')
   return res.data?.data
+}
+
+export async function fetchCharacterChatMeta(modelName: string): Promise<CharacterChatMeta> {
+  const res = await api.get<{ success: boolean; data: CharacterChatMeta }>(
+    `/api/character/${encodeURIComponent(modelName)}/chat/meta`
+  )
+  return res.data?.data ?? { has_history: false, stage_index: 0, message_count: 0 }
+}
+
+export async function fetchCharacterChatMessages(
+  modelName: string,
+  cursorId?: number,
+  limit = 30
+): Promise<CharacterChatMessagesPage> {
+  const query = new URLSearchParams({ limit: String(limit) })
+  if (cursorId) query.set('cursor_id', String(cursorId))
+  const res = await api.get<{ success: boolean; data: CharacterChatMessagesPage }>(
+    `/api/character/${encodeURIComponent(modelName)}/chat/messages?${query.toString()}`
+  )
+  return res.data?.data ?? { items: [], has_more: false }
 }

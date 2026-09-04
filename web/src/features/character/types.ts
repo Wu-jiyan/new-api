@@ -60,3 +60,28 @@ export interface CharacterView {
   stages: CharacterStageView[]
   backgrounds?: GlobalBackground[]
 }
+
+export interface CharacterChatMeta {
+  has_history: boolean
+  stage_index: number
+  stage_name?: string
+  message_count: number
+  initial_context?: string
+  summary?: string
+}
+
+export interface CharacterChatMessageItem {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+  pose?: string
+  effect?: string
+  background?: string
+  affinity_delta: number
+  created_at: number
+}
+
+export interface CharacterChatMessagesPage {
+  items: CharacterChatMessageItem[]
+  has_more: boolean
+}
