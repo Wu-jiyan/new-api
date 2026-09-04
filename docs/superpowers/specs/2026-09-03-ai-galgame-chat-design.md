@@ -54,6 +54,7 @@
 | initial_context | text | 小剧场带入的开场剧情（一次性固定携带） |
 | summary | text | 滚动摘要（早期记忆压缩） |
 | message_count | int | 默认 0；统计消息条数 |
+| summary_through | int | 默认 0；最近一次成功摘要覆盖到的消息条数（摘要水位） |
 | last_message_at | bigint | 最后消息时间 |
 | created_at / updated_at | bigint | |
 
@@ -79,7 +80,7 @@
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/character/:modelName/chat` | **改造**。请求体 `{ content, stage_index? }`。首轮自动创建/续用单线会话；返回 SSE 流（同现状）。会话级前置校验同现状（未解锁 403） |
+| POST | `/api/character/:modelName/chat` | **改造**。请求体 `{ content?, stage_index?, from_story? }`。`from_story: true` 表示从小剧场进入（此时 content 可空，开场白由服务端生成）；否则 `content` 必填为用户输入。首轮自动创建/续用单线会话；返回 SSE 流（同现状）。会话级前置校验同现状（未解锁 403） |
 | GET | `/api/character/:modelName/chat/messages` | 分页历史 `?cursor_id=&limit=`（默认最新 30 条，倒序分页） |
 | GET | `/api/character/:modelName/chat/meta` | 返回 session 元信息（stage_index/summary 摘要片段/有无 initial_context/消息数）——前端对话页初始化用 |
 
@@ -136,9 +137,9 @@ AI 每回合**只输出一个 JSON 对象**（system prompt 强约束，不依�
 ## 8. 记忆：滑动窗口 + 自动摘要
 
 - **窗口**：组装历史取最近 40 条消息原文（user+assistant 计数）；更早消息不参与每轮请求。
-- **归档触发**：新 assistant 消息落库后，若「窗口外（第 41 条以前）未归档消息数 ≥ 20」则触发一次摘要更新。
-- **摘要生成**：调一次模型（复用会话同一上游链路与用户计费），输入 = 旧 summary + 待归档消息序列，输出 ≈ 500 字以内的事件/关系/承诺要点，覆盖写回 `session.summary`，并清空已归档计数。
-- **失败策略**：摘要失败静默（保留待归档计数，下轮再试），不影响对话。
+- **归档触发**：新消息落库后，当 `message_count - summary_through ≥ 60` 时触发一次摘要（40 条窗口外的待归档部分）。
+- **摘要生成**：调一次模型（复用会话同一上游链路与用户计费），输入 = 旧 summary + 待归档消息序列，输出 ≈ 500 字以内的事件/关系/承诺要点，覆盖写回 `session.summary`，成功后 `summary_through = message_count`。
+- **失败策略**：摘要失败静默（`summary_through` 不推进，差值继续累计，下轮触发），不影响对话。
 - 前端展示不受影响：历史列表直接读 messages 表，窗口裁剪只在请求拼装层发生。
 
 ## 9. 好感闭环与护栏
@@ -152,9 +153,9 @@ AI 每回合**只输出一个 JSON 对象**（system prompt 强约束，不依�
 ## 10. 小剧场衔接
 
 - StoryPlayer 结束屏新增主按钮「继续对话」（`character.story.continue`），保留「关闭」。
-- 点「继续对话」→ 调 `POST /chat { content: "（开场白）", stage_index }`（幂等建会话），首次创建时服务端把该阶段 script 内容压缩为 `initial_context` 落库（一次性固定携带），随后跳转对话页 `/character/$modelName/chat`。开场白由服务端以小剧场结束语境自动生成（不消耗独立对话回合，作为 initial_context 的 user 首条消息），让 AI 第一句即接住剧情。
+- 点「继续对话」→ 调 `POST /chat { from_story: true, stage_index }`（幂等建会话）。首次创建时：服务端把该阶段 script 内容压缩为 `initial_context` 落库（一次性固定携带），并以小剧场结束语境生成一段 user 开场白落库（如「（你刚刚经历完与她的初遇，现在她就在你面前）……」），使 AI 第一句即接住剧情、对话可立即开始。会话已存在（再次进入）则走普通续谈，不再写 initial_context/开场白。
 - 退出：关闭 StoryPlayer 回原页，进度语义 = 小剧场本身仍可随时重播（现有行为），不影响对话会话。
-- detail 页保留「开始对话」直达对话页（空开场，无 initial_context）。
+- detail 页保留「开始对话」直达对话页（`from_story` 缺省，空开场，无 initial_context）。
 
 ## 11. 前端对话页
 
