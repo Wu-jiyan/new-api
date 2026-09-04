@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -330,4 +331,56 @@ func scriptToText(script []model.CharacterScript) string {
 		}
 	}
 	return b.String()
+}
+
+// GetCharacterChatMeta 返回会话元信息（对话页初始化用；无会话返回 has_history=false）
+func GetCharacterChatMeta(c *gin.Context) {
+	userId := c.GetInt("id")
+	modelName := c.Param("modelName")
+	var ch model.Character
+	if err := model.DB.Where("model_name = ? AND enabled = ?", modelName, true).First(&ch).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "角色不存在"})
+		return
+	}
+	data := gin.H{"has_history": false, "stage_index": 0, "stage_name": "", "message_count": 0, "initial_context": "", "summary": ""}
+	var sess model.CharacterChatSession
+	if err := model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).First(&sess).Error; err == nil {
+		stageName := ""
+		stages := ch.Stages()
+		if sess.StageIndex >= 0 && sess.StageIndex < len(stages.Stages) {
+			stageName = stages.Stages[sess.StageIndex].Name
+		}
+		summary := sess.Summary
+		if len(summary) > 200 {
+			summary = summary[:200] + "…"
+		}
+		data = gin.H{
+			"has_history": sess.MessageCount > 0, "stage_index": sess.StageIndex,
+			"stage_name": stageName, "message_count": sess.MessageCount,
+			"initial_context": sess.InitialContext, "summary": summary,
+		}
+	}
+	c.JSON(200, gin.H{"success": true, "data": data})
+}
+
+// ListCharacterChatMessages 分页读取会话历史（倒序分页：cursor_id 取更旧消息）
+func ListCharacterChatMessages(c *gin.Context) {
+	userId := c.GetInt("id")
+	modelName := c.Param("modelName")
+	cursorId, _ := strconv.Atoi(c.DefaultQuery("cursor_id", "0"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "30"))
+	if limit <= 0 || limit > 100 {
+		limit = 30
+	}
+	items := []model.CharacterChatMessage{}
+	hasMore := false
+	var sess model.CharacterChatSession
+	if err := model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).First(&sess).Error; err == nil {
+		rows, more, err := model.ListCharacterChatMessagesPaged(sess.Id, cursorId, limit)
+		if err == nil {
+			items = rows
+			hasMore = more
+		}
+	}
+	c.JSON(200, gin.H{"success": true, "data": gin.H{"items": items, "has_more": hasMore}})
 }

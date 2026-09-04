@@ -25,6 +25,8 @@ func setupCharacterChatRouter(userId int) *gin.Engine {
 	rg.Use(func(c *gin.Context) { c.Set("id", userId) }) // mock UserAuth
 	{
 		rg.POST("/:modelName/chat", CharacterChat)
+		rg.GET("/:modelName/chat/meta", GetCharacterChatMeta)
+		rg.GET("/:modelName/chat/messages", ListCharacterChatMessages)
 	}
 	return r
 }
@@ -445,4 +447,80 @@ func TestCharacterChatTriggersSummary(t *testing.T) {
 	require.NoError(t, model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).First(&latest).Error)
 	require.Contains(t, latest.Summary, "星星")
 	require.Equal(t, latest.MessageCount, latest.SummaryThrough)
+}
+
+func TestCharacterChatMetaAndMessages(t *testing.T) {
+	setupCharacterChatTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.Character{}, &model.UserCharacterProgress{}, &model.Log{},
+		&model.CharacterBackground{}, &model.CharacterChatSession{}, &model.CharacterChatMessage{}))
+	const (
+		modelName = "char-chat-meta"
+		userId    = 424274
+	)
+	createChatCharacter(t, modelName, "你是观测者")
+	insertConsumeLog(t, userId, modelName)
+	unlockStage0(t, userId, modelName)
+	t.Cleanup(func() {
+		model.DB.Where("model_name = ?", modelName).Delete(&model.Character{})
+		model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).Delete(&model.UserCharacterProgress{})
+		model.LOG_DB.Where("user_id = ? AND model_name = ?", userId, modelName).Delete(&model.Log{})
+		model.DB.Where("user_id = ?", userId).Delete(&model.CharacterChatSession{})
+	})
+	origForward := characterChatForward
+	characterChatForward = func(ctx context.Context, url string, src *http.Request, body []byte) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body: io.NopCloser(strings.NewReader("data: {\"choices\":[{\"delta\":{\"content\":\"{\\\"reply\\\":\\\"hi\\\"}\"}}]}\n\ndata: [DONE]\n\n"))}, nil
+	}
+	t.Cleanup(func() { characterChatForward = origForward })
+	r := setupCharacterChatRouter(userId)
+
+	// 初始无会话
+	w1 := httptest.NewRecorder()
+	r.ServeHTTP(w1, httptest.NewRequest(http.MethodGet, "/api/character/"+modelName+"/chat/meta", nil))
+	require.Equal(t, http.StatusOK, w1.Code)
+	var meta1 struct {
+		Data struct {
+			HasHistory bool `json:"has_history"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w1.Body.Bytes(), &meta1))
+	require.False(t, meta1.Data.HasHistory)
+
+	// 发一轮
+	w2 := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/character/"+modelName+"/chat", strings.NewReader(`{"content":"你好"}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w2, req)
+	require.Equal(t, http.StatusOK, w2.Code)
+
+	// meta 有历史
+	w3 := httptest.NewRecorder()
+	r.ServeHTTP(w3, httptest.NewRequest(http.MethodGet, "/api/character/"+modelName+"/chat/meta", nil))
+	var meta3 struct {
+		Data struct {
+			HasHistory   bool   `json:"has_history"`
+			StageIndex   int    `json:"stage_index"`
+			StageName    string `json:"stage_name"`
+			MessageCount int    `json:"message_count"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w3.Body.Bytes(), &meta3))
+	require.True(t, meta3.Data.HasHistory)
+	require.Equal(t, 0, meta3.Data.StageIndex)
+	require.Equal(t, "初遇", meta3.Data.StageName)
+	require.Equal(t, 2, meta3.Data.MessageCount)
+
+	// messages 分页返回升序
+	w4 := httptest.NewRecorder()
+	r.ServeHTTP(w4, httptest.NewRequest(http.MethodGet, "/api/character/"+modelName+"/chat/messages?limit=1", nil))
+	var page struct {
+		Data struct {
+			Items  []model.CharacterChatMessage `json:"items"`
+			HasMore bool                        `json:"has_more"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w4.Body.Bytes(), &page))
+	require.Len(t, page.Data.Items, 1)
+	require.Equal(t, "assistant", page.Data.Items[0].Role)
+	require.True(t, page.Data.HasMore)
 }
