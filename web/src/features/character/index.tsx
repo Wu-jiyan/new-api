@@ -173,8 +173,8 @@ export default function CharacterDetailPage() {
               variant='outline'
               onClick={() =>
                 navigate({
-                  to: '/playground',
-                  search: { character: character.model_name },
+                  to: '/character/$modelName/chat',
+                  params: { modelName: character.model_name },
                 })
               }
               disabled={character.total_calls < 1}
@@ -367,6 +367,12 @@ export default function CharacterDetailPage() {
         onOpenChange={setStoryOpen}
         character={character}
         stageIndex={activeStage}
+        onContinue={() =>
+          navigate({
+            to: '/character/$modelName/chat',
+            params: { modelName: character.model_name },
+          })
+        }
       />
 
       <Lightbox
