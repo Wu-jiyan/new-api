@@ -17,6 +17,8 @@ type CharacterChatSession struct {
 	Id             int    `json:"id"`
 	UserId         int    `json:"user_id" gorm:"uniqueIndex:idx_sess_user_model;not null"`
 	ModelName      string `json:"model_name" gorm:"size:128;uniqueIndex:idx_sess_user_model;not null"`
+	Model          string `json:"model" gorm:"size:128"` // 会话选定的具体对话模型（前缀内）
+	Group          string `json:"group" gorm:"size:64"`  // 会话选定的分组（空=用户默认）
 	StageIndex     int    `json:"stage_index" gorm:"default:0"`
 	InitialContext string `json:"initial_context" gorm:"type:text"` // 小剧场带入剧情（一次性固定携带）
 	Summary        string `json:"summary" gorm:"type:text"`         // 早期记忆滚动摘要
@@ -51,6 +53,24 @@ func GetOrCreateCharacterChatSession(userId int, modelName string, stageIndex in
 		return &s, nil
 	}
 	return &s, nil
+}
+
+// ForgetCharacterChat 「忘记她」：清除与某角色的全部对话进度、上下文与记忆（删除会话与消息），
+// 并将好感度归零。不触碰已解锁阶段（max_stage）与 token/调用统计。
+func ForgetCharacterChat(userId int, modelName string) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ? AND model_name = ?", userId, modelName).
+			Delete(&CharacterChatMessage{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ? AND model_name = ?", userId, modelName).
+			Delete(&CharacterChatSession{}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&UserCharacterProgress{}).
+			Where("user_id = ? AND model_name = ?", userId, modelName).
+			Updates(map[string]interface{}{"affinity": 0, "updated_at": common.GetTimestamp()}).Error
+	})
 }
 
 // touchSession 消息落库后同步更新会话计数（对象内存与 DB 一致）

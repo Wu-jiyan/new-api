@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
+import { getUserGroups, getUserModels } from '@/features/playground/api'
+
 import {
   createCharacter,
   fetchAdminCharacters,
@@ -33,6 +35,7 @@ interface FormState {
   description: string
   system_prompt: string
   affinity_required: number
+  default_model: string
 }
 
 const EMPTY_FORM: FormState = {
@@ -43,6 +46,7 @@ const EMPTY_FORM: FormState = {
   description: '',
   system_prompt: '',
   affinity_required: 0,
+  default_model: '',
 }
 
 function emptyScriptLine() {
@@ -143,6 +147,7 @@ function toForm(item: CharacterAdminItem): FormState {
     description: item.description ?? '',
     system_prompt: item.system_prompt ?? '',
     affinity_required: item.affinity_required ?? 0,
+    default_model: item.default_model ?? '',
   }
 }
 
@@ -174,6 +179,34 @@ export default function CharacterEditorPage() {
     queryKey: ['character-backgrounds'],
     queryFn: fetchBackgroundLibrary,
   })
+
+  // 默认对话模型候选：取用户分组下（auto 优先）可用模型，按 model_name 前缀过滤
+  const [candidateModels, setCandidateModels] = useState<string[]>([])
+  useEffect(() => {
+    let cancelled = false
+    getUserGroups()
+      .then(async (gs) => {
+        if (cancelled || gs.length === 0) return []
+        const group = gs.some((g) => g.value === 'auto') ? 'auto' : gs[0].value
+        return getUserModels(group)
+      })
+      .then((ms) => {
+        if (cancelled || !ms) return
+        setCandidateModels(ms.map((m) => m.value))
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  const defaultModelOptions = useMemo(() => {
+    const prefix = form.model_name.trim()
+    const filtered = prefix ? candidateModels.filter((m) => m.startsWith(prefix)) : []
+    if (form.default_model && !filtered.includes(form.default_model)) {
+      return [form.default_model, ...filtered]
+    }
+    return filtered
+  }, [candidateModels, form.model_name, form.default_model])
 
   useEffect(() => {
     if (isNew) {
@@ -222,6 +255,7 @@ export default function CharacterEditorPage() {
       description: form.description,
       system_prompt: form.system_prompt,
       affinity_required: form.affinity_required,
+      default_model: form.default_model,
       stages_json: buildStagesJson(drafts),
     }
     if (item) {
@@ -335,6 +369,24 @@ export default function CharacterEditorPage() {
                 placeholder={t('character.admin.systemPromptHint')}
                 onChange={(e) => setForm((prev) => ({ ...prev, system_prompt: e.target.value }))}
               />
+            </div>
+            <div className='space-y-1.5'>
+              <Label>{t('character.admin.defaultModel')}</Label>
+              <select
+                value={form.default_model}
+                onChange={(e) => setForm((prev) => ({ ...prev, default_model: e.target.value }))}
+                className='border-input bg-transparent flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring'
+              >
+                <option value=''>{t('character.admin.defaultModelAuto')}</option>
+                {defaultModelOptions.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+              <p className='text-muted-foreground text-xs'>
+                {t('character.admin.defaultModelHint')}
+              </p>
             </div>
             <div className='space-y-1.5'>
               <Label>{t('character.admin.affinityRequired')}</Label>

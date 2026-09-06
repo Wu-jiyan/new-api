@@ -1,7 +1,7 @@
 package model
 
 import (
-	"encoding/json"
+	"github.com/QuantumNous/new-api/common"
 )
 
 // CharacterPose 剧情姿态立绘（透明背景，对话行按 name 引用）
@@ -58,6 +58,7 @@ type Character struct {
 	Tags             string `json:"tags" gorm:"type:text"`
 	SystemPrompt     string `json:"system_prompt" gorm:"type:text"`     // 二期对话人设
 	AffinityRequired int    `json:"affinity_required" gorm:"default:0"` // 角色整体解锁所需好感（0=不要求）
+	DefaultModel     string `json:"default_model" gorm:"size:128"`      // AI 对话默认具体模型（须匹配 model_name 前缀，空=不指定）
 	StagesJSON       string `json:"stages_json" gorm:"type:text"`
 	Enabled          bool   `json:"enabled" gorm:"default:true"`
 	CreatedAt        int64  `json:"created_at" gorm:"bigint"`
@@ -68,14 +69,14 @@ type Character struct {
 func (c *Character) Stages() CharacterStages {
 	var s CharacterStages
 	if c.StagesJSON != "" {
-		_ = json.Unmarshal([]byte(c.StagesJSON), &s)
+		_ = common.Unmarshal([]byte(c.StagesJSON), &s)
 	}
 	return s
 }
 
 // SetStages 序列化阶段配置
 func (c *Character) SetStages(s CharacterStages) error {
-	data, err := json.Marshal(s)
+	data, err := common.Marshal(s)
 	if err != nil {
 		return err
 	}

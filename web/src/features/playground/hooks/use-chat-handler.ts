@@ -40,6 +40,8 @@ import { useStreamRequest } from './use-stream-request'
 interface UseChatHandlerOptions {
   config: PlaygroundConfig
   parameterEnabled: ParameterEnabled
+  /** 可选：隐藏只读注入的 system prompt（角色模式） */
+  systemPrompt?: string
   onMessageUpdate: (updater: (prev: Message[]) => Message[]) => void
 }
 
@@ -69,6 +71,7 @@ function mergePendingStreamChunk(
 export function useChatHandler({
   config,
   parameterEnabled,
+  systemPrompt,
   onMessageUpdate,
 }: UseChatHandlerOptions) {
   const { t } = useTranslation()
@@ -252,7 +255,8 @@ export function useChatHandler({
       const payload = buildChatCompletionPayload(
         messages,
         config,
-        parameterEnabled
+        parameterEnabled,
+        systemPrompt
       )
       void sendStreamRequest(
         payload,
@@ -264,6 +268,7 @@ export function useChatHandler({
     [
       config,
       parameterEnabled,
+      systemPrompt,
       sendStreamRequest,
       discardPendingStreamUpdates,
       handleStreamUpdate,
@@ -278,7 +283,8 @@ export function useChatHandler({
       const payload = buildChatCompletionPayload(
         messages,
         config,
-        parameterEnabled
+        parameterEnabled,
+        systemPrompt
       )
       const generation = requestGenerationRef.current + 1
       const abortController = new AbortController()
@@ -338,6 +344,7 @@ export function useChatHandler({
     [
       config,
       parameterEnabled,
+      systemPrompt,
       stopStream,
       discardPendingStreamUpdates,
       onMessageUpdate,

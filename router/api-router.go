@@ -254,6 +254,7 @@ func SetApiRouter(router *gin.Engine) {
 			characterRoute.POST("/:modelName/chat", controller.CharacterChat)
 			characterRoute.GET("/:modelName/chat/meta", controller.GetCharacterChatMeta)
 			characterRoute.GET("/:modelName/chat/messages", controller.ListCharacterChatMessages)
+			characterRoute.POST("/:modelName/forget", controller.ForgetCharacter)
 		}
 
 		optionRoute := apiRouter.Group("/option")

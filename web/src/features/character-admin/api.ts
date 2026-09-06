@@ -37,15 +37,36 @@ export async function deleteCharacter(id: number): Promise<void> {
   await api.delete(`/api/character/admin/characters/${id}`)
 }
 
+export type CharacterAssetType = 'portrait' | 'background' | 'pose'
+
+export interface GenerateCharacterImageOptions {
+  type?: CharacterAssetType
+  pose_name?: string
+  pose_prompt?: string
+  style?: string
+}
+
+export type CharacterImageResult = {
+  image_url?: string
+  background_url?: string
+  pose_name?: string
+}
+
 export async function generateCharacterImage(
   id: number,
   stageIndex: number,
   prompt: string,
-  style?: string
-): Promise<{ image_url: string }> {
-  const res = await api.post<{ success: boolean; data: { image_url: string } }>(
+  options?: GenerateCharacterImageOptions
+): Promise<CharacterImageResult> {
+  const res = await api.post<{ success: boolean; data: CharacterImageResult }>(
     `/api/character/admin/characters/${id}/stages/${stageIndex}/generate`,
-    { prompt, style }
+    {
+      prompt,
+      style: options?.style,
+      type: options?.type,
+      pose_name: options?.pose_name,
+      pose_prompt: options?.pose_prompt,
+    }
   )
   return res.data?.data
 }
@@ -53,16 +74,67 @@ export async function generateCharacterImage(
 export async function uploadCharacterImage(
   id: number,
   stageIndex: number,
-  file: File
-): Promise<{ image_url: string }> {
+  file: File,
+  options?: { type?: CharacterAssetType; pose_name?: string }
+): Promise<CharacterImageResult> {
   const form = new FormData()
   form.append('file', file)
-  const res = await api.post<{ success: boolean; data: { image_url: string } }>(
+  form.append('type', options?.type ?? 'portrait')
+  if (options?.pose_name) form.append('pose_name', options.pose_name)
+  const res = await api.post<{ success: boolean; data: CharacterImageResult }>(
     `/api/character/admin/characters/${id}/stages/${stageIndex}/image`,
-    form,
-    { headers: { 'Content-Type': 'multipart/form-data' } }
+    form
   )
   return res.data?.data
+}
+
+// —— 系统级全局背景库（所有角色共用） ——
+
+export interface GlobalBackgroundItem {
+  id: number
+  name: string
+  image_url: string
+  created_at: number
+  updated_at: number
+}
+
+export async function fetchBackgroundLibrary(): Promise<GlobalBackgroundItem[]> {
+  const res = await api.get<{ success: boolean; message?: string; data: GlobalBackgroundItem[] }>(
+    '/api/character/admin/backgrounds',
+    { skipErrorHandler: true }
+  )
+  if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to load backgrounds')
+  return res.data?.data ?? []
+}
+
+export async function uploadBackground(name: string, file: File): Promise<GlobalBackgroundItem> {
+  const form = new FormData()
+  form.append('name', name)
+  form.append('file', file)
+  const res = await api.post<{ success: boolean; message?: string; data: GlobalBackgroundItem }>(
+    '/api/character/admin/backgrounds/upload',
+    form,
+    { skipErrorHandler: true }
+  )
+  if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to upload background')
+  return res.data?.data
+}
+
+export async function generateBackground(
+  name: string,
+  prompt: string
+): Promise<GlobalBackgroundItem> {
+  const res = await api.post<{ success: boolean; message?: string; data: GlobalBackgroundItem }>(
+    '/api/character/admin/backgrounds/generate',
+    { name, prompt },
+    { skipErrorHandler: true }
+  )
+  if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to generate background')
+  return res.data?.data
+}
+
+export async function deleteBackground(id: number): Promise<void> {
+  await api.delete(`/api/character/admin/backgrounds/${id}`)
 }
 
 export async function saveCharacterScript(

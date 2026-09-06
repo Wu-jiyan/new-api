@@ -26,16 +26,26 @@ import { formatMessageForAPI, isValidMessage } from '../message/message-utils'
 
 /**
  * Build API request payload from messages and config
+ * @param systemPrompt 可选：隐藏只读注入的 system 消息（角色模式用），
+ * 不出现在消息列表里，仅随请求发送；若用户消息中已有 system 消息则跳过避免重复。
  */
 export function buildChatCompletionPayload(
   messages: Message[],
   config: PlaygroundConfig,
-  parameterEnabled: ParameterEnabled
+  parameterEnabled: ParameterEnabled,
+  systemPrompt?: string
 ): ChatCompletionRequest {
   // Filter and format valid messages
   const processedMessages = messages
     .filter(isValidMessage)
     .map(formatMessageForAPI)
+
+  if (systemPrompt && systemPrompt.trim() !== '') {
+    const hasSystemMessage = processedMessages.some((m) => m.role === 'system')
+    if (!hasSystemMessage) {
+      processedMessages.unshift({ role: 'system', content: systemPrompt })
+    }
+  }
 
   const payload: ChatCompletionRequest = {
     model: config.model,

@@ -351,6 +351,7 @@ func migrateDB() error {
 		&GachaCardRefund{},
 		&Character{},
 		&UserCharacterProgress{},
+		&CharacterBackground{},
 		&CharacterChatSession{},
 		&CharacterChatMessage{},
 	)

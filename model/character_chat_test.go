@@ -12,7 +12,7 @@ func TestBuildChatCompletionsBody(t *testing.T) {
 		{"role": "system", "content": "sys"},
 		{"role": "user", "content": "hi"},
 	}
-	body, err := BuildChatCompletionsBody("m", msgs, true)
+	body, err := BuildChatCompletionsBody("m", msgs, true, "")
 	require.NoError(t, err)
 	var decoded struct {
 		Model    string              `json:"model"`
@@ -23,7 +23,7 @@ func TestBuildChatCompletionsBody(t *testing.T) {
 	require.Equal(t, "m", decoded.Model)
 	require.True(t, decoded.Stream)
 	require.Len(t, decoded.Messages, 2)
-	body2, err := BuildChatCompletionsBody("m", msgs, false)
+	body2, err := BuildChatCompletionsBody("m", msgs, false, "")
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(body2, &decoded))
 	require.False(t, decoded.Stream)

@@ -1,6 +1,9 @@
 package model
 
-import "github.com/QuantumNous/new-api/common"
+import (
+	"github.com/QuantumNous/new-api/common"
+	"gorm.io/gorm"
+)
 
 // CharacterChatVisual assistant 消息的可选视觉冗余字段（user 消息恒为空）
 type CharacterChatVisual struct {
@@ -21,7 +24,17 @@ type CharacterChatMessage struct {
 	Effect        string `json:"effect,omitempty" gorm:"size:16"`
 	Background    string `json:"background,omitempty" gorm:"size:64"`
 	AffinityDelta int    `json:"affinity_delta" gorm:"default:0"`
+	ChoicesJSON   string                `json:"-" gorm:"type:text"`          // assistant 回复携带的回答选项（JSON 数组）
+	Choices       []CharacterChatChoice `json:"choices,omitempty" gorm:"-"`  // AfterFind 回填
 	CreatedAt     int64  `json:"created_at" gorm:"bigint"`
+}
+
+// AfterFind 把 ChoicesJSON 回填为结构化 Choices（解析失败静默为空）
+func (m *CharacterChatMessage) AfterFind(*gorm.DB) error {
+	if m.ChoicesJSON != "" {
+		_ = common.Unmarshal([]byte(m.ChoicesJSON), &m.Choices)
+	}
+	return nil
 }
 
 func AddCharacterChatUserMessage(s *CharacterChatSession, content string) (*CharacterChatMessage, error) {
@@ -36,12 +49,33 @@ func AddCharacterChatUserMessage(s *CharacterChatSession, content string) (*Char
 	return m, nil
 }
 
-func AddCharacterChatAssistantMessage(s *CharacterChatSession, content string, visual CharacterChatVisual, delta int) (*CharacterChatMessage, error) {
+// RemoveCharacterChatUserMessage 回滚刚落库的 user 消息并回退会话消息计数。
+// 用于上游转发失败：历史不留无应答的孤行，前端重试不会造成重复 user 消息。
+func RemoveCharacterChatUserMessage(s *CharacterChatSession, m *CharacterChatMessage) {
+	if m == nil || m.Id == 0 {
+		return
+	}
+	if err := DB.Delete(&CharacterChatMessage{}, "id = ?", m.Id).Error; err != nil {
+		return
+	}
+	if s.MessageCount > 0 {
+		s.MessageCount--
+	}
+	touchSession(s, false)
+}
+
+func AddCharacterChatAssistantMessage(s *CharacterChatSession, content string, visual CharacterChatVisual, delta int, choices []CharacterChatChoice) (*CharacterChatMessage, error) {
+	choicesJSON := ""
+	if len(choices) > 0 {
+		if data, err := common.Marshal(choices); err == nil {
+			choicesJSON = string(data)
+		}
+	}
 	m := &CharacterChatMessage{
 		SessionId: s.Id, UserId: s.UserId, ModelName: s.ModelName,
 		Role: "assistant", Content: content,
 		Pose: visual.Pose, Effect: visual.Effect, Background: visual.Background,
-		AffinityDelta: delta, CreatedAt: common.GetTimestamp(),
+		AffinityDelta: delta, ChoicesJSON: choicesJSON, CreatedAt: common.GetTimestamp(),
 	}
 	if err := DB.Create(m).Error; err != nil {
 		return nil, err
@@ -97,11 +131,12 @@ func ListCharacterChatMessagesPaged(sessionId int, cursorId int, limit int) ([]C
 	return rows, hasMore, nil
 }
 
-// HourlyAffinityDeltaSum 会话最近 1 小时已应用好感 delta 之和（小时护栏输入）
+// HourlyAffinityDeltaSum 会话最近 1 小时已应用好感 delta 之和（小时护栏输入）。
+// created_at 为 Unix 秒（common.GetTimestamp），窗口即 now-3600 秒。
 func HourlyAffinityDeltaSum(sessionId int, now int64) (int, error) {
 	var sum int
 	err := DB.Model(&CharacterChatMessage{}).
-		Where("session_id = ? AND role = ? AND affinity_delta <> 0 AND created_at >= ?", sessionId, "assistant", now-3600*1000).
+		Where("session_id = ? AND role = ? AND affinity_delta <> 0 AND created_at >= ?", sessionId, "assistant", now-3600).
 		Select("COALESCE(SUM(affinity_delta), 0)").Scan(&sum).Error
 	return sum, err
 }

@@ -52,7 +52,6 @@ interface CharacterCardProps {
 
 function CharacterCard({ character, onClick }: CharacterCardProps) {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const qc = useQueryClient()
   const [storyOpen, setStoryOpen] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
@@ -215,12 +214,6 @@ function CharacterCard({ character, onClick }: CharacterCardProps) {
       open={storyOpen}
       onOpenChange={setStoryOpen}
       character={character}
-      onContinue={() =>
-        navigate({
-          to: '/character/$modelName/chat',
-          params: { modelName: character.model_name },
-        })
-      }
     />
     <Lightbox
       open={lightboxOpen}

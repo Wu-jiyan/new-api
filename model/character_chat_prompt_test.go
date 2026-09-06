@@ -57,7 +57,7 @@ func TestAssembleCharacterChatMessagesWindow(t *testing.T) {
 func TestBuildCharacterChatPayload(t *testing.T) {
 	ch, stage, sess, bgs := buildPromptFixture(t)
 	recent := []CharacterChatMessage{{Role: "user", Content: "最后一问"}}
-	body, err := BuildCharacterChatPayload(ch, stage, sess, recent, bgs)
+	body, err := BuildCharacterChatPayload(ch, stage, sess, recent, bgs, "deepseek", "")
 	require.NoError(t, err)
 	var decoded struct {
 		Model    string              `json:"model"`

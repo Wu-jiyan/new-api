@@ -25,6 +25,7 @@ func setupCharacterChatRouter(userId int) *gin.Engine {
 	rg.Use(func(c *gin.Context) { c.Set("id", userId) }) // mock UserAuth
 	{
 		rg.POST("/:modelName/chat", CharacterChat)
+		rg.POST("/:modelName/forget", ForgetCharacter)
 		rg.GET("/:modelName/chat/meta", GetCharacterChatMeta)
 		rg.GET("/:modelName/chat/messages", ListCharacterChatMessages)
 	}
@@ -231,6 +232,59 @@ func TestCharacterChatUpstreamError(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	require.Equal(t, http.StatusBadGateway, w.Code)
+
+	// 上游失败：本条 user 消息已回滚，历史不留无应答孤行（重试不会重复落库）
+	var msgs []model.CharacterChatMessage
+	require.NoError(t, model.DB.Where("user_id = ?", userId).Find(&msgs).Error)
+	require.Empty(t, msgs)
+	var sess model.CharacterChatSession
+	require.NoError(t, model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).First(&sess).Error)
+	require.Equal(t, 0, sess.MessageCount)
+}
+
+func TestCharacterChatUpstreamNon200RollsBackUserMessage(t *testing.T) {
+	setupCharacterChatTestDB(t)
+	migrateCharacterChatTables(t)
+	const (
+		modelName = "char-chat-err-status"
+		userId    = 424264
+	)
+	createChatCharacter(t, modelName, "人设")
+	insertConsumeLog(t, userId, modelName)
+	unlockStage0(t, userId, modelName)
+	t.Cleanup(func() {
+		model.DB.Where("model_name = ?", modelName).Delete(&model.Character{})
+		model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).Delete(&model.UserCharacterProgress{})
+		model.LOG_DB.Where("user_id = ? AND model_name = ?", userId, modelName).Delete(&model.Log{})
+		model.DB.Where("user_id = ?", userId).Delete(&model.CharacterChatSession{})
+	})
+
+	origForward := characterChatForward
+	characterChatForward = func(ctx context.Context, url string, src *http.Request, body []byte) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusServiceUnavailable,
+			Status:     "503 Service Unavailable",
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"upstream busy"}}`)),
+		}, nil
+	}
+	t.Cleanup(func() { characterChatForward = origForward })
+
+	r := setupCharacterChatRouter(userId)
+	req := httptest.NewRequest(http.MethodPost, "/api/character/"+modelName+"/chat",
+		strings.NewReader(`{"content":"hi"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+
+	// 非 2xx 透传且不落 assistant；user 消息同样回滚
+	var msgs []model.CharacterChatMessage
+	require.NoError(t, model.DB.Where("user_id = ?", userId).Find(&msgs).Error)
+	require.Empty(t, msgs)
+	var sess model.CharacterChatSession
+	require.NoError(t, model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).First(&sess).Error)
+	require.Equal(t, 0, sess.MessageCount)
 }
 
 func TestCharacterChatPersistsSessionAndMessages(t *testing.T) {
@@ -414,7 +468,7 @@ func TestCharacterChatTriggersSummary(t *testing.T) {
 	for i := 0; i < 61; i++ {
 		_, err := model.AddCharacterChatUserMessage(sess, fmt.Sprintf("历史消息%d", i))
 		require.NoError(t, err)
-		_, err = model.AddCharacterChatAssistantMessage(sess, fmt.Sprintf("回复%d", i), model.CharacterChatVisual{}, 0)
+		_, err = model.AddCharacterChatAssistantMessage(sess, fmt.Sprintf("回复%d", i), model.CharacterChatVisual{}, 0, nil)
 		require.NoError(t, err)
 	}
 	t.Cleanup(func() {
@@ -523,4 +577,48 @@ func TestCharacterChatMetaAndMessages(t *testing.T) {
 	require.Len(t, page.Data.Items, 1)
 	require.Equal(t, "assistant", page.Data.Items[0].Role)
 	require.True(t, page.Data.HasMore)
+}
+
+func TestForgetCharacterKeepsUnlockAndTokens(t *testing.T) {
+	setupCharacterChatTestDB(t)
+	migrateCharacterChatTables(t)
+	const (
+		modelName = "char-chat-forget"
+		userId    = 424275
+	)
+	createChatCharacter(t, modelName, "人设")
+	insertConsumeLog(t, userId, modelName)
+	unlockStage0(t, userId, modelName)
+	// 造一轮对话 + 好感
+	sess, err := model.GetOrCreateCharacterChatSession(userId, modelName, 0)
+	require.NoError(t, err)
+	_, err = model.AddCharacterChatUserMessage(sess, "你好")
+	require.NoError(t, err)
+	_, err = model.AddCharacterChatAssistantMessage(sess, "你好呀", model.CharacterChatVisual{}, 2, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		model.DB.Where("model_name = ?", modelName).Delete(&model.Character{})
+		model.DB.Where("user_id = ?", userId).Delete(&model.UserCharacterProgress{})
+		model.LOG_DB.Where("user_id = ?", userId).Delete(&model.Log{})
+	})
+
+	r := setupCharacterChatRouter(userId)
+	req := httptest.NewRequest(http.MethodPost, "/api/character/"+modelName+"/forget", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// 会话与消息清空
+	var sessCount, msgCount int64
+	require.NoError(t, model.DB.Model(&model.CharacterChatSession{}).Where("user_id = ?", userId).Count(&sessCount).Error)
+	require.NoError(t, model.DB.Model(&model.CharacterChatMessage{}).Where("user_id = ?", userId).Count(&msgCount).Error)
+	require.Zero(t, sessCount)
+	require.Zero(t, msgCount)
+	// 好感归零；解锁阶段与 token 统计保留
+	var p model.UserCharacterProgress
+	require.NoError(t, model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).First(&p).Error)
+	require.Equal(t, 0, p.Affinity)
+	require.Equal(t, 0, p.MaxStage)
+	require.Equal(t, int64(1), p.TotalCalls)
+	require.Equal(t, int64(150), p.TotalTokens)
 }

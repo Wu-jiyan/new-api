@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { useParams } from '@tanstack/react-router'
 import {
   ArrowLeft,
   Heart,
@@ -17,10 +17,17 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
-import { fetchCharacter, unlockCharacter } from './api'
+import { fetchCharacter, fetchCharacterChatMeta, forgetCharacter, unlockCharacter } from './api'
 import { Lightbox } from './components/lightbox'
 import { ShareCard } from './components/share-card'
 import { StoryPlayer } from './components/story-player'
@@ -35,11 +42,12 @@ function formatTokens(tokens: number): string {
 
 export default function CharacterDetailPage() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const { modelName = '' } = useParams({ strict: false })
   const [activeStage, setActiveStage] = useState(0)
   const [shareOpen, setShareOpen] = useState(false)
   const [storyOpen, setStoryOpen] = useState(false)
+  // 「与角色对话」与「进入剧情」共用全屏播放器，仅在起始阶段上不同
+  const [chatStart, setChatStart] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
 
   const { data: character, isLoading } = useQuery({
@@ -47,6 +55,34 @@ export default function CharacterDetailPage() {
     queryFn: () => fetchCharacter(modelName),
     enabled: !!modelName,
   })
+
+  // 对话进度：有进度时入口变为「继续剧情」（直接续聊，不重播剧本）
+  const { data: chatMeta } = useQuery({
+    queryKey: ['character-chat-meta', modelName],
+    queryFn: () => fetchCharacterChatMeta(modelName),
+    enabled: !!modelName,
+  })
+  const hasProgress = (chatMeta?.has_history ?? false) && (character?.total_calls ?? 0) >= 1
+  const [forgetOpen, setForgetOpen] = useState(false)
+  const [forgetting, setForgetting] = useState(false)
+
+  const onForget = async () => {
+    if (!modelName || forgetting) return
+    setForgetting(true)
+    try {
+      await forgetCharacter(modelName)
+      setForgetOpen(false)
+      setChatStart(false)
+      qc.invalidateQueries({ queryKey: ['character', modelName] })
+      qc.invalidateQueries({ queryKey: ['character-chat-meta', modelName] })
+      qc.invalidateQueries({ queryKey: ['character-chat-history', modelName] })
+      toast.success(t('common.success'))
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : t('character.unlockFailed'))
+    } finally {
+      setForgetting(false)
+    }
+  }
 
   const currentStage = useMemo<CharacterStageView | undefined>(() => {
     return character?.stages.find((s) => s.index === activeStage)
@@ -171,18 +207,25 @@ export default function CharacterDetailPage() {
           <div className='flex flex-wrap items-center gap-3'>
             <Button
               variant='outline'
-              onClick={() =>
-                navigate({
-                  to: '/character/$modelName/chat',
-                  params: { modelName: character.model_name },
-                })
-              }
+              onClick={() => {
+                setChatStart(true)
+                setStoryOpen(true)
+              }}
               disabled={character.total_calls < 1}
               title={character.total_calls < 1 ? t('character.locked') : undefined}
             >
               <MessagesSquare className='mr-2 h-4 w-4' />
               {t('character.chat.open')}
             </Button>
+            {hasProgress && (
+              <Button
+                variant='ghost'
+                className='text-muted-foreground hover:text-destructive'
+                onClick={() => setForgetOpen(true)}
+              >
+                {t('character.forget.button')}
+              </Button>
+            )}
             <Button
               variant='outline'
               onClick={() => setShareOpen(true)}
@@ -310,10 +353,13 @@ export default function CharacterDetailPage() {
                 variant='outline'
                 size='lg'
                 className='w-full gap-2'
-                onClick={() => setStoryOpen(true)}
+                onClick={() => {
+                  setChatStart(hasProgress)
+                  setStoryOpen(true)
+                }}
               >
                 <Play className='h-5 w-5' />
-                {t('character.story.enter')}
+                {hasProgress ? t('character.story.goOn') : t('character.story.enter')}
               </Button>
             ) : currentEligible ? (
               <Button
@@ -367,12 +413,7 @@ export default function CharacterDetailPage() {
         onOpenChange={setStoryOpen}
         character={character}
         stageIndex={activeStage}
-        onContinue={() =>
-          navigate({
-            to: '/character/$modelName/chat',
-            params: { modelName: character.model_name },
-          })
-        }
+        startInChat={chatStart}
       />
 
       <Lightbox
@@ -381,6 +422,25 @@ export default function CharacterDetailPage() {
         alt={character.display_name}
         onOpenChange={setLightboxOpen}
       />
+
+      <Dialog open={forgetOpen} onOpenChange={setForgetOpen}>
+        <DialogContent className='sm:max-w-sm'>
+          <DialogHeader>
+            <DialogTitle>{t('character.forget.title')}</DialogTitle>
+            <DialogDescription>{t('character.forget.confirmText')}</DialogDescription>
+          </DialogHeader>
+          <p className='text-muted-foreground text-sm'>{t('character.forget.detail')}</p>
+          <div className='flex justify-end gap-2'>
+            <Button variant='outline' onClick={() => setForgetOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant='destructive' disabled={forgetting} onClick={() => void onForget()}>
+              {forgetting ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
+              {t('character.forget.button')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       </div>
     </main>
   )

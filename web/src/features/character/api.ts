@@ -49,6 +49,11 @@ export async function unlockCharacter(
   return res.data?.data
 }
 
+export async function forgetCharacter(modelName: string): Promise<void> {
+  const res = await api.post(`/api/character/${encodeURIComponent(modelName)}/forget`)
+  if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to forget')
+}
+
 export async function fetchCharacterChatMeta(modelName: string): Promise<CharacterChatMeta> {
   const res = await api.get<{ success: boolean; data: CharacterChatMeta }>(
     `/api/character/${encodeURIComponent(modelName)}/chat/meta`

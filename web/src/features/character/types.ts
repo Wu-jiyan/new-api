@@ -55,6 +55,7 @@ export interface CharacterView {
   max_stage: number
   affinity: number
   affinity_required: number
+  default_model?: string
   total_tokens: number
   total_calls: number
   stages: CharacterStageView[]
@@ -68,6 +69,12 @@ export interface CharacterChatMeta {
   message_count: number
   initial_context?: string
   summary?: string
+  model?: string
+  group?: string
+}
+
+export interface CharacterChatChoiceItem {
+  text: string
 }
 
 export interface CharacterChatMessageItem {
@@ -78,6 +85,7 @@ export interface CharacterChatMessageItem {
   effect?: string
   background?: string
   affinity_delta: number
+  choices?: CharacterChatChoiceItem[]
   created_at: number
 }
 

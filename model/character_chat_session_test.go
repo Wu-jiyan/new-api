@@ -57,7 +57,7 @@ func TestAppendAndRecentAndPagedMessages(t *testing.T) {
 	um, err := AddCharacterChatUserMessage(s, "你好")
 	require.NoError(t, err)
 	require.Equal(t, 1, s.MessageCount)
-	am, err := AddCharacterChatAssistantMessage(s, "你好呀", CharacterChatVisual{}, 0)
+	am, err := AddCharacterChatAssistantMessage(s, "你好呀", CharacterChatVisual{}, 0, nil)
 	require.NoError(t, err)
 	require.Equal(t, 2, s.MessageCount)
 	require.Equal(t, "assistant", am.Role)
@@ -100,11 +100,10 @@ func TestHourlyAffinityDeltaSum(t *testing.T) {
 	s, err := GetOrCreateCharacterChatSession(424102, "deepseek", 0)
 	require.NoError(t, err)
 	now := common.GetTimestamp()
-	hourAgo := now - 3600*1000
-	// 近 1 小时内两笔 +2 / -1，一小时外一笔 +5（忽略）
+	// created_at 为 Unix 秒：近 1 小时内两笔 +2 / -1，一小时外一笔 +5（忽略）
 	require.NoError(t, DB.Create(&CharacterChatMessage{SessionId: s.Id, UserId: s.UserId, ModelName: s.ModelName, Role: "assistant", Content: "a", AffinityDelta: 2, CreatedAt: now}).Error)
-	require.NoError(t, DB.Create(&CharacterChatMessage{SessionId: s.Id, UserId: s.UserId, ModelName: s.ModelName, Role: "assistant", Content: "b", AffinityDelta: -1, CreatedAt: now - 600*1000}).Error)
-	require.NoError(t, DB.Create(&CharacterChatMessage{SessionId: s.Id, UserId: s.UserId, ModelName: s.ModelName, Role: "assistant", Content: "old", AffinityDelta: 5, CreatedAt: hourAgo - 1000}).Error)
+	require.NoError(t, DB.Create(&CharacterChatMessage{SessionId: s.Id, UserId: s.UserId, ModelName: s.ModelName, Role: "assistant", Content: "b", AffinityDelta: -1, CreatedAt: now - 600}).Error)
+	require.NoError(t, DB.Create(&CharacterChatMessage{SessionId: s.Id, UserId: s.UserId, ModelName: s.ModelName, Role: "assistant", Content: "old", AffinityDelta: 5, CreatedAt: now - 3601}).Error)
 	sum, err := HourlyAffinityDeltaSum(s.Id, now)
 	require.NoError(t, err)
 	require.Equal(t, 1, sum)

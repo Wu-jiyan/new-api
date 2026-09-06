@@ -97,9 +97,10 @@ export function Pricing() {
 
   // 角色 model_name 为前缀（如 deepseek），匹配该前缀下所有模型；多个角色覆盖同一模型时取最长前缀。
   const characterMap = useMemo(() => {
-    const map = new Map<string, (typeof characters)[number]>()
+    type CharacterRow = NonNullable<typeof characters>[number]
+    const map = new Map<string, CharacterRow>()
     for (const m of models ?? []) {
-      let best: (typeof characters)[number] | null = null
+      let best: CharacterRow | null = null
       let bestLen = -1
       for (const c of characters ?? []) {
         const prefix = c.model_name

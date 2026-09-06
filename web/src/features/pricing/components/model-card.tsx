@@ -16,12 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ChevronRight, Copy, Lock, Sparkles } from 'lucide-react'
-import { memo, type ReactNode } from 'react'
+import { ChevronRight, Copy, Lock, Play, Sparkles } from 'lucide-react'
+import { memo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from '@tanstack/react-router'
 
 import type { CharacterView } from '@/features/character/types'
+import { StoryPlayer } from '@/features/character/components/story-player'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
@@ -59,6 +60,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const { t } = useTranslation()
   const { copyToClipboard } = useCopyToClipboard()
   const navigate = useNavigate()
+  const [storyOpen, setStoryOpen] = useState(false)
   const tokenUnit = props.tokenUnit ?? DEFAULT_TOKEN_UNIT
   const priceRate = props.priceRate ?? 1
   const usdExchangeRate = props.usdExchangeRate ?? 1
@@ -78,12 +80,17 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const hasCachedPrice = isTokenBased && props.model.cache_ratio != null
   const character = props.character
   const stage0Image = character?.stages?.[0]?.image_url
+  const stage0Silhouette = character?.stages?.[0]?.silhouette_url
   const showPortrait = Boolean(
-    character && character.max_stage >= 0 && stage0Image
+    character &&
+      character.max_stage >= 0 &&
+      character.total_calls >= 1 &&
+      stage0Image
   )
   const showSilhouette = Boolean(character && !showPortrait)
-  const portraitUrl =
-    character?.stages?.[character.max_stage]?.image_url || stage0Image
+  const portraitUrl = showPortrait
+    ? character?.stages?.[character.max_stage]?.image_url || stage0Image
+    : stage0Silhouette
   const dynamicPriceOptions = {
     tokenUnit,
     showRechargePrice,
@@ -286,21 +293,40 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         </div>
       )}
       {showSilhouette && (
-        <div className='pointer-events-none absolute inset-0 flex items-end justify-end overflow-hidden rounded-[inherit] p-3'>
-          <div className='relative h-3/4 w-2/5'>
-            <div
-              className='bg-muted-foreground/10 absolute inset-0 rounded-t-full'
-              style={{
-                maskImage:
-                  'radial-gradient(ellipse at center, black, transparent)',
-                WebkitMaskImage:
-                  'radial-gradient(ellipse at center, black, transparent)',
-              }}
-            />
-            <div className='text-muted-foreground absolute right-0 bottom-0 flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]'>
-              <Lock className='h-3 w-3' />
-              {t('character.unlockHint')}
+        <div className='pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]'>
+          {stage0Silhouette ? (
+            <>
+              <img
+                src={stage0Silhouette}
+                alt=''
+                className='absolute inset-y-0 right-0 h-full w-2/5 object-cover object-top opacity-60'
+                style={{
+                  maskImage:
+                    'linear-gradient(to left, black 30%, transparent 100%)',
+                  WebkitMaskImage:
+                    'linear-gradient(to left, black 30%, transparent 100%)',
+                }}
+              />
+              <div className='absolute inset-0 bg-gradient-to-r from-background/95 via-background/70 to-transparent' />
+            </>
+          ) : (
+            <div className='absolute inset-0 flex items-end justify-end p-3'>
+              <div className='relative h-3/4 w-2/5'>
+                <div
+                  className='bg-muted-foreground/10 absolute inset-0 rounded-t-full'
+                  style={{
+                    maskImage:
+                      'radial-gradient(ellipse at center, black, transparent)',
+                    WebkitMaskImage:
+                      'radial-gradient(ellipse at center, black, transparent)',
+                  }}
+                />
+              </div>
             </div>
+          )}
+          <div className='text-muted-foreground absolute right-2 bottom-2 flex items-center gap-1 rounded-full border bg-background/70 px-2 py-0.5 text-[11px]'>
+            <Lock className='h-3 w-3' />
+            {t('character.unlockHint')}
           </div>
         </div>
       )}
@@ -337,6 +363,19 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             >
               <Sparkles className='size-3.5' />
               {t('character.entry')}
+            </button>
+          )}
+          {showPortrait && character && (
+            <button
+              type='button'
+              onClick={(e) => {
+                e.stopPropagation()
+                setStoryOpen(true)
+              }}
+              className='text-muted-foreground hover:text-foreground hover:bg-muted inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors sm:px-2.5 sm:py-1.5'
+            >
+              <Play className='size-3.5' />
+              {t('character.story.enter')}
             </button>
           )}
           <button
@@ -393,6 +432,10 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
           )}
         </div>
       </div>
+
+      {character && (
+        <StoryPlayer open={storyOpen} onOpenChange={setStoryOpen} character={character} />
+      )}
     </div>
   )
 })

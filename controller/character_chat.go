@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -82,6 +81,8 @@ func CharacterChat(c *gin.Context) {
 		Content    string `json:"content"`
 		StageIndex *int   `json:"stage_index"`
 		FromStory  bool   `json:"from_story"`
+		Model      string `json:"model"` // 具体对话模型（须匹配角色 model_name 前缀）
+		Group      string `json:"group"` // 分组（空=沿用会话/用户默认）
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request body"})
@@ -110,11 +111,41 @@ func CharacterChat(c *gin.Context) {
 		return
 	}
 
+	// 解析本轮对话使用的具体模型与分组：
+	// 请求指定 > 会话已选 > 角色默认模型 > 角色前缀名（兜底，可能无渠道）
+	chatModel := strings.TrimSpace(req.Model)
+	if chatModel == "" {
+		chatModel = session.Model
+	}
+	if chatModel == "" {
+		chatModel = ch.DefaultModel
+	}
+	if chatModel == "" {
+		chatModel = ch.ModelName
+	}
+	if !strings.HasPrefix(chatModel, ch.ModelName) {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "模型不在该角色可用范围内"})
+		return
+	}
+	chatGroup := strings.TrimSpace(req.Group)
+	if chatGroup == "" {
+		chatGroup = session.Group
+	}
+	if chatModel != session.Model || chatGroup != session.Group {
+		if err := model.DB.Model(&model.CharacterChatSession{}).Where("id = ?", session.Id).
+			Updates(map[string]interface{}{"model": chatModel, "group": chatGroup, "updated_at": common.GetTimestamp()}).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		session.Model = chatModel
+		session.Group = chatGroup
+	}
+
 	content := strings.TrimSpace(req.Content)
 	if req.FromStory {
 		if session.MessageCount == 0 {
-			// 首次从小剧场进入：任务 4 在此先写入 initial_context
-			ensureCharacterChatInitialContext(c, &ch, stage, session)
+			// 首次从小剧场进入：先写入 initial_context
+			ensureCharacterChatInitialContext(c, &ch, stage, session, chatModel, chatGroup)
 			content = openingForStage(stage)
 		} else if content == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "会话已开始，请输入内容"})
@@ -124,23 +155,27 @@ func CharacterChat(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "内容不能为空"})
 		return
 	}
-	if _, err := model.AddCharacterChatUserMessage(session, content); err != nil {
+	userMsg, err := model.AddCharacterChatUserMessage(session, content)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 		return
 	}
 
 	recent, err := model.ListRecentCharacterChatMessages(session.Id, model.CharacterChatWindowSize)
 	if err != nil {
+		model.RemoveCharacterChatUserMessage(session, userMsg)
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 		return
 	}
 	var backgrounds []model.CharacterBackground
 	if err := model.DB.Order("id ASC").Find(&backgrounds).Error; err != nil {
+		model.RemoveCharacterChatUserMessage(session, userMsg)
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 		return
 	}
-	body, err := model.BuildCharacterChatPayload(&ch, stage, session, recent, backgrounds)
+	body, err := model.BuildCharacterChatPayload(&ch, stage, session, recent, backgrounds, chatModel, chatGroup)
 	if err != nil {
+		model.RemoveCharacterChatUserMessage(session, userMsg)
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 		return
 	}
@@ -148,6 +183,7 @@ func CharacterChat(c *gin.Context) {
 	upstream := fmt.Sprintf("http://127.0.0.1:%d/pg/chat/completions", *common.Port)
 	resp, err := characterChatForward(c.Request.Context(), upstream, c.Request, body)
 	if err != nil {
+		model.RemoveCharacterChatUserMessage(session, userMsg)
 		c.JSON(http.StatusBadGateway, gin.H{"success": false, "message": "上游转发失败: " + err.Error()})
 		return
 	}
@@ -177,33 +213,51 @@ func CharacterChat(c *gin.Context) {
 		}
 	}
 	if resp.StatusCode != http.StatusOK {
-		return // 上游错误已原样透传，不落库 assistant
+		// 上游错误已原样透传；回滚本条 user 消息，重试时不重复落库
+		model.RemoveCharacterChatUserMessage(session, userMsg)
+		return
 	}
 	persistCharacterAssistant(session, userId, modelName, raw.String())
-	maybeSummarizeCharacterSession(c.Request, &ch, session)
+	maybeSummarizeCharacterSession(c.Request, &ch, session, chatModel, chatGroup)
+	// 本轮计费已入日志：立即失效用量缓存，角色统计即时可见
+	model.ClearCharacterUsageCacheEntry(userId, modelName)
 }
 
-// persistCharacterAssistant 流结束聚合：提取文本 → 容错解析 → 应用好感 → 落库 assistant。
-// 提取失败（非标准流）不落库；解析失败落原文（视觉冗余/好感为空）。
+// persistCharacterAssistant 流结束聚合：提取文本 → 容错解析 → 应用好感 → 逐句落库 assistant。
+// LLM 每回合生成一段多句剧本，每句一行（视觉冗余随句、好感 delta 记在段首行）。
+// 提取失败（非标准流）不落库；解析失败落原文单行（视觉冗余/好感为空）。
 func persistCharacterAssistant(session *model.CharacterChatSession, userId int, modelName string, raw string) {
 	text, ok := model.ExtractStreamContent(raw)
 	if !ok {
 		return
 	}
-	reply := text
-	visual := model.CharacterChatVisual{}
-	delta := 0
-	if parsed, ok := model.ParseCharacterChatReply(text); ok {
-		reply = parsed.Reply
-		visual = model.CharacterChatVisual{Pose: parsed.Pose, Effect: parsed.Effect, Background: parsed.Background}
-		delta, _ = model.ApplyCharacterAffinityDelta(session.Id, userId, modelName, parsed.AffinityDelta, common.GetTimestamp())
+	parsed, ok := model.ParseCharacterChatReply(text)
+	if !ok {
+		// 协议漂移兜底：原文按句拆分逐句落库（回放与体验一致），上限 12 句
+		lim := 12
+		for _, unit := range model.SplitLongLine(text) {
+			_, _ = model.AddCharacterChatAssistantMessage(session, unit, model.CharacterChatVisual{}, 0, nil)
+			lim--
+			if lim <= 0 {
+				break
+			}
+		}
+		return
 	}
-	_, _ = model.AddCharacterChatAssistantMessage(session, reply, visual, delta)
+	delta, _ := model.ApplyCharacterAffinityDelta(session.Id, userId, modelName, parsed.AffinityDelta, common.GetTimestamp())
+	for i, line := range parsed.Lines {
+		visual := model.CharacterChatVisual{Pose: line.Pose, Effect: line.Effect, Background: line.Background}
+		lineDelta := 0
+		if i == 0 {
+			lineDelta = delta
+		}
+		_, _ = model.AddCharacterChatAssistantMessage(session, line.Text, visual, lineDelta, line.Choices)
+	}
 }
 
 // ensureCharacterChatInitialContext 首次 from_story 进入时：把小剧场剧本压缩为 initial_context 落库。
 // 生成失败或剧本为空则静默跳过（会话照常进行）。
-func ensureCharacterChatInitialContext(c *gin.Context, ch *model.Character, stage model.CharacterStage, session *model.CharacterChatSession) {
+func ensureCharacterChatInitialContext(c *gin.Context, ch *model.Character, stage model.CharacterStage, session *model.CharacterChatSession, chatModel string, chatGroup string) {
 	if strings.TrimSpace(session.InitialContext) != "" {
 		return
 	}
@@ -215,7 +269,7 @@ func ensureCharacterChatInitialContext(c *gin.Context, ch *model.Character, stag
 		{"role": "system", "content": sys},
 		{"role": "user", "content": scriptToText(stage.Script)},
 	}
-	summary, err := characterModelComplete(c.Request, ch.ModelName, msgs)
+	summary, err := characterModelComplete(c.Request, chatModel, chatGroup, msgs)
 	if err != nil || strings.TrimSpace(summary) == "" {
 		return // 静默失败：不阻断对话
 	}
@@ -233,7 +287,7 @@ func extractNonStreamContent(body string) (string, bool) {
 			} `json:"message"`
 		} `json:"choices"`
 	}
-	if err := json.Unmarshal([]byte(body), &resp); err != nil || len(resp.Choices) == 0 {
+	if err := common.Unmarshal([]byte(body), &resp); err != nil || len(resp.Choices) == 0 {
 		return "", false
 	}
 	if strings.TrimSpace(resp.Choices[0].Message.Content) == "" {
@@ -242,10 +296,10 @@ func extractNonStreamContent(body string) (string, bool) {
 	return resp.Choices[0].Message.Content, true
 }
 
-// characterModelComplete 以独立 context 非流式调用一次角色模型（内部 /pg，计费到当前用户）。
+// characterModelComplete 以独立 context 非流式调用一次模型（内部 /pg，计费到当前用户）。
 // 用于小剧场剧情压缩与滚动摘要等非用户直接响应场景。
-func characterModelComplete(src *http.Request, modelName string, messages []map[string]string) (string, error) {
-	body, err := model.BuildChatCompletionsBody(modelName, messages, false)
+func characterModelComplete(src *http.Request, chatModel string, chatGroup string, messages []map[string]string) (string, error) {
+	body, err := model.BuildChatCompletionsBody(chatModel, messages, false, chatGroup)
 	if err != nil {
 		return "", err
 	}
@@ -273,7 +327,7 @@ func characterModelComplete(src *http.Request, modelName string, messages []map[
 
 // maybeSummarizeCharacterSession 新消息落库后检查：message_count - summary_through >= gap 时
 // 对「待归档」消息段做一次滚动摘要覆盖写回。失败静默（水位不推进）。
-func maybeSummarizeCharacterSession(src *http.Request, ch *model.Character, session *model.CharacterChatSession) {
+func maybeSummarizeCharacterSession(src *http.Request, ch *model.Character, session *model.CharacterChatSession, chatModel string, chatGroup string) {
 	gap := session.MessageCount - session.SummaryThrough
 	if gap < model.CharacterChatSummaryGap {
 		return
@@ -295,7 +349,7 @@ func maybeSummarizeCharacterSession(src *http.Request, ch *model.Character, sess
 		{"role": "system", "content": sys},
 		{"role": "user", "content": "已有记忆摘要：\n" + session.Summary + "\n\n新对话记录：\n" + b.String()},
 	}
-	out, err := characterModelComplete(src, ch.ModelName, msgs)
+	out, err := characterModelComplete(src, chatModel, chatGroup, msgs)
 	if err != nil || strings.TrimSpace(out) == "" {
 		return
 	}
@@ -333,6 +387,23 @@ func scriptToText(script []model.CharacterScript) string {
 	return b.String()
 }
 
+// ForgetCharacter 「忘记她」：清除对话进度、上下文、记忆与好感度；
+// 保留已解锁阶段与 token/调用统计。
+func ForgetCharacter(c *gin.Context) {
+	userId := c.GetInt("id")
+	modelName := c.Param("modelName")
+	var ch model.Character
+	if err := model.DB.Where("model_name = ? AND enabled = ?", modelName, true).First(&ch).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "角色不存在"})
+		return
+	}
+	if err := model.ForgetCharacterChat(userId, modelName); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
 // GetCharacterChatMeta 返回会话元信息（对话页初始化用；无会话返回 has_history=false）
 func GetCharacterChatMeta(c *gin.Context) {
 	userId := c.GetInt("id")
@@ -342,7 +413,7 @@ func GetCharacterChatMeta(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "角色不存在"})
 		return
 	}
-	data := gin.H{"has_history": false, "stage_index": 0, "stage_name": "", "message_count": 0, "initial_context": "", "summary": ""}
+	data := gin.H{"has_history": false, "stage_index": 0, "stage_name": "", "message_count": 0, "initial_context": "", "summary": "", "model": "", "group": ""}
 	var sess model.CharacterChatSession
 	if err := model.DB.Where("user_id = ? AND model_name = ?", userId, modelName).First(&sess).Error; err == nil {
 		stageName := ""
@@ -358,6 +429,7 @@ func GetCharacterChatMeta(c *gin.Context) {
 			"has_history": sess.MessageCount > 0, "stage_index": sess.StageIndex,
 			"stage_name": stageName, "message_count": sess.MessageCount,
 			"initial_context": sess.InitialContext, "summary": summary,
+			"model": sess.Model, "group": sess.Group,
 		}
 	}
 	c.JSON(200, gin.H{"success": true, "data": data})

@@ -1,8 +1,6 @@
 package model
 
 import (
-	"encoding/json"
-
 	"github.com/QuantumNous/new-api/common"
 )
 
@@ -34,7 +32,7 @@ func ReloadCharacterStageThresholds() {
 		return
 	}
 	t := characterStageThresholdsDefault
-	if err := json.Unmarshal([]byte(str), &t); err == nil && t.Stage2Tokens >= 0 && t.Stage3Tokens >= t.Stage2Tokens {
+	if err := common.Unmarshal([]byte(str), &t); err == nil && t.Stage2Tokens >= 0 && t.Stage3Tokens >= t.Stage2Tokens {
 		CharacterStageThresholdsValue = t
 	}
 }

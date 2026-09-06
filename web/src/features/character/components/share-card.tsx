@@ -39,6 +39,22 @@ function truncateText(
   return `${truncated}…`
 }
 
+function loadImage(src: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    try {
+      const isCrossOrigin =
+        new URL(src, window.location.origin).origin !== window.location.origin
+      if (isCrossOrigin) img.crossOrigin = 'anonymous'
+    } catch {
+      // 忽略 URL 解析错误
+    }
+    img.onload = () => resolve(img)
+    img.onerror = () => resolve(null)
+    img.src = src
+  })
+}
+
 function roundRectPath(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -80,43 +96,32 @@ export function ShareCard({
       const canvas = canvasRef.current
       const ctx = canvas?.getContext('2d')
       if (!canvas || !ctx) return
+      try {
+        canvas.width = CARD_WIDTH
+        canvas.height = CARD_HEIGHT
 
-      canvas.width = CARD_WIDTH
-      canvas.height = CARD_HEIGHT
+        // 深色渐变背景
+        const gradient = ctx.createLinearGradient(0, 0, 0, CARD_HEIGHT)
+        gradient.addColorStop(0, '#1a1a2e')
+        gradient.addColorStop(1, '#0f0f1a')
+        ctx.fillStyle = gradient
+        ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT)
 
-      // 深色渐变背景
-      const gradient = ctx.createLinearGradient(0, 0, 0, CARD_HEIGHT)
-      gradient.addColorStop(0, '#1a1a2e')
-      gradient.addColorStop(1, '#0f0f1a')
-      ctx.fillStyle = gradient
-      ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT)
-
-      // 立绘（cover 方式，裁剪居中）
-      if (imageUrl) {
-        try {
-          const img = new Image()
-          try {
-            const isCrossOrigin =
-              new URL(imageUrl, window.location.origin).origin !== window.location.origin
-            if (isCrossOrigin) img.crossOrigin = 'anonymous'
-          } catch {
-            // ignore url parse error
-          }
-          img.src = imageUrl
-          await img.decode()
+        // 立绘（cover 方式，裁剪居中），加载失败不影响卡片生成
+        if (imageUrl) {
+          const img = await loadImage(imageUrl)
           if (cancelled) return
-          const scale = Math.max(
-            CARD_WIDTH / img.naturalWidth,
-            IMAGE_HEIGHT / img.naturalHeight
-          )
-          const dw = img.naturalWidth * scale
-          const dh = img.naturalHeight * scale
-          ctx.drawImage(img, (CARD_WIDTH - dw) / 2, (IMAGE_HEIGHT - dh) / 2, dw, dh)
-        } catch {
-          // 立绘加载失败时仅保留背景
+          if (img) {
+            const scale = Math.max(
+              CARD_WIDTH / img.naturalWidth,
+              IMAGE_HEIGHT / img.naturalHeight
+            )
+            const dw = img.naturalWidth * scale
+            const dh = img.naturalHeight * scale
+            ctx.drawImage(img, (CARD_WIDTH - dw) / 2, (IMAGE_HEIGHT - dh) / 2, dw, dh)
+          }
         }
-      }
-      if (cancelled) return
+        if (cancelled) return
 
       // 文字区
       const textTop = IMAGE_HEIGHT + 44
@@ -157,7 +162,11 @@ export function ShareCard({
       ctx.font = '400 20px system-ui, sans-serif'
       ctx.fillText('AI Character', CARD_WIDTH - 48, CARD_HEIGHT - 44)
 
-      if (!cancelled) setReady(true)
+      } catch {
+        // 绘制异常时也完成绘制，避免一直停留在加载态
+      } finally {
+        if (!cancelled) setReady(true)
+      }
     }
 
     void draw()

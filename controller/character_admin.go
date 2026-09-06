@@ -3,11 +3,11 @@ package controller
 import (
 	"bytes"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -43,6 +43,10 @@ func AdminCreateCharacter(c *gin.Context) {
 	}
 	if req.ModelName == "" {
 		c.JSON(200, gin.H{"success": false, "message": "model_name 不能为空"})
+		return
+	}
+	if dm := strings.TrimSpace(req.DefaultModel); dm != "" && !strings.HasPrefix(dm, req.ModelName) {
+		c.JSON(200, gin.H{"success": false, "message": "默认模型须匹配模型名前缀"})
 		return
 	}
 	var cnt int64
@@ -84,6 +88,7 @@ func AdminUpdateCharacter(c *gin.Context) {
 		Tags             string `json:"tags"`
 		SystemPrompt     string `json:"system_prompt"`
 		AffinityRequired *int   `json:"affinity_required"`
+		DefaultModel     string `json:"default_model"`
 		StagesJSON       string `json:"stages_json"`
 		Enabled          *bool  `json:"enabled"`
 	}
@@ -95,6 +100,21 @@ func AdminUpdateCharacter(c *gin.Context) {
 		"display_name": req.DisplayName, "title": req.Title, "description": req.Description,
 		"tags": req.Tags, "system_prompt": req.SystemPrompt, "updated_at": common.GetTimestamp(),
 	}
+	// 默认对话模型：空=不指定；非空须匹配（更新后的）model_name 前缀
+	effectiveModelName := req.ModelName
+	if effectiveModelName == "" {
+		if err := model.DB.Model(&model.Character{}).Select("model_name").
+			Where("id = ?", id).Row().Scan(&effectiveModelName); err != nil {
+			c.JSON(200, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+	}
+	defaultModel := strings.TrimSpace(req.DefaultModel)
+	if defaultModel != "" && !strings.HasPrefix(defaultModel, effectiveModelName) {
+		c.JSON(200, gin.H{"success": false, "message": "默认模型须匹配模型名前缀"})
+		return
+	}
+	updates["default_model"] = defaultModel
 	if req.ModelName != "" {
 		var cnt int64
 		if err := model.DB.Model(&model.Character{}).
@@ -110,7 +130,7 @@ func AdminUpdateCharacter(c *gin.Context) {
 	}
 	if req.StagesJSON != "" {
 		var stages model.CharacterStages
-		if err := json.Unmarshal([]byte(req.StagesJSON), &stages); err != nil {
+		if err := common.Unmarshal([]byte(req.StagesJSON), &stages); err != nil {
 			c.JSON(200, gin.H{"success": false, "message": "stages_json 格式错误"})
 			return
 		}
@@ -154,7 +174,7 @@ func AdminUpdateCharacterThresholds(c *gin.Context) {
 		c.JSON(200, gin.H{"success": false, "message": "阈值必须满足 0 <= stage2 <= stage3"})
 		return
 	}
-	data, _ := json.Marshal(req)
+	data, _ := common.Marshal(req)
 	if err := model.UpdateOption(model.OptionKeyCharacterThresholds, string(data)); err != nil {
 		c.JSON(200, gin.H{"success": false, "message": err.Error()})
 		return
@@ -307,7 +327,7 @@ func AdminGenerateCharacterImage(c *gin.Context) {
 		imgSize = "1536x1024"
 	}
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d", *common.Port)
-	payload, _ := json.Marshal(map[string]interface{}{
+	payload, _ := common.Marshal(map[string]interface{}{
 		"model":  imgModel,
 		"prompt": prompt,
 		"n":      1,
@@ -342,7 +362,7 @@ func AdminGenerateCharacterImage(c *gin.Context) {
 			B64JSON string `json:"b64_json"`
 		} `json:"data"`
 	}
-	if err := json.Unmarshal(body, &gen); err != nil || len(gen.Data) == 0 {
+	if err := common.Unmarshal(body, &gen); err != nil || len(gen.Data) == 0 {
 		c.JSON(200, gin.H{"success": false, "message": "生图响应解析失败"})
 		return
 	}

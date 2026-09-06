@@ -50,6 +50,24 @@ func TestApplyCharacterAffinityDeltaHourGuard(t *testing.T) {
 	require.Equal(t, 50, p.Affinity) // 未变
 }
 
+func TestApplyCharacterAffinityDeltaHourGuardWindowBoundary(t *testing.T) {
+	// 护栏窗口按 Unix 秒计（now-3600）：1 小时前的已应用 delta 不参与统计
+	setupCharacterChatModelDB(t)
+	require.NoError(t, DB.AutoMigrate(&CharacterChatSession{}, &CharacterChatMessage{}, &UserCharacterProgress{}))
+	require.NoError(t, DB.Create(&UserCharacterProgress{UserID: 424153, ModelName: "deepseek", Affinity: 50}).Error)
+	s, err := GetOrCreateCharacterChatSession(424153, "deepseek", 0)
+	require.NoError(t, err)
+	now := common.GetTimestamp()
+	require.NoError(t, DB.Create(&CharacterChatMessage{SessionId: s.Id, UserId: 424153, ModelName: "deepseek", Role: "assistant", AffinityDelta: 9, CreatedAt: now - 7200}).Error)
+	// 窗口外 +9 不计入 -> +3 正常应用
+	applied, err := ApplyCharacterAffinityDelta(s.Id, 424153, "deepseek", 3, now)
+	require.NoError(t, err)
+	require.Equal(t, 3, applied)
+	var p UserCharacterProgress
+	require.NoError(t, DB.Where("user_id = ? AND model_name = ?", 424153, "deepseek").First(&p).Error)
+	require.Equal(t, 53, p.Affinity)
+}
+
 func TestApplyCharacterAffinityDeltaCapsAt100(t *testing.T) {
 	setupCharacterChatModelDB(t)
 	require.NoError(t, DB.AutoMigrate(&CharacterChatSession{}, &CharacterChatMessage{}, &UserCharacterProgress{}))

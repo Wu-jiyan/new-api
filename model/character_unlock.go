@@ -61,6 +61,13 @@ func ClearCharacterUsageCache() {
 	usageCacheLock.Unlock()
 }
 
+// ClearCharacterUsageCacheEntry 清除单用户单前缀的用量缓存（计费后即时刷新统计）。
+func ClearCharacterUsageCacheEntry(userId int, modelName string) {
+	usageCacheLock.Lock()
+	delete(usageCache, usageCacheKey{UserID: userId, ModelName: modelName})
+	usageCacheLock.Unlock()
+}
+
 // getCachedUserUsage 带缓存的用量查询
 func getCachedUserUsage(userId int, modelName string) (int64, int64, error) {
 	key := usageCacheKey{UserID: userId, ModelName: modelName}
@@ -98,6 +105,7 @@ var (
 
 // GetUserCharacterState 聚合用户对某角色的进度并惰性刷新统计。
 // 语义：MaxStage 仅由 UnlockUserCharacterStage 手动推进；从未调用（calls<1）强制回写 -1。
+// 统计无变化时跳过写库（列表页高频调用，避免无谓 UPDATE）。
 func GetUserCharacterState(userId int, ch *Character) (*UserCharacterState, error) {
 	tokens, calls, err := getCachedUserUsage(userId, ch.ModelName)
 	if err != nil {
@@ -113,18 +121,23 @@ func GetUserCharacterState(userId int, ch *Character) (*UserCharacterState, erro
 	} else if err != nil {
 		return nil, err
 	}
+	maxStage, lastUnlockAt := p.MaxStage, p.LastUnlockAt
 	if calls < 1 {
-		p.MaxStage = -1
-		p.LastUnlockAt = 0
+		maxStage, lastUnlockAt = -1, 0
+	}
+	if p.TotalTokens == tokens && p.TotalCalls == calls &&
+		p.MaxStage == maxStage && p.LastUnlockAt == lastUnlockAt {
+		return &UserCharacterState{MaxStage: p.MaxStage, Tokens: tokens, Calls: calls, Affinity: p.Affinity}, nil
 	}
 	p.TotalTokens = tokens
 	p.TotalCalls = calls
-	p.UpdatedAt = common.GetTimestamp()
+	p.MaxStage = maxStage
+	p.LastUnlockAt = lastUnlockAt
 	if err := DB.Model(&UserCharacterProgress{}).Where("id = ?", p.Id).
 		Updates(map[string]interface{}{
 			"total_tokens": p.TotalTokens, "total_calls": p.TotalCalls,
 			"max_stage": p.MaxStage, "last_unlock_at": p.LastUnlockAt,
-			"affinity": p.Affinity, "updated_at": p.UpdatedAt,
+			"updated_at": common.GetTimestamp(),
 		}).Error; err != nil {
 		return nil, err
 	}

@@ -7,6 +7,7 @@ export interface CharacterAdminItem {
   tags?: string
   system_prompt?: string
   affinity_required?: number
+  default_model?: string
   stages_json?: string
   enabled: boolean
   created_at: number
