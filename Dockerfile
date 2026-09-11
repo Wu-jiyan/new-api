@@ -1,11 +1,23 @@
 FROM oven/bun:1.4.0@sha256:5ff609364c049b54eb0ff560ec96319729a972078ef2c755d758f0c6ef89c2d6 AS builder
 
+# Optional build-time branding for the initial HTML shell (before the runtime
+# system name/logo from the admin settings are fetched). Leave empty to keep
+# the upstream defaults.
+#   --build-arg VITE_REACT_APP_SYSTEM_NAME=My API
+#   --build-arg VITE_REACT_APP_FAVICON=https://example.com/favicon.ico
+ARG VITE_REACT_APP_SYSTEM_NAME
+ARG VITE_REACT_APP_FAVICON
+
 WORKDIR /build/web
 COPY web/package.json web/bun.lock ./
 RUN bun install --frozen-lockfile
 COPY ./web ./
 COPY ./VERSION /build/VERSION
-RUN DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat /build/VERSION) bun run build
+RUN DISABLE_ESLINT_PLUGIN='true' \
+    VITE_REACT_APP_VERSION=$(cat /build/VERSION) \
+    VITE_REACT_APP_SYSTEM_NAME="$VITE_REACT_APP_SYSTEM_NAME" \
+    VITE_REACT_APP_FAVICON="$VITE_REACT_APP_FAVICON" \
+    bun run build
 
 FROM golang:1.26.1-alpine@sha256:2389ebfa5b7f43eeafbd6be0c3700cc46690ef842ad962f6c5bd6be49ed82039 AS builder2
 ENV GO111MODULE=on CGO_ENABLED=0 GOWORK=off

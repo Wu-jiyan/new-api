@@ -75,6 +75,9 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           push: true
+          build-args: |
+            VITE_REACT_APP_SYSTEM_NAME=二五云API
+            VITE_REACT_APP_FAVICON=https://res.25y.cn/favicon.ico
           tags: |
             ghcr.io/${{ env.LOWERCASE_REPO }}:${{ needs.prepare.outputs.version }}-${{ matrix.arch }}
             ghcr.io/${{ env.LOWERCASE_REPO }}:latest-${{ matrix.arch }}

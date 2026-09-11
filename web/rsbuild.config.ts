@@ -15,6 +15,18 @@ export default defineConfig(({ envMode }) => {
     env.rawPublicVars.VITE_REACT_APP_SERVER_URL ||
     'http://localhost:3000'
 
+  // Build-time branding for the initial HTML shell, so the page shows the
+  // deployment's own name/icon before the runtime /api/status fetch resolves.
+  // Unset keeps the upstream project defaults.
+  const customFavicon =
+    process.env.VITE_REACT_APP_FAVICON ||
+    env.rawPublicVars.VITE_REACT_APP_FAVICON ||
+    ''
+  const htmlSystemName =
+    process.env.VITE_REACT_APP_SYSTEM_NAME ||
+    env.rawPublicVars.VITE_REACT_APP_SYSTEM_NAME ||
+    'New API'
+
   const isProd = envMode === 'production'
   const devProxy = Object.fromEntries(
     (['/api', '/v1', '/mj', '/pg', '/uploads'] as const).map((key) => [
@@ -64,6 +76,14 @@ export default defineConfig(({ envMode }) => {
     },
     html: {
       template: './index.html',
+      // When a custom favicon is configured, hand it to Rsbuild so the link
+      // tag is emitted by the HTML plugin; this also suppresses the automatic
+      // public/favicon.ico fallback, keeping a single deterministic icon.
+      ...(customFavicon ? { favicon: customFavicon } : {}),
+      templateParameters: {
+        systemName: htmlSystemName,
+        customFavicon,
+      },
     },
     server: {
       host: '0.0.0.0',
