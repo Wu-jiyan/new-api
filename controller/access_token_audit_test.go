@@ -433,6 +433,31 @@ type releasedAuditLog struct {
 func (releasedAuditLog) TableName() string { return "logs" }
 
 // External tests create a new database per case on a loopback-only disposable
+// closeModelTestDBs closes the gorm pools currently installed as model.DB and
+// model.LOG_DB except the ones in keep. InitDB/InitLogDB never close the pools
+// they replace, and an open sqlite pool on Windows blocks t.TempDir removal.
+func closeModelTestDBs(t *testing.T, keep ...*gorm.DB) {
+	t.Helper()
+	for _, opened := range []*gorm.DB{model.DB, model.LOG_DB} {
+		if opened == nil {
+			continue
+		}
+		kept := false
+		for _, k := range keep {
+			if opened == k {
+				kept = true
+				break
+			}
+		}
+		if kept {
+			continue
+		}
+		if connection, err := opened.DB(); err == nil {
+			_ = connection.Close()
+		}
+	}
+}
+
 // instance. They never drop databases or tables supplied through an environment variable.
 func newAuditTestDatabase(t *testing.T, kind, dsn string) (*gorm.DB, string) {
 	t.Helper()
@@ -440,6 +465,14 @@ func newAuditTestDatabase(t *testing.T, kind, dsn string) (*gorm.DB, string) {
 		path := t.TempDir() + "/audit.db"
 		db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
 		require.NoError(t, err)
+		// Close before t.TempDir removes the directory; on Windows an open
+		// handle makes the removal fail with "being used by another process".
+		t.Cleanup(func() {
+			connection, err := db.DB()
+			if err == nil {
+				_ = connection.Close()
+			}
+		})
 		return db, path
 	}
 	require.NotEmpty(t, dsn)
@@ -681,9 +714,11 @@ func TestAuditDatabaseMatrix(t *testing.T) {
 						require.NoError(t, db.Create(&releasedAuditLog{UserId: 1, Type: model.LogTypeLogin, Content: "historical login", CreatedAt: 100, RequestId: "legacy-request"}).Error)
 					}
 					for range 2 {
+						closeModelTestDBs(t, db)
 						require.NoError(t, model.InitDB())
 						require.NoError(t, model.InitLogDB())
 					}
+					t.Cleanup(func() { closeModelTestDBs(t, db) })
 					if !upgrade {
 						require.NoError(t, db.Create(&model.User{Username: "fresh-owner", Password: "placeholder", AffCode: "fresh-aff"}).Error)
 					}

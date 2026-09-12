@@ -26,6 +26,7 @@ import {
   within,
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { AxiosRequestConfig } from 'axios'
 import { Toaster, toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -76,7 +77,8 @@ beforeEach(() => {
     last_used_at: null,
     last_used_ip: '',
   }
-  vi.spyOn(api, 'get').mockImplementation(async (url, config) => {
+  vi.spyOn(api, 'get').mockImplementation(
+    async (url: string, config?: AxiosRequestConfig) => {
     if (url === '/api/audit/self') {
       return { data: { success: true, data: { items: [], total: 0 } } }
     }
@@ -94,7 +96,8 @@ beforeEach(() => {
       }
     }
     return { data: { success: true, data: status } }
-  })
+    },
+  )
   vi.spyOn(api, 'post').mockImplementation(async (url, data) => {
     if (url === '/api/verify') {
       return passwordProof((data as { scope: string }).scope)
