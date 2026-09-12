@@ -26,6 +26,10 @@ tiktoken_cache
 .plans
 .claude
 .cursor
+.zcode/
+.superpowers/
+/_tmp_*.py
+docs/superpowers/plans/
 
 electron/node_modules
 electron/dist
