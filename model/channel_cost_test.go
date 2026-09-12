@@ -89,3 +89,27 @@ func TestGlobalModelCostFromOtherUsesCacheCreationRatio(t *testing.T) {
 		t.Fatalf("cache cost = %v, want 945", got)
 	}
 }
+
+func TestAttachChannelCostWritesAdminScope(t *testing.T) {
+	settings := &dto.ChannelCostSettings{Enabled: true, Mode: dto.ChannelCostModeDiscount, Discount: 0.5}
+	other := NewLogOther()
+	other.SetPublic("group_ratio", 2.0)
+
+	attachChannelCost(other, settings, 1000, 250)
+
+	snapshot := other.Snapshot()
+	if _, ok := snapshot["channel_cost"]; ok {
+		t.Fatalf("channel_cost must not leak into the user-visible top level")
+	}
+	adminInfo, ok := snapshot["admin_info"].(map[string]any)
+	if !ok {
+		t.Fatalf("admin_info missing from snapshot: %v", snapshot)
+	}
+	cost, ok := adminInfo["channel_cost"].(map[string]any)
+	if !ok {
+		t.Fatalf("admin_info.channel_cost missing: %v", adminInfo)
+	}
+	if cost["cost"] != 250.0 || cost["profit"] != 750.0 {
+		t.Fatalf("unexpected cost snapshot: %v", cost)
+	}
+}

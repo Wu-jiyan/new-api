@@ -7,19 +7,17 @@ export const meta = {
     en: "Kuaishou Kling video generation (text-to-video and image-to-video)",
     zh: "快手可灵视频生成（文生视频、图生视频）",
   },
-  version: "1.0.0",
+  version: "1.0.2",
   author: { name: "QuantumNous" },
   channelTypes: [50],
   models: ["kling-v1", "kling-v1-6", "kling-v2-master"],
   fetchMode: "per_task",
   usageSchema: {
+    // Kling final unit deduction (estimated at submit, actual on completion).
     units: {
       type: "number",
       unit: "credit",
-      description: {
-        en: "Kling final unit deduction (estimated at submit, actual on completion).",
-        zh: "可灵最终单位消耗（提交时预估，完成后按实际值）。",
-      },
+      description: { en: "Kling credit unit price", zh: "可灵资源包单位单价" },
     },
   },
   usageExamples: [
@@ -286,7 +284,7 @@ export function parseTaskResult(ctx, body) {
   const data = body.data || {};
   const statuses = { submitted: "SUBMITTED", processing: "IN_PROGRESS", succeed: "SUCCESS", failed: "FAILURE" };
   const status = statuses[data.task_status];
-  if (!status) throw new Error("unknown task status: " + data.task_status);
+  if (!status) return { status: "UNKNOWN", reason: "unknown task status: " + String(data.task_status || "") };
   const videos = status === "SUCCESS" && data.task_result && data.task_result.videos ? data.task_result.videos : [];
   const result = { code: body.code || 0, taskId: data.task_id, status: status, reason: data.task_status_msg || "" };
   if (videos.length && videos[0].url) result.url = videos[0].url;
@@ -357,7 +355,7 @@ export const protocols = {
       if (!prompt && images.length === 0) throw new Error("input is required");
       const metadata = Object.assign({}, req.metadata || {});
       if (Object.prototype.hasOwnProperty.call(req, "mode")) metadata.mode = req.mode;
-      metadata.mode = resolveKlingMode(model, metadata.mode);
+      metadata.mode = resolveKlingMode(ctx.upstreamModel || model, metadata.mode);
       if (images.length > 1 && !metadata.image_tail) metadata.image_tail = images[1];
       const requestBody = { model: model, prompt: prompt, metadata: metadata };
       if (images.length) requestBody.image = images[0];
@@ -443,7 +441,7 @@ export const protocols = {
         const image = trimmed(req.input_reference || req.image);
         if (image) req.image = image;
       }
-      const model = ctx.model || req.model || "kling-v1";
+      const model = ctx.upstreamModel || ctx.model || req.model || "kling-v1";
       const metadata = req.metadata || {};
       req.mode = resolveKlingMode(model, req.mode || metadata.mode);
       const hasImage = hasKlingImage(req, hasInputReferenceFile);

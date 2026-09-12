@@ -42,6 +42,9 @@ import {
 } from '@/features/auth/constants'
 import { useCaptcha } from '@/features/auth/hooks/use-captcha'
 import { useCountdown } from '@/hooks/use-countdown'
+import { handleServerError } from '@/lib/handle-server-error'
+import { AuthOperationError } from '@/lib/secure-verification'
+import { createServerError } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 export function ForgotPasswordForm({
@@ -87,10 +90,14 @@ export function ForgotPasswordForm({
       } else {
         setCaptchaToken('')
         setCaptchaWidgetKey((current) => current + 1)
-        toast.error(res?.message || t('Failed to send reset email'))
+        handleServerError(
+          createServerError(res, t('Failed to send reset email'))
+        )
       }
     } catch (_error) {
-      // Errors are handled by global interceptor
+      handleServerError(
+        AuthOperationError.from(_error, t('Failed to send reset email'))
+      )
     } finally {
       setIsLoading(false)
     }

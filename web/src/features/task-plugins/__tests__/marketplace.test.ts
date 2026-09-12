@@ -26,6 +26,8 @@ import {
   GITHUB_MARKETPLACE_INDEX_URL,
   indexHasIntegrityHashes,
   isDefaultMarketplaceSource,
+  isStaleFactoryOverride,
+  marketplaceBuiltInVersion,
   parseMarketplaceIndex,
   resolvePluginSourceUrl,
 } from '../lib/marketplace'
@@ -52,7 +54,23 @@ function marketplacePlugin(
   }
 }
 
-function installedPlugin(key: string, version: string): TaskPluginListItem {
+function factoryMeta(key: string, version: string) {
+  return {
+    apiVersion: 1,
+    key,
+    name: key,
+    version,
+    author: { name: 'test' as const },
+    models: null,
+    fetchMode: 'poll',
+  }
+}
+
+function installedPlugin(
+  key: string,
+  version: string,
+  overrides: Partial<TaskPluginListItem> = {}
+): TaskPluginListItem {
   return {
     meta: {
       apiVersion: 1,
@@ -71,6 +89,7 @@ function installedPlugin(key: string, version: string): TaskPluginListItem {
     runtime_status: 'registered',
     channel_count: 0,
     in_flight_count: 0,
+    ...overrides,
   }
 }
 
@@ -345,6 +364,83 @@ describe('marketplace index parsing', () => {
     })
     assert.equal(index.plugins[0].icon, undefined)
   })
+
+  test('drops an inline data URI icon so logos only come from sidecar files', () => {
+    const index = parseMarketplaceIndex({
+      indexVersion: 1,
+      plugins: [
+        {
+          key: 'sunoapi',
+          latest: '1.0.0',
+          icon: 'data:image/png;base64,iVBORw0KGgo=',
+          versions: [{ version: '1.0.0', path: 'a/plugin.js' }],
+        },
+      ],
+    })
+    assert.equal(index.plugins[0].icon, undefined)
+  })
+
+  test('drops a remote http icon so the marketplace page cannot beacon the author', () => {
+    const index = parseMarketplaceIndex({
+      indexVersion: 1,
+      plugins: [
+        {
+          key: 'sunoapi',
+          latest: '1.0.0',
+          icon: 'https://evil.example/icon.png',
+          versions: [{ version: '1.0.0', path: 'a/plugin.js' }],
+        },
+      ],
+    })
+    assert.equal(index.plugins[0].icon, undefined)
+  })
+
+  test('keeps an iconFile entry pointing at an svg or png and drops other extensions', () => {
+    const index = parseMarketplaceIndex({
+      indexVersion: 1,
+      plugins: [
+        {
+          key: 'incho',
+          latest: '1.0.1',
+          iconFile: { path: ' plugins/tasks/incho/icon.svg ', sha256: 'abc' },
+          versions: [{ version: '1.0.1', path: 'a/plugin.js' }],
+        },
+        {
+          key: 'other',
+          latest: '1.0.0',
+          iconFile: { path: 'plugins/tasks/other/icon.js' },
+          versions: [{ version: '1.0.0', path: 'b/plugin.js' }],
+        },
+      ],
+    })
+    assert.deepEqual(index.plugins[0].iconFile, {
+      path: 'plugins/tasks/incho/icon.svg',
+      sha256: 'abc',
+    })
+    assert.equal(index.plugins[1].iconFile, undefined)
+  })
+
+  test('keeps a version baseUrl after trim and omits a blank one', () => {
+    const index = parseMarketplaceIndex({
+      indexVersion: 1,
+      plugins: [
+        {
+          key: 'sunoapi',
+          latest: '1.1.0',
+          versions: [
+            {
+              version: '1.1.0',
+              path: 'a/plugin.js',
+              baseUrl: ' http://127.0.0.1:8000 ',
+            },
+            { version: '1.0.0', path: 'b/plugin.js', baseUrl: '   ' },
+          ],
+        },
+      ],
+    })
+    assert.equal(index.plugins[0].versions[0].baseUrl, 'http://127.0.0.1:8000')
+    assert.equal(index.plugins[0].versions[1].baseUrl, undefined)
+  })
 })
 
 describe('install state derivation', () => {
@@ -395,6 +491,68 @@ describe('install state derivation', () => {
         installedPlugin('kling', '1.2.0'),
       ]),
       { status: 'not_installed' }
+    )
+  })
+})
+
+describe('marketplace built-in version', () => {
+  test('factory-served built-in version is the installed meta version', () => {
+    assert.equal(
+      marketplaceBuiltInVersion(
+        installedPlugin('doubao', '1.0.0', { source: 'factory' })
+      ),
+      '1.0.0'
+    )
+  })
+
+  test('overridden factory built-in version comes from factory_meta', () => {
+    assert.equal(
+      marketplaceBuiltInVersion(
+        installedPlugin('doubao', '1.2.0', {
+          source: 'override_over_factory',
+          factory_meta: factoryMeta('doubao', '1.0.0'),
+        })
+      ),
+      '1.0.0'
+    )
+  })
+})
+
+describe('stale factory override', () => {
+  test('is stale when override version differs from built-in', () => {
+    assert.equal(
+      isStaleFactoryOverride(
+        installedPlugin('doubao', '1.2.0', {
+          source: 'override_over_factory',
+          factory_meta: factoryMeta('doubao', '1.0.0'),
+        })
+      ),
+      true
+    )
+  })
+
+  test('is not stale when override version matches built-in', () => {
+    assert.equal(
+      isStaleFactoryOverride(
+        installedPlugin('doubao', '1.0.0', {
+          source: 'override_over_factory',
+          factory_meta: factoryMeta('doubao', '1.0.0'),
+        })
+      ),
+      false
+    )
+  })
+
+  test('is not stale for factory-served or third-party plugins', () => {
+    assert.equal(
+      isStaleFactoryOverride(
+        installedPlugin('doubao', '1.0.0', { source: 'factory' })
+      ),
+      false
+    )
+    assert.equal(
+      isStaleFactoryOverride(installedPlugin('doubao', '1.0.0')),
+      false
     )
   })
 })
@@ -467,5 +625,74 @@ describe('source integrity and trust labels', () => {
       isDefaultMarketplaceSource('https://mirror.example/index.json'),
       false
     )
+  })
+})
+
+describe('marketplace display metadata', () => {
+  test('sorts by descending priority and ascending key with zero defaults', () => {
+    const index = parseMarketplaceIndex({
+      indexVersion: 1,
+      plugins: [
+        marketplacePlugin({ key: 'low', sortPriority: -10 }),
+        marketplacePlugin({ key: 'zero' }),
+        marketplacePlugin({ key: 'beta', sortPriority: 20 }),
+        marketplacePlugin({ key: 'alpha', sortPriority: 20 }),
+      ],
+    })
+    assert.deepEqual(
+      index.plugins.map((plugin) => plugin.key),
+      ['alpha', 'beta', 'zero', 'low']
+    )
+  })
+
+  test.each([1.5, '2', null, Number.NaN, Infinity, -2147483649, 2147483648])(
+    'defaults invalid priority %s to zero',
+    (sortPriority) => {
+      const index = parseMarketplaceIndex({
+        indexVersion: 1,
+        plugins: [{ ...marketplacePlugin(), sortPriority }],
+      })
+      assert.equal(index.plugins[0].sortPriority, 0)
+    }
+  )
+
+  test.each([-2147483648, 0, 2147483647])(
+    'preserves priority %s',
+    (sortPriority) => {
+      const index = parseMarketplaceIndex({
+        indexVersion: 1,
+        plugins: [marketplacePlugin({ sortPriority })],
+      })
+      assert.equal(index.plugins[0].sortPriority, sortPriority)
+    }
+  )
+
+  test('preserves HTTPS website paths, queries and fragments', () => {
+    const website = 'https://example.com/docs?q=1#intro'
+    const index = parseMarketplaceIndex({
+      indexVersion: 1,
+      plugins: [marketplacePlugin({ website })],
+    })
+    assert.equal(index.plugins[0].website, website)
+  })
+
+  test.each([
+    '',
+    'http://example.com',
+    '/docs',
+    'https:///docs',
+    'https://user:pass@example.com',
+    'https://@example.com',
+    'javascript:alert(1)',
+    'https://-example.com',
+    'https://example.com:99999',
+    'https://example.com/a b',
+  ])('hides invalid website %s without dropping the plugin', (website) => {
+    const index = parseMarketplaceIndex({
+      indexVersion: 1,
+      plugins: [marketplacePlugin({ website })],
+    })
+    assert.equal(index.plugins.length, 1)
+    assert.equal(index.plugins[0].website, undefined)
   })
 })

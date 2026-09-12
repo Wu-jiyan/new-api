@@ -348,22 +348,17 @@ func readOtherString(other map[string]interface{}, key string) string {
 }
 
 // attachChannelCost 将成本快照写入 other.admin_info.channel_cost（仅管理员可见）。
-func attachChannelCost(other map[string]interface{}, settings *dto.ChannelCostSettings, quota int, cost float64) {
+func attachChannelCost(other *LogOther, settings *dto.ChannelCostSettings, quota int, cost float64) {
 	if other == nil {
 		return
 	}
-	adminInfo, ok := other["admin_info"].(map[string]interface{})
-	if !ok || adminInfo == nil {
-		adminInfo = map[string]interface{}{}
-		other["admin_info"] = adminInfo
-	}
-	adminInfo["channel_cost"] = map[string]interface{}{
+	other.SetAdmin("channel_cost", map[string]interface{}{
 		"mode":        string(settings.Mode),
 		"discount":    settings.Discount,
 		"fixed_price": settings.FixedPrice,
 		"cost":        cost,
 		"profit":      float64(quota) - cost,
-	}
+	})
 }
 
 // resolveChannelCost 计算一次调用的成本额度，并将快照写入 params.Other。
@@ -382,7 +377,8 @@ func resolveChannelCost(params RecordConsumeLogParams) float64 {
 		return 0
 	}
 
-	groupRatio := readOtherFloat(params.Other, "group_ratio")
+	snapshot := params.Other.Snapshot()
+	groupRatio := readOtherFloat(snapshot, "group_ratio")
 	if groupRatio <= 0 {
 		groupRatio = ratio_setting.GetGroupRatio(params.Group)
 	}
@@ -396,25 +392,22 @@ func resolveChannelCost(params RecordConsumeLogParams) float64 {
 		// 否则（未同步 / 留空未配置）回退全局模型标价 × 渠道折扣系数。
 		mc, ok := settings.ModelPrices[params.ModelName]
 		if ok && channelModelCostValid(mc) {
-			if readOtherString(params.Other, "billing_mode") == "tiered_expr" {
+			if readOtherString(snapshot, "billing_mode") == "tiered_expr" {
 				// tiered_expr 无法用渠道价格表还原，回退反推（decimal 精确计算）
 				cost = CalculateChannelCost(&settings, params.Quota, groupRatio)
 			} else {
-				cost = CalculateModelCost(mc, settings.Discount, params.PromptTokens, params.CompletionTokens, params.Other)
+				cost = CalculateModelCost(mc, settings.Discount, params.PromptTokens, params.CompletionTokens, snapshot)
 			}
 		} else {
 			// 未同步/留空该模型的渠道成本：以日志中的全局模型标价（乘算）回退，避免从用户费用反推的除法误差。
 			// 全局标价与渠道标价同构，成本 = 全局标价 × 渠道折扣系数，与系统计费算法一致。
-			mc := globalModelCostFromOther(params.ModelName, params.Other)
+			mc := globalModelCostFromOther(params.ModelName, snapshot)
 			if mc.ModelRatio > 0 || mc.ModelPrice > 0 {
-				cost = CalculateModelCost(mc, settings.Discount, params.PromptTokens, params.CompletionTokens, params.Other)
+				cost = CalculateModelCost(mc, settings.Discount, params.PromptTokens, params.CompletionTokens, snapshot)
 			}
 		}
 	}
 
-	if params.Other == nil {
-		params.Other = make(map[string]interface{})
-	}
 	attachChannelCost(params.Other, &settings, params.Quota, cost)
 	return cost
 }

@@ -32,6 +32,7 @@ type TaskSubmitResult struct {
 	Platform       constant.TaskPlatform
 	Quota          int
 	Immediate      *relaycommon.TaskInfo
+	PluginState    []byte
 	//PerCallPrice   types.PriceData
 }
 
@@ -76,7 +77,7 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 		} else if originTask.Properties.UpstreamModelName != "" {
 			info.OriginModelName = originTask.Properties.UpstreamModelName
 		} else {
-			var taskData map[string]interface{}
+			var taskData map[string]any
 			_ = common.Unmarshal(originTask.Data, &taskData)
 			if m, ok := taskData["model"].(string); ok && m != "" {
 				info.OriginModelName = m
@@ -119,7 +120,7 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 			}
 		} else {
 			// 旧的 remix 逻辑：直接从 task data 解析 seconds 和 size（如果存在）
-			var taskData map[string]interface{}
+			var taskData map[string]any
 			_ = common.Unmarshal(originTask.Data, &taskData)
 			secondsStr, _ := taskData["seconds"].(string)
 			seconds, _ := strconv.Atoi(secondsStr)
@@ -212,6 +213,19 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		info.PublicTaskID = model.GenerateTaskID()
 	}
 	adaptor.Init(info)
+	// Plugin submit hooks run during ValidateRequestAndSetAction and cache the
+	// upstream body. OriginModelName is already seeded on that line (protocol
+	// resolved_task_model, legacy submit, or GenRelayInfo original_model), so
+	// map before validation. The empty-name CoverTaskActionToModelName
+	// synthesis happens after validate and cannot move; skip the late block
+	// when early mapping ran so a chain is never applied twice.
+	mappedBeforeValidate := info.OriginModelName != ""
+	if mappedBeforeValidate {
+		info.UpstreamModelName = info.OriginModelName
+		if err := helper.ModelMappedHelper(c, info, nil); err != nil {
+			return nil, service.TaskErrorWrapperLocal(err, "model_mapping_failed", http.StatusBadRequest)
+		}
+	}
 	if taskErr := adaptor.ValidateRequestAndSetAction(c, info); taskErr != nil {
 		return nil, taskErr
 	}
@@ -222,20 +236,37 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		modelName = service.CoverTaskActionToModelName(platform, info.Action)
 	}
 
-	// 2.5 应用渠道的模型映射（与同步任务对齐）
-	info.OriginModelName = modelName
-	info.UpstreamModelName = modelName
-	if err := helper.ModelMappedHelper(c, info, nil); err != nil {
-		return nil, service.TaskErrorWrapperLocal(err, "model_mapping_failed", http.StatusBadRequest)
+	if !mappedBeforeValidate {
+		info.OriginModelName = modelName
+		info.UpstreamModelName = modelName
+		if err := helper.ModelMappedHelper(c, info, nil); err != nil {
+			return nil, service.TaskErrorWrapperLocal(err, "model_mapping_failed", http.StatusBadRequest)
+		}
 	}
 
 	// 4. 价格计算：基础模型价格
 	info.OriginModelName = modelName
 	var priceData types.PriceData
 	var err error
-	if billing_setting.GetBillingMode(modelName) == billing_setting.BillingModeTieredExpr {
-		exprStr, exists := billing_setting.GetBillingExpr(modelName)
+	useTiered := billing_setting.GetBillingMode(modelName) == billing_setting.BillingModeTieredExpr
+	var exprStr string
+	var exists bool
+	if useTiered {
+		exprStr, exists = billing_setting.GetBillingExpr(modelName)
+	} else if info.IsModelMapped {
+		if billing_setting.GetBillingMode(info.UpstreamModelName) == billing_setting.BillingModeTieredExpr {
+			if tailExpr, tailOK := billing_setting.GetBillingExpr(info.UpstreamModelName); tailOK && strings.TrimSpace(tailExpr) != "" {
+				exprStr = tailExpr
+				exists = true
+				useTiered = true
+			}
+		}
+	}
+	if useTiered {
 		provider, supported := adaptor.(channel.TaskUsageFactsProvider)
+		if billingexpr.UsesFixedPricing(exprStr) {
+			return nil, service.TaskErrorWrapper(fmt.Errorf("fixed pricing is not supported for task usage expressions"), "model_price_error", http.StatusBadRequest)
+		}
 		if !exists || !supported {
 			return nil, service.TaskErrorWrapper(fmt.Errorf("task model %s has no usage expression or meter", modelName), "model_price_error", http.StatusBadRequest)
 		}
@@ -354,6 +385,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		Platform:       platform,
 		Quota:          finalQuota,
 		Immediate:      parsed.Immediate,
+		PluginState:    parsed.PluginState,
 	}, nil
 }
 
@@ -490,10 +522,7 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 		return nil
 	}
 
-	resp, err := adaptor.FetchTask(baseURL, channelModel.Key, map[string]any{
-		"task_id": task.GetUpstreamTaskID(),
-		"action":  constant.NormalizeTaskAction(task.Action),
-	}, proxy)
+	resp, err := adaptor.FetchTask(baseURL, channelModel.Key, task, proxy)
 	if err != nil || resp == nil {
 		return nil
 	}
@@ -503,7 +532,7 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 		return nil
 	}
 
-	ti, err := adaptor.ParseTaskResult(body)
+	ti, err := adaptor.ParseTaskResult(task, resp, body)
 	if err != nil || ti == nil {
 		return nil
 	}

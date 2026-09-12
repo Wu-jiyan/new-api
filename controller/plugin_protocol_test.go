@@ -366,14 +366,14 @@ type terminalSettlementPollingAdaptor struct {
 
 func (a *terminalSettlementPollingAdaptor) Init(*relaycommon.RelayInfo) {}
 
-func (a *terminalSettlementPollingAdaptor) FetchTask(string, string, map[string]any, string) (*http.Response, error) {
+func (a *terminalSettlementPollingAdaptor) FetchTask(string, string, *model.Task, string) (*http.Response, error) {
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(strings.NewReader(`{}`)),
 	}, nil
 }
 
-func (a *terminalSettlementPollingAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) {
+func (a *terminalSettlementPollingAdaptor) ParseTaskResult(*model.Task, *http.Response, []byte) (*relaycommon.TaskInfo, error) {
 	return &relaycommon.TaskInfo{
 		Status:   model.TaskStatusSuccess,
 		Progress: "100%",
@@ -1088,12 +1088,38 @@ func TestRetrieveTaskPluginResponsePendingSkipsRenderFinal(t *testing.T) {
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
 	assert.Equal(t, "resp_retrieve_pending", response["id"])
 	assert.Equal(t, "in_progress", response["status"])
+	assert.Equal(t, "video-model", response["model"])
 	assert.Equal(t, true, response["background"])
 	assert.Nil(t, response["completed_at"])
 	assert.Empty(t, response["output"])
 	metadata, ok := response["metadata"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "/v1/responses/resp_retrieve_pending", metadata["retrieval_path"])
+}
+
+func TestRetrieveTaskPluginResponseEchoesOriginModelName(t *testing.T) {
+	pinned := compilePluginProtocolRetrieveEndpoint(t, "retrieve-alias-echo", `
+		export const protocols = {openai_responses: {
+			renderEvents: function() { throw new Error("pending retrieve called renderEvents"); },
+			renderFinal: function() { throw new Error("pending retrieve called renderFinal"); }
+		}};
+	`, pluginruntime.Options{})
+	c, recorder := newPluginProtocolRetrieveContext("resp_retrieve_alias")
+	deps := pluginProtocolRetrieveDeps(pinned, &model.Task{
+		TaskID:     "task_retrieve_alias",
+		Platform:   constant.TaskPlatform(pinned.Plugin.Meta.Key),
+		UserId:     71,
+		Status:     model.TaskStatusInProgress,
+		Properties: model.Properties{OriginModelName: "alias-model"},
+		CreatedAt:  1_710_000_000,
+	}, true, nil)
+
+	retrieveTaskPluginResponse(c, deps)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	var response map[string]any
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	assert.Equal(t, "alias-model", response["model"])
 }
 
 func TestRetrieveTaskPluginResponseSuccessRendersFinal(t *testing.T) {

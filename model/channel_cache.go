@@ -11,8 +11,8 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
@@ -27,6 +27,7 @@ var channelSyncLock sync.RWMutex
 func InitChannelCache() {
 	if !common.MemoryCacheEnabled {
 		InvalidatePricingCache()
+		rebuildTaskAliasView()
 		return
 	}
 	newChannelId2channel := make(map[int]*Channel)
@@ -55,9 +56,9 @@ func InitChannelCache() {
 		if channel.Status != common.ChannelStatusEnabled {
 			continue // skip disabled channels
 		}
-		groups := strings.Split(channel.Group, ",")
-		for _, group := range groups {
-			models := strings.Split(channel.Models, ",")
+		groups := strings.SplitSeq(channel.Group, ",")
+		for group := range groups {
+			models := channel.GetModels()
 			for _, model := range models {
 				if _, ok := newGroup2model2channels[group][model]; !ok {
 					newGroup2model2channels[group][model] = make([]int, 0)
@@ -101,6 +102,7 @@ func InitChannelCache() {
 	// loadPricingAdvancedCustomConfigs. channelSyncLock MUST be released before
 	// invalidating the pricing cache, otherwise the reversed order deadlocks.
 	InvalidatePricingCache()
+	rebuildTaskAliasView()
 	common.SysLog("channels synced from database")
 }
 
@@ -131,7 +133,7 @@ func GetRandomSatisfiedChannel(
 
 	// If no channels found, try to find channels with the normalized model name.
 	if len(channels) == 0 {
-		normalizedModel := ratio_setting.FormatMatchingModelName(model)
+		normalizedModel := ratio_setting.RoutingMatchModelName(model)
 		channels, _ = filterCandidateIDs(group2model2channels[group][normalizedModel], model, filters)
 	}
 
