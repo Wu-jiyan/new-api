@@ -147,7 +147,7 @@ function CostConfigBadge({ channel }: { channel: Channel }) {
   if (settings.mode === 'fixed') {
     return (
       <Badge variant='outline'>
-        {t('Fixed')} ${settings.fixed_price ?? 0}/call
+        {t('Fixed Price')} ${settings.fixed_price ?? 0}/call
       </Badge>
     )
   }
