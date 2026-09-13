@@ -119,6 +119,9 @@ func main() {
 	// 数据看板
 	go model.UpdateQuotaData()
 
+	// 对话归档过期数据清理（保留时长由 conversation_archive_setting.retention_hours 控制）
+	service.StartConversationArchiveCleanup()
+
 	if os.Getenv("CHANNEL_UPDATE_FREQUENCY") != "" {
 		frequency, err := strconv.Atoi(os.Getenv("CHANNEL_UPDATE_FREQUENCY"))
 		if err != nil {

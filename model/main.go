@@ -381,6 +381,7 @@ func migrateDB() error {
 		&CharacterBackground{},
 		&CharacterChatSession{},
 		&CharacterChatMessage{},
+		&ConversationArchive{},
 	)
 	if err != nil {
 		return err

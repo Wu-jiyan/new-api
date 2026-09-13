@@ -231,6 +231,12 @@ func validateOptionValue(key string, value string) error {
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
 	}
+	if key == "conversation_archive_setting.pull_token" {
+		return operation_setting.ValidateConversationArchivePullToken(value)
+	}
+	if key == "conversation_archive_setting.retention_hours" {
+		return operation_setting.ValidateConversationArchiveRetentionHours(value)
+	}
 	return nil
 }
 

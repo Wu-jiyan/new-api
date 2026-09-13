@@ -6423,6 +6423,20 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Conversation Archive": "Архив диалогов",
+    "Enable conversation archiving": "Включить архивирование диалогов",
+    "Push URL": "URL отправки",
+    "Push secret": "Секрет отправки",
+    "Bearer token for the push endpoint": "Bearer-токен для конечной точки отправки",
+    "Optional. Sent as the Authorization: Bearer header when pushing records.": "Необязательно. Передаётся в заголовке Authorization: Bearer при отправке записей.",
+    "Save conversation archive settings": "Сохранить настройки архива диалогов",
+    "Automatically save conversations (user messages and model replies) to the local database after each request, deduplicating follow-up turns of the same conversation. Archived data can be exported as JSONL from /api/conversation_archive/export for model training.": "Автоматически сохранять диалоги (сообщения пользователей и ответы модели) в локальную базу данных после каждого запроса, объединяя последующие реплики одного диалога во избежание дублирования. Архивные данные можно экспортировать в JSONL через API /api/conversation_archive/export для обучения моделей.",
+    "Retention (hours)": "Срок хранения (часы)",
+    "Delete archived conversations older than this after the last update. 0 keeps them forever. A daily cleanup task runs on the gateway, so 24 retains about one day of data.": "Удалять архивные диалоги, не обновлявшиеся дольше указанного срока. 0 — хранить бессрочно. Задача очистки выполняется на шлюзе раз в сутки, поэтому 24 сохраняет примерно одни сутки данных.",
+    "Pull token": "Токен выгрузки",
+    "Leave empty to disable pull access": "Оставьте пустым, чтобы отключить доступ по токену",
+    "Dedicated token that only grants access to the archive pull endpoints (/api/conversation_archive/export and the list). Use Authorization: <token> or x-api-key. Leave empty to require an admin account instead.": "Отдельный токен, дающий доступ только к эндпоинтам выгрузки архива (экспорт и список), чтобы не использовать учётную запись администратора с широкими правами. Передавайте в заголовке Authorization: <token> или x-api-key. Оставьте пустым, чтобы требовать учётную запись администратора.",
+    "Optional. Each archived conversation is pushed to this URL via outbound HTTP POST; the target must be reachable from the gateway. To sync to a machine without a public IP, leave this empty and let it pull /api/conversation_archive/export?after_id=<last_id> with the pull token instead.": "Необязательно. Каждый заархивированный диалог отправляется на этот URL исходящим HTTP POST-запросом; целевой сервер должен быть доступен шлюзу. Для синхронизации с машиной без публичного IP-адреса оставьте поле пустым и опрашивайте /api/conversation_archive/export?after_id=<last_id> с токеном выгрузки выше."
   }
 }

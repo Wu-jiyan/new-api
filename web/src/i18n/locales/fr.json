@@ -6423,6 +6423,20 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Conversation Archive": "Archive des conversations",
+    "Enable conversation archiving": "Activer l’archivage des conversations",
+    "Push URL": "URL de push",
+    "Push secret": "Secret de push",
+    "Bearer token for the push endpoint": "Jeton Bearer pour l’endpoint de push",
+    "Optional. Sent as the Authorization: Bearer header when pushing records.": "Optionnel. Envoyé dans l’en-tête Authorization: Bearer lors de l’envoi des enregistrements.",
+    "Save conversation archive settings": "Enregistrer les paramètres d’archivage des conversations",
+    "Automatically save conversations (user messages and model replies) to the local database after each request, deduplicating follow-up turns of the same conversation. Archived data can be exported as JSONL from /api/conversation_archive/export for model training.": "Après chaque requête, enregistre automatiquement les conversations (messages des utilisateurs et réponses du modèle) dans la base de données locale en fusionnant les tours suivants d’une même conversation pour éviter les doublons. Les données archivées peuvent être exportées en JSONL via l’API /api/conversation_archive/export pour l’entraînement de modèles.",
+    "Retention (hours)": "Durée de conservation (heures)",
+    "Delete archived conversations older than this after the last update. 0 keeps them forever. A daily cleanup task runs on the gateway, so 24 retains about one day of data.": "Supprime les conversations archivées non mises à jour depuis plus longtemps que cette durée. 0 les conserve indéfiniment. Une tâche de nettoyage s’exécute chaque jour sur la passerelle : 24 conserve environ une journée de données.",
+    "Pull token": "Jeton de récupération",
+    "Leave empty to disable pull access": "Laisser vide pour désactiver l’accès par jeton",
+    "Dedicated token that only grants access to the archive pull endpoints (/api/conversation_archive/export and the list). Use Authorization: <token> or x-api-key. Leave empty to require an admin account instead.": "Jeton dédié qui ne donne accès qu’aux points de récupération des archives (export et liste), afin d’éviter un compte administrateur trop large. Utilisez Authorization: <token> ou x-api-key. Laisser vide pour exiger un compte administrateur.",
+    "Optional. Each archived conversation is pushed to this URL via outbound HTTP POST; the target must be reachable from the gateway. To sync to a machine without a public IP, leave this empty and let it pull /api/conversation_archive/export?after_id=<last_id> with the pull token instead.": "Optionnel. Chaque conversation archivée est envoyée vers cette URL via une requête HTTP POST sortante ; la cible doit être joignable depuis la passerelle. Pour synchroniser une machine sans IP publique, laissez ce champ vide et faites-lui interroger /api/conversation_archive/export?after_id=<last_id> avec le jeton de récupération ci-dessus."
   }
 }

@@ -367,6 +367,11 @@ export type OperationsSettings = {
   WorkerValidKey: string
   WorkerAllowHttpImageRequestEnabled: boolean
   LogConsumeEnabled: boolean
+  'conversation_archive_setting.enabled': boolean
+  'conversation_archive_setting.push_url': string
+  'conversation_archive_setting.push_secret': string
+  'conversation_archive_setting.pull_token': string
+  'conversation_archive_setting.retention_hours': number
   'performance_setting.disk_cache_enabled': boolean
   'performance_setting.disk_cache_threshold_mb': number
   'performance_setting.disk_cache_max_size_mb': number

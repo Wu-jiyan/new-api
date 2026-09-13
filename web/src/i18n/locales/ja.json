@@ -6423,6 +6423,20 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Conversation Archive": "会話アーカイブ",
+    "Enable conversation archiving": "会話アーカイブを有効化",
+    "Push URL": "送信先 URL",
+    "Push secret": "送信シークレット",
+    "Bearer token for the push endpoint": "送信エンドポイントの Bearer トークン",
+    "Optional. Sent as the Authorization: Bearer header when pushing records.": "任意。記録送信時に Authorization: Bearer ヘッダーとして送られます。",
+    "Save conversation archive settings": "会話アーカイブ設定を保存",
+    "Automatically save conversations (user messages and model replies) to the local database after each request, deduplicating follow-up turns of the same conversation. Archived data can be exported as JSONL from /api/conversation_archive/export for model training.": "リクエストごとに会話内容（ユーザーメッセージとモデルの応答）を自動的にローカルデータベースに保存し、同じ会話の後続ターンを自動的に照合・統合して重複保存を防ぎます。アーカイブデータは /api/conversation_archive/export API から JSONL としてエクスポートでき、モデル学習に利用できます。",
+    "Retention (hours)": "保持期間（時間）",
+    "Delete archived conversations older than this after the last update. 0 keeps them forever. A daily cleanup task runs on the gateway, so 24 retains about one day of data.": "最後の更新からこの期間を超えたアーカイブ会話を削除します。0 は無期限保持です。ゲートウェイで毎日 1 回クリーンアップが実行されるため、24 を指定すると約 1 日分のデータが保持されます。",
+    "Pull token": "取得用トークン",
+    "Leave empty to disable pull access": "空欄にするとトークンでの取得を無効化します",
+    "Dedicated token that only grants access to the archive pull endpoints (/api/conversation_archive/export and the list). Use Authorization: <token> or x-api-key. Leave empty to require an admin account instead.": "アーカイブ取得用エンドポイント（エクスポートと一覧）だけにアクセスできる専用トークンです。権限の広い管理者アカウントを使わずに済みます。Authorization: <token> または x-api-key ヘッダーで送信します。空欄の場合は管理者アカウントが必要です。",
+    "Optional. Each archived conversation is pushed to this URL via outbound HTTP POST; the target must be reachable from the gateway. To sync to a machine without a public IP, leave this empty and let it pull /api/conversation_archive/export?after_id=<last_id> with the pull token instead.": "任意。アーカイブした会話を外向き HTTP POST でこの URL に送信します。送信先はゲートウェイから到達可能である必要があります。公開 IP のないマシンへ同期する場合は空のままにし、上記の取得用トークンで /api/conversation_archive/export?after_id=<last_id> を定期取得してください。"
   }
 }

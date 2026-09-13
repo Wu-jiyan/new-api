@@ -23,6 +23,7 @@ import { WorkerSettingsSection } from '../integrations/worker-settings-section'
 import { LogSettingsSection } from '../maintenance/log-settings-section'
 import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
+import { ConversationArchiveSection } from './conversation-archive-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 
@@ -98,6 +99,23 @@ const OPERATIONS_SECTIONS = [
     build: (settings: OperationsSettings) => (
       <LogSettingsSection
         defaultEnabled={Boolean(settings.LogConsumeEnabled)}
+      />
+    ),
+  },
+  {
+    id: 'conversation-archive',
+    titleKey: 'Conversation Archive',
+    build: (settings: OperationsSettings) => (
+      <ConversationArchiveSection
+        defaultValues={{
+          enabled: settings['conversation_archive_setting.enabled'] ?? false,
+          pushUrl: settings['conversation_archive_setting.push_url'] ?? '',
+          pushSecret:
+            settings['conversation_archive_setting.push_secret'] ?? '',
+          pullToken: settings['conversation_archive_setting.pull_token'] ?? '',
+          retentionHours:
+            settings['conversation_archive_setting.retention_hours'] ?? 0,
+        }}
       />
     ),
   },

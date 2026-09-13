@@ -6423,6 +6423,20 @@
     "Zero retention": "零數據保留",
     "Zhipu": "智譜",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Conversation Archive": "對話歸檔",
+    "Enable conversation archiving": "啟用對話歸檔",
+    "Push URL": "推送位址",
+    "Push secret": "推送金鑰",
+    "Bearer token for the push endpoint": "推送介面的 Bearer 權杖",
+    "Optional. Sent as the Authorization: Bearer header when pushing records.": "可選。推送記錄時以 Authorization: Bearer 標頭攜帶。",
+    "Save conversation archive settings": "儲存對話歸檔設定",
+    "Automatically save conversations (user messages and model replies) to the local database after each request, deduplicating follow-up turns of the same conversation. Archived data can be exported as JSONL from /api/conversation_archive/export for model training.": "每次請求結束後自動把對話內容（使用者訊息與模型回覆）儲存到本機資料庫，並自動比對合併同一會話的後續輪次，避免重複儲存。歸檔資料可透過 /api/conversation_archive/export 介面匯出為 JSONL 用於模型訓練。",
+    "Retention (hours)": "保留時長（小時）",
+    "Delete archived conversations older than this after the last update. 0 keeps them forever. A daily cleanup task runs on the gateway, so 24 retains about one day of data.": "超過該時長未更新的歸檔對話會被刪除，0 表示永久保留。閘道每天執行一次清理任務，填 24 大約保留一天的資料。",
+    "Pull token": "拉取專用權杖",
+    "Leave empty to disable pull access": "留空表示停用權杖拉取",
+    "Dedicated token that only grants access to the archive pull endpoints (/api/conversation_archive/export and the list). Use Authorization: <token> or x-api-key. Leave empty to require an admin account instead.": "專用權杖，僅能存取歸檔拉取介面（匯出與列表），避免使用權限過大的管理員帳號。請求時使用 Authorization: <token> 或 x-api-key 標頭。留空則只能由管理員帳號存取。",
+    "Optional. Each archived conversation is pushed to this URL via outbound HTTP POST; the target must be reachable from the gateway. To sync to a machine without a public IP, leave this empty and let it pull /api/conversation_archive/export?after_id=<last_id> with the pull token instead.": "可選。歸檔的對話會透過出站 HTTP POST 推送到該位址，目標伺服器必須能被閘道存取。若接收端沒有公網 IP，請留空此欄位，改由接收端攜帶上面的拉取專用權杖定期拉取 /api/conversation_archive/export?after_id=<last_id> 增量同步。"
   }
 }

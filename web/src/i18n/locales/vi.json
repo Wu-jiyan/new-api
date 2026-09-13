@@ -6423,6 +6423,20 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Conversation Archive": "Lưu trữ hội thoại",
+    "Enable conversation archiving": "Bật lưu trữ hội thoại",
+    "Push URL": "URL đẩy dữ liệu",
+    "Push secret": "Khóa bí mật đẩy dữ liệu",
+    "Bearer token for the push endpoint": "Bearer token cho điểm cuối đẩy dữ liệu",
+    "Optional. Sent as the Authorization: Bearer header when pushing records.": "Tùy chọn. Được gửi trong tiêu đề Authorization: Bearer khi đẩy bản ghi.",
+    "Save conversation archive settings": "Lưu cài đặt lưu trữ hội thoại",
+    "Automatically save conversations (user messages and model replies) to the local database after each request, deduplicating follow-up turns of the same conversation. Archived data can be exported as JSONL from /api/conversation_archive/export for model training.": "Tự động lưu hội thoại (tin nhắn của người dùng và phản hồi của mô hình) vào cơ sở dữ liệu cục bộ sau mỗi yêu cầu, tự động ghép các lượt tiếp theo của cùng một hội thoại để tránh trùng lặp. Dữ liệu lưu trữ có thể xuất ra JSONL qua API /api/conversation_archive/export để huấn luyện mô hình.",
+    "Retention (hours)": "Thời gian lưu (giờ)",
+    "Delete archived conversations older than this after the last update. 0 keeps them forever. A daily cleanup task runs on the gateway, so 24 retains about one day of data.": "Xóa các hội thoại lưu trữ không được cập nhật lâu hơn khoảng thời gian này. 0 là giữ vĩnh viễn. Gateway chạy tác vụ dọn dẹp mỗi ngày một lần, nên 24 sẽ giữ khoảng một ngày dữ liệu.",
+    "Pull token": "Mã truy cập kéo dữ liệu",
+    "Leave empty to disable pull access": "Để trống để tắt truy cập bằng mã",
+    "Dedicated token that only grants access to the archive pull endpoints (/api/conversation_archive/export and the list). Use Authorization: <token> or x-api-key. Leave empty to require an admin account instead.": "Mã riêng chỉ cho phép truy cập các điểm cuối kéo dữ liệu lưu trữ (xuất và danh sách), tránh dùng tài khoản quản trị viên có quyền quá rộng. Gửi qua tiêu đề Authorization: <token> hoặc x-api-key. Để trống nếu muốn yêu cầu tài khoản quản trị viên.",
+    "Optional. Each archived conversation is pushed to this URL via outbound HTTP POST; the target must be reachable from the gateway. To sync to a machine without a public IP, leave this empty and let it pull /api/conversation_archive/export?after_id=<last_id> with the pull token instead.": "Tùy chọn. Mỗi hội thoại được lưu trữ sẽ được đẩy đến URL này bằng HTTP POST đi ra; đích đến phải truy cập được từ gateway. Để đồng bộ sang máy không có IP công khai, hãy để trống trường này và để máy đó định kỳ tải /api/conversation_archive/export?after_id=<last_id> bằng mã truy cập kéo dữ liệu ở trên."
   }
 }
