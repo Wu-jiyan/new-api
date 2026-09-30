@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Pencil, Plus, RefreshCw, Search, Trash2, TrendingUp, Wand2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -48,6 +48,7 @@ import type {
 } from './types'
 
 const RARITIES = ['N', 'R', 'SR', 'SSR', 'UR']
+const RATINGS_PAGE_SIZE = 20
 
 const DEFAULT_WEIGHTS: Record<string, number> = { N: 100, R: 40, SR: 15, SSR: 5, UR: 1 }
 const DEFAULT_QUOTA_MIN: Record<string, number> = { N: 500, R: 800, SR: 1500, SSR: 3000, UR: 8000 }
@@ -700,10 +701,10 @@ function PoolsTab() {
                             : formatQuotaWithCurrency(entry.quota)}
                         </span>
                         <span>{entry.expire_days > 0 ? `${entry.expire_days} 天` : '永久'}</span>
-                        <button className='hover:text-foreground' onClick={() => setEditingEntry({ pool, entry })}>
+                        <button type='button' className='hover:text-foreground' onClick={() => setEditingEntry({ pool, entry })}>
                           <Pencil className='size-3' />
                         </button>
-                        <button className='hover:text-destructive' onClick={() => void removeEntry(entry)}>
+                        <button type='button' className='hover:text-destructive' onClick={() => void removeEntry(entry)}>
                           <Trash2 className='size-3' />
                         </button>
                       </div>
@@ -736,26 +737,41 @@ function PoolsTab() {
   )
 }
 
+// ratingForScore 与后端 MapScoreToRating 保持一致：档位只由分数与阈值决定。
+function ratingForScore(score: number, thresholds: RatingThresholds): string {
+  if (score <= 0) return ''
+  if (score >= thresholds.ur) return 'UR'
+  if (score >= thresholds.ssr) return 'SSR'
+  if (score >= thresholds.sr) return 'SR'
+  if (score >= thresholds.r) return 'R'
+  return 'N'
+}
+
 function RatingRow({
   item,
+  thresholds,
   onSave,
 }: {
   item: ModelRatingItem
-  onSave: (id: number, rating: string, score: number) => Promise<void>
+  thresholds: RatingThresholds
+  onSave: (id: number, score: number) => Promise<void>
 }) {
-  const [rating, setRatingState] = useState(item.rating ?? '')
   const [score, setScore] = useState(item.rating_score ?? 0)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    setRatingState(item.rating ?? '')
     setScore(item.rating_score ?? 0)
-  }, [item.id, item.rating, item.rating_score])
+  }, [item.id, item.rating_score])
 
-  async function save() {
+  const storedScore = item.rating_score ?? 0
+  const dirty = score !== storedScore
+  // 档位由分数推导，不接受直接编辑；无分数时展示已存档位（历史手动数据）。
+  const displayRating = score > 0 ? ratingForScore(score, thresholds) : (item.rating ?? '')
+
+  async function saveScore(nextScore: number) {
     setSaving(true)
     try {
-      await onSave(item.id, rating, score)
+      await onSave(item.id, nextScore)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '保存失败')
     } finally {
@@ -767,23 +783,13 @@ function RatingRow({
     <div className='flex items-center justify-between rounded-lg border px-3 py-2 text-sm'>
       <div className='flex min-w-0 items-center gap-2'>
         <span className='truncate font-mono'>{item.model_name}</span>
-        <RatingBadge rating={rating} />
+        <RatingBadge rating={displayRating} />
+        {score <= 0 && item.rating && (
+          <span className='text-xs text-muted-foreground'>无分数，保留原档位</span>
+        )}
         {item.rating_source === 'manual' && <Badge variant='secondary'>手动</Badge>}
       </div>
       <div className='flex shrink-0 items-center gap-2'>
-        <Select value={rating} onValueChange={(v) => setRatingState(v ?? '')}>
-          <SelectTrigger className='h-7 w-24'>
-            <SelectValue placeholder='未分级' />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value=''>未分级</SelectItem>
-            {RARITIES.map((r) => (
-              <SelectItem key={r} value={r}>
-                {r}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         <div className='relative'>
           <Input
             className='h-7 w-20 pr-7 text-right'
@@ -797,7 +803,13 @@ function RatingRow({
           />
           <span className='absolute top-1/2 right-2 -translate-y-1/2 text-[10px] text-muted-foreground'>%</span>
         </div>
-        <Button size='sm' variant='outline' className='h-7' disabled={saving} onClick={() => void save()}>
+        <Button
+          size='sm'
+          variant='outline'
+          className='h-7'
+          disabled={saving || !dirty}
+          onClick={() => void saveScore(score)}
+        >
           保存
         </Button>
         {item.rating && (
@@ -805,10 +817,10 @@ function RatingRow({
             size='sm'
             variant='ghost'
             className='h-7 px-2 text-muted-foreground hover:text-destructive'
+            disabled={saving}
             onClick={() => {
-              setRatingState('')
               setScore(0)
-              void onSave(item.id, '', 0)
+              void saveScore(0)
             }}
           >
             <Trash2 className='size-3.5' /> 重置为空
@@ -830,12 +842,11 @@ function RatingsTab() {
   const [syncResult, setSyncResult] = useState<GachaRatingSyncResult | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [resetting, setResetting] = useState(false)
-  const PAGE_SIZE = 20
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(total / RATINGS_PAGE_SIZE))
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
-      const res = await listRatings(keyword, undefined, page, PAGE_SIZE)
+      const res = await listRatings(keyword, undefined, page, RATINGS_PAGE_SIZE)
       setModels(res.data)
       setTotal(res.total)
       setThresholds(res.thresholds)
@@ -844,7 +855,7 @@ function RatingsTab() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '加载失败')
     }
-  }
+  }, [keyword, page])
 
   useEffect(() => {
     setPage(1)
@@ -852,17 +863,12 @@ function RatingsTab() {
 
   useEffect(() => {
     void load()
-  }, [keyword, page])
+  }, [load])
 
-  async function changeRating(id: number, rating: string, score: number) {
-    try {
-      await setRating(id, rating, score)
-      toast.success(rating === '' && score <= 0 ? '已重置为空' : '已保存')
-      void load()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '更新失败')
-      throw error
-    }
+  async function changeRating(id: number, score: number) {
+    await setRating(id, score)
+    toast.success(score > 0 ? '分数已保存，档位已按阈值更新' : '已重置为空')
+    void load()
   }
 
   async function resetCurrentPage() {
@@ -897,8 +903,9 @@ function RatingsTab() {
 
   async function saveThresholds() {
     try {
-      await updateThresholds(thresholds)
-      toast.success('阈值已更新')
+      const retiered = await updateThresholds(thresholds)
+      toast.success(retiered > 0 ? `阈值已更新，已重算 ${retiered} 个模型的分级` : '阈值已更新')
+      void load()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '更新失败')
     }
@@ -941,6 +948,7 @@ function RatingsTab() {
           <Button size='sm' variant='outline' onClick={() => void saveThresholds()}>
             保存阈值
           </Button>
+          <span className='text-muted-foreground'>档位由分数推导，保存后自动重算全部分级</span>
           <span className='ml-auto text-muted-foreground'>
             {lastSyncAt > 0 ? (
               <>
@@ -982,13 +990,13 @@ function RatingsTab() {
       <div className='space-y-1.5'>
         <div className='flex items-center justify-between px-1 text-xs text-muted-foreground'>
           <span>共 {total} 个模型 · 当前页已分级 {ratedCount}</span>
-          <span>手动设置会被固定，自动同步跳过；重置为空后可重新同步</span>
+          <span>档位不可直接编辑，由分数按阈值自动计算；手动填写的分数会被固定，自动同步跳过</span>
         </div>
         {models.map((item) => (
-          <RatingRow key={item.id} item={item} onSave={changeRating} />
+          <RatingRow key={item.id} item={item} thresholds={thresholds} onSave={changeRating} />
         ))}
         {models.length === 0 && <p className='py-10 text-center text-sm text-muted-foreground'>暂无模型</p>}
-        {total > PAGE_SIZE && (
+        {total > RATINGS_PAGE_SIZE && (
           <div className='flex items-center justify-between pt-3 text-xs text-muted-foreground'>
             <span>共 {total} 个模型</span>
             <div className='flex items-center gap-1.5'>

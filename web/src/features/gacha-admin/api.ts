@@ -1,4 +1,5 @@
 import { api } from '@/lib/api'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import type {
   GachaCardEntry,
@@ -109,8 +110,13 @@ export async function listRatings(
   }
 }
 
-export async function setRating(id: number, rating: string, ratingScore: number): Promise<void> {
-  await api.put(`/api/gacha/admin/ratings/${id}`, { rating, rating_score: ratingScore })
+// setRating 只提交分数：档位由后端按当前阈值自动推导，重置传 0。
+export async function setRating(id: number, ratingScore: number): Promise<void> {
+  const res = await api.put<{ success: boolean; message?: string }>(
+    `/api/gacha/admin/ratings/${id}`,
+    { rating_score: ratingScore }
+  )
+  requireServerSuccess(res.data)
 }
 
 export async function batchResetRatings(ids: number[]): Promise<number> {
@@ -123,6 +129,13 @@ export async function syncRatings(): Promise<GachaRatingSyncResult> {
   return res.data?.data
 }
 
-export async function updateThresholds(t: RatingThresholds): Promise<void> {
-  await api.put('/api/gacha/admin/settings', t)
+// updateThresholds 保存档位阈值，返回后端按新阈值重算档位的模型数。
+export async function updateThresholds(t: RatingThresholds): Promise<number> {
+  const res = await api.put<{
+    success: boolean
+    message?: string
+    data?: { retiered: number }
+  }>('/api/gacha/admin/settings', t)
+  requireServerSuccess(res.data)
+  return res.data?.data?.retiered ?? 0
 }

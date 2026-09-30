@@ -84,6 +84,57 @@ func TestMatchDeepSweScorePreferLongestPrefix(t *testing.T) {
 	}
 }
 
+// 阈值变化后按分数重算档位：只有记录过分数的模型参与，评分来源保持不变。
+func TestRetierGachaRatingsByScore(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&Model{}))
+	original := DeepSweRatingThresholds
+	t.Cleanup(func() { DeepSweRatingThresholds = original })
+
+	names := []string{"retier-a", "retier-b", "retier-none"}
+	for _, name := range names {
+		require.NoError(t, DB.Where("model_name = ?", name).Unscoped().Delete(&Model{}).Error)
+		t.Cleanup(func() { require.NoError(t, DB.Where("model_name = ?", name).Unscoped().Delete(&Model{}).Error) })
+	}
+	a := &Model{ModelName: "retier-a", Status: 1, Rating: "SR", RatingScore: 60, RatingSource: "manual"}
+	b := &Model{ModelName: "retier-b", Status: 1, Rating: "UR", RatingScore: 30, RatingSource: "deepswe"}
+	unscored := &Model{ModelName: "retier-none", Status: 1, Rating: "UR"}
+	require.NoError(t, DB.Create(a).Error)
+	require.NoError(t, DB.Create(b).Error)
+	require.NoError(t, DB.Create(unscored).Error)
+
+	// 默认阈值（UR65/SSR55/SR45/R30）：60 -> SSR，30 -> R
+	DeepSweRatingThresholds = gachaRatingThresholdsDefault
+	changed, err := RetierGachaRatingsByScore()
+	require.NoError(t, err)
+	require.EqualValues(t, 2, changed)
+
+	require.NoError(t, DB.First(a, a.Id).Error)
+	require.Equal(t, "SSR", a.Rating)
+	require.Equal(t, "manual", a.RatingSource)
+	require.Equal(t, 60.0, a.RatingScore)
+	require.NoError(t, DB.First(b, b.Id).Error)
+	require.Equal(t, "R", b.Rating)
+	require.Equal(t, "deepswe", b.RatingSource)
+	// 没有分数的模型不参与重算
+	require.NoError(t, DB.First(unscored, unscored.Id).Error)
+	require.Equal(t, "UR", unscored.Rating)
+
+	// 幂等：档位已与分数一致时不再写入
+	changed, err = RetierGachaRatingsByScore()
+	require.NoError(t, err)
+	require.EqualValues(t, 0, changed)
+
+	// 提高阈值后同一分数降档
+	DeepSweRatingThresholds = GachaRatingThresholds{UR: 70, SSR: 65, SR: 50, R: 40}
+	changed, err = RetierGachaRatingsByScore()
+	require.NoError(t, err)
+	require.EqualValues(t, 2, changed)
+	require.NoError(t, DB.First(a, a.Id).Error)
+	require.Equal(t, "SR", a.Rating)
+	require.NoError(t, DB.First(b, b.Id).Error)
+	require.Equal(t, "N", b.Rating)
+}
+
 // 端到端：真实榜单结构 + 归一化匹配 -> ApplyDeepSweScores 写入模型分级。
 func TestApplyDeepSweScoresRealistic(t *testing.T) {
 	require.NoError(t, DB.AutoMigrate(&Model{}))

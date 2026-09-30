@@ -50,9 +50,9 @@ func AdminListGachaRatings(c *gin.Context) {
 	})
 }
 
-// AdminSetGachaRating 手动设置模型分级。
-// rating 非空：覆盖后 source=manual，同步任务跳过；仅填分数时按阈值自动映射档位。
-// rating 为空且 score<=0：清空分级（rating/score/source），后续可被 DeepSWE 同步重新覆盖。
+// AdminSetGachaRating 手动设置模型分数。档位由分数按当前阈值自动推导，不可直接编辑。
+// rating_score > 0：档位 = 分数映射结果，来源记为 manual，DeepSWE 同步跳过；
+// rating_score <= 0：清空分级（rating/score/source），后续可被 DeepSWE 同步重新覆盖。
 func AdminSetGachaRating(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -60,20 +60,21 @@ func AdminSetGachaRating(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Rating      string  `json:"rating"`
 		RatingScore float64 `json:"rating_score"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(200, gin.H{"success": false, "message": err.Error()})
 		return
 	}
-	if !isValidRating(req.Rating) {
-		c.JSON(200, gin.H{"success": false, "message": "rating must be N/R/SR/SSR/UR or empty"})
+	if req.RatingScore < 0 || req.RatingScore > 100 {
+		c.JSON(200, gin.H{"success": false, "message": "分数必须在 0-100 之间"})
 		return
 	}
-	rating := req.Rating
-	if rating == "" && req.RatingScore > 0 {
+	rating := ""
+	source := ""
+	if req.RatingScore > 0 {
 		rating = model.MapScoreToRating(req.RatingScore)
+		source = "manual"
 	}
 	if rating == "" {
 		if _, err := model.ResetGachaRatings([]int{id}); err != nil {
@@ -81,13 +82,18 @@ func AdminSetGachaRating(c *gin.Context) {
 			return
 		}
 	} else {
-		if err := model.UpdateModelRating(id, rating, req.RatingScore, "manual"); err != nil {
+		if err := model.UpdateModelRating(id, rating, req.RatingScore, source); err != nil {
 			c.JSON(200, gin.H{"success": false, "message": err.Error()})
 			return
 		}
 	}
 	model.RefreshPricing()
-	c.JSON(200, gin.H{"success": true})
+	c.JSON(200, gin.H{"success": true, "data": gin.H{
+		"id":            id,
+		"rating":        rating,
+		"rating_score":  req.RatingScore,
+		"rating_source": source,
+	}})
 }
 
 // AdminBatchResetGachaRatings 批量清空模型分级。
@@ -146,16 +152,14 @@ func AdminUpdateGachaRatingThresholds(c *gin.Context) {
 		return
 	}
 	model.ReloadGachaRatingThresholds()
-	model.RefreshPricing()
-	c.JSON(200, gin.H{"success": true})
-}
-
-func isValidRating(r string) bool {
-	switch r {
-	case "", "N", "R", "SR", "SSR", "UR":
-		return true
+	// 档位由分数推导，阈值变化后按新阈值重算全部分级。
+	retiered, err := model.RetierGachaRatingsByScore()
+	if err != nil {
+		c.JSON(200, gin.H{"success": false, "message": err.Error()})
+		return
 	}
-	return false
+	model.RefreshPricing()
+	c.JSON(200, gin.H{"success": true, "data": gin.H{"retiered": retiered}})
 }
 
 // ---------------------------------------------------------------------------

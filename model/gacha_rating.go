@@ -238,6 +238,28 @@ func UpdateModelRating(id int, rating string, score float64, source string) erro
 		}).Error
 }
 
+// RetierGachaRatingsByScore 按当前阈值重算所有已记录分数的模型档位。
+// 档位只由分数决定，评分来源（manual/deepswe）保持不变。
+// 返回档位发生变化的模型数。
+func RetierGachaRatingsByScore() (int64, error) {
+	var models []*Model
+	if err := DB.Where("rating_score > 0").Find(&models).Error; err != nil {
+		return 0, err
+	}
+	var changed int64
+	for _, m := range models {
+		rating := MapScoreToRating(m.RatingScore)
+		if m.Rating == rating {
+			continue
+		}
+		if err := DB.Model(&Model{}).Where("id = ?", m.Id).Update("rating", rating).Error; err != nil {
+			return changed, err
+		}
+		changed++
+	}
+	return changed, nil
+}
+
 // ReloadGachaRatingThresholds 从选项表重新加载阈值。
 func ReloadGachaRatingThresholds() {
 	common.OptionMapRWMutex.RLock()
