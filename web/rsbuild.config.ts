@@ -76,13 +76,11 @@ export default defineConfig(({ envMode }) => {
     },
     html: {
       template: './index.html',
-      // When a custom favicon is configured, hand it to Rsbuild so the link
-      // tag is emitted by the HTML plugin; this also suppresses the automatic
-      // public/favicon.ico fallback, keeping a single deterministic icon.
-      ...(customFavicon ? { favicon: customFavicon } : {}),
+      // A configured brand icon wins; otherwise keep the project icon, so the
+      // HTML plugin always emits exactly one deterministic favicon link.
+      favicon: customFavicon || './public/favicon.ico',
       templateParameters: {
         systemName: htmlSystemName,
-        customFavicon,
       },
     },
     server: {

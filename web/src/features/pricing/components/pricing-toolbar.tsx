@@ -151,7 +151,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
             <ToggleGroupItem value='K'>/1K</ToggleGroupItem>
           </ToggleGroup>
 
-          <DropdownMenu>
+          <DropdownMenu modal={false}>
             <DropdownMenuTrigger
               render={
                 <Button
