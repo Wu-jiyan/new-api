@@ -90,6 +90,7 @@ it.each([
             stripe_min_topup: 1,
             amount_options: [100, 20],
             discount: {},
+            enable_range_discount: false,
           }}
           presetAmounts={[{ value: 100, discount: 0.8 }, { value: 20 }]}
           selectedPreset={null}
