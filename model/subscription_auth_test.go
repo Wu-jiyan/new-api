@@ -288,6 +288,74 @@ func TestSubscriptionUsableGroupsMigrationPreservesLegacyRows(t *testing.T) {
 	assert.EqualValues(t, 40, after.AmountUsed)
 }
 
+// TestRefundSubscriptionPreConsumeIsAtomic pins the refund to a single transaction.
+// The quota delta and the record status must commit together: if the quota write
+// committed on its own, a failure while writing the record status would leave the
+// record "consumed", and the retry would credit the quota a second time.
+func TestRefundSubscriptionPreConsumeIsAtomic(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "refund.db")
+	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	require.NoError(t, db.AutoMigrate(&SubscriptionPlan{}, &UserSubscription{}, &SubscriptionPreConsumeRecord{}))
+
+	prevDB, prevLogDB := DB, LOG_DB
+	DB, LOG_DB = db, db
+	t.Cleanup(func() { DB, LOG_DB = prevDB, prevLogDB })
+
+	sub := &UserSubscription{
+		UserId: 1, PlanId: 1, AmountTotal: 100, AmountUsed: 60, Status: "active",
+		StartTime: 1, EndTime: time.Now().Add(time.Hour).Unix(),
+	}
+	require.NoError(t, db.Create(sub).Error)
+	require.NoError(t, db.Create(&SubscriptionPreConsumeRecord{
+		RequestId: "refund-req", UserId: 1, UserSubscriptionId: sub.Id,
+		PreConsumed: 40, Status: "consumed",
+	}).Error)
+
+	// Fail the record status write exactly once, after the quota has been touched.
+	failRecordUpdate := true
+	require.NoError(t, db.Callback().Update().Before("gorm:update").Register(
+		"test:fail_record_status_write",
+		func(tx *gorm.DB) {
+			if !failRecordUpdate || tx.Statement.Table != "subscription_pre_consume_records" {
+				return
+			}
+			failRecordUpdate = false
+			tx.AddError(errors.New("record status write failed"))
+		},
+	))
+
+	require.Error(t, RefundSubscriptionPreConsume("refund-req"))
+
+	var afterFailure UserSubscription
+	require.NoError(t, db.First(&afterFailure, sub.Id).Error)
+	assert.EqualValues(t, 60, afterFailure.AmountUsed,
+		"a failed refund must not leave the quota credited")
+
+	var recordAfterFailure SubscriptionPreConsumeRecord
+	require.NoError(t, db.Where("request_id = ?", "refund-req").First(&recordAfterFailure).Error)
+	assert.Equal(t, "consumed", recordAfterFailure.Status)
+
+	// The retry now succeeds and credits the quota exactly once.
+	require.NoError(t, RefundSubscriptionPreConsume("refund-req"))
+	var refunded UserSubscription
+	require.NoError(t, db.First(&refunded, sub.Id).Error)
+	assert.EqualValues(t, 20, refunded.AmountUsed, "pre-consumed quota must come back exactly once")
+
+	var record SubscriptionPreConsumeRecord
+	require.NoError(t, db.Where("request_id = ?", "refund-req").First(&record).Error)
+	assert.Equal(t, "refunded", record.Status)
+
+	// Idempotent: a further retry must not credit the quota again.
+	require.NoError(t, RefundSubscriptionPreConsume("refund-req"))
+	var afterRetry UserSubscription
+	require.NoError(t, db.First(&afterRetry, sub.Id).Error)
+	assert.EqualValues(t, 20, afterRetry.AmountUsed, "a retried refund must be a no-op")
+}
+
 func TestSubscriptionGroupCacheRefreshFailureDoesNotChangeCommittedResult(t *testing.T) {
 	previousDB, previousLogDB := DB, LOG_DB
 	previousMainDatabaseType, previousLogDatabaseType := common.MainDatabaseType(), common.LogDatabaseType()
