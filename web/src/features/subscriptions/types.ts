@@ -41,6 +41,8 @@ export const subscriptionPlanSchema = z.object({
   total_amount: z.number(),
   upgrade_group: z.string().optional(),
   downgrade_group: z.string().optional(),
+  // Groups whose requests may consume this plan's quota (empty = any group)
+  usable_groups: z.array(z.string()).optional(),
   stripe_price_id: z.string().optional(),
   creem_product_id: z.string().optional(),
   waffo_pancake_product_id: z.string().optional(),
@@ -67,6 +69,8 @@ export const userSubscriptionSchema = z.object({
   amount_total: z.number(),
   amount_used: z.number(),
   next_reset_time: z.number().optional(),
+  // Snapshot of the plan's group restriction (empty = any group)
+  usable_groups: z.array(z.string()).optional(),
 })
 
 export type UserSubscription = z.infer<typeof userSubscriptionSchema>

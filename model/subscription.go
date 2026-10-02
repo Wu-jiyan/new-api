@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -36,6 +37,11 @@ const (
 var (
 	ErrSubscriptionOrderNotFound      = errors.New("subscription order not found")
 	ErrSubscriptionOrderStatusInvalid = errors.New("subscription order status invalid")
+
+	// ErrSubscriptionGroupNotUsable reports that every active subscription of the
+	// user is restricted to other groups, so this request cannot spend subscription
+	// quota. Callers use errors.Is instead of matching message text.
+	ErrSubscriptionGroupNotUsable = errors.New("subscription quota is restricted to other groups")
 )
 
 const (
@@ -178,6 +184,9 @@ type SubscriptionPlan struct {
 	// Downgrade user group on expiry (empty = revert to the group held before purchase)
 	DowngradeGroup string `json:"downgrade_group" gorm:"type:varchar(64);default:''"`
 
+	// Groups whose requests may consume this plan's quota (empty = any group)
+	UsableGroups []string `json:"usable_groups" gorm:"type:text;serializer:json"`
+
 	// Total quota (amount in quota units, 0 = unlimited)
 	TotalAmount int64 `json:"total_amount" gorm:"type:bigint;not null;default:0"`
 
@@ -272,6 +281,10 @@ type UserSubscription struct {
 
 	// Downgrade target group on expiry (snapshot from plan; empty = revert to PrevUserGroup)
 	DowngradeGroup string `json:"downgrade_group" gorm:"type:varchar(64);default:''"`
+
+	// Groups whose requests may consume this subscription's quota
+	// (snapshot from plan; empty = any group)
+	UsableGroups []string `json:"usable_groups" gorm:"type:text;serializer:json"`
 
 	// Whether wallet fallback is allowed after this subscription's quota is exhausted (snapshot from plan)
 	AllowWalletOverflow bool `json:"allow_wallet_overflow"`
@@ -547,6 +560,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		UpgradeGroup:        upgradeGroup,
 		PrevUserGroup:       prevGroup,
 		DowngradeGroup:      strings.TrimSpace(plan.DowngradeGroup),
+		UsableGroups:        slices.Clone(plan.UsableGroups),
 		AllowWalletOverflow: allowWalletOverflow,
 		CreatedAt:           common.GetTimestamp(),
 		UpdatedAt:           common.GetTimestamp(),
@@ -867,38 +881,71 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	return buildSubscriptionSummaries(subs), nil
 }
 
-// HasActiveUserSubscription returns whether the user has any active subscription.
-// This is a lightweight existence check to avoid heavy pre-consume transactions.
-func HasActiveUserSubscription(userId int) (bool, error) {
-	if userId <= 0 {
-		return false, errors.New("invalid userId")
+// SubscriptionUsableGroupsAllow reports whether a subscription restricted to
+// usableGroups may pay for a request served in group. An empty restriction means the
+// subscription pays for any group; an unknown request group never matches a
+// restriction, because the consuming group could not be verified.
+func SubscriptionUsableGroupsAllow(usableGroups []string, group string) bool {
+	if len(usableGroups) == 0 {
+		return true
 	}
-	now := common.GetTimestamp()
-	var count int64
-	if err := DB.Model(&UserSubscription{}).
-		Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
-		Count(&count).Error; err != nil {
+	group = strings.TrimSpace(group)
+	if group == "" {
+		return false
+	}
+	return slices.Contains(usableGroups, group)
+}
+
+// activeUserSubscriptionsForGroup returns the user's active subscriptions whose quota
+// may be consumed in group. It stays a cheap read because it only loads the columns
+// the group checks need.
+func activeUserSubscriptionsForGroup(userId int, group string) ([]UserSubscription, error) {
+	if userId <= 0 {
+		return nil, errors.New("invalid userId")
+	}
+	var subs []UserSubscription
+	if err := DB.Select("id", "usable_groups", "allow_wallet_overflow").
+		Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", common.GetTimestamp()).
+		Find(&subs).Error; err != nil {
+		return nil, err
+	}
+	matched := make([]UserSubscription, 0, len(subs))
+	for _, sub := range subs {
+		if SubscriptionUsableGroupsAllow(sub.UsableGroups, group) {
+			matched = append(matched, sub)
+		}
+	}
+	return matched, nil
+}
+
+// HasActiveUserSubscription returns whether the user has an active subscription whose
+// quota may be consumed in group. Subscriptions restricted to other groups do not
+// count, so requests outside the restriction fall back to the wallet exactly as if the
+// user had no subscription. This is a lightweight check to avoid heavy pre-consume
+// transactions.
+func HasActiveUserSubscription(userId int, group string) (bool, error) {
+	subs, err := activeUserSubscriptionsForGroup(userId, group)
+	if err != nil {
 		return false, err
 	}
-	return count > 0, nil
+	return len(subs) > 0, nil
 }
 
 // UserActiveSubscriptionsAllowWalletOverflow returns whether wallet balance may be used
-// after the user's subscription quota is exhausted. A single active subscription that
-// disallows wallet overflow (allow_wallet_overflow = false) blocks the fallback.
-func UserActiveSubscriptionsAllowWalletOverflow(userId int) (bool, error) {
-	if userId <= 0 {
-		return false, errors.New("invalid userId")
-	}
-	now := common.GetTimestamp()
-	var strictCount int64
-	if err := DB.Model(&UserSubscription{}).
-		Where("user_id = ? AND status = ? AND end_time > ? AND allow_wallet_overflow = ?",
-			userId, "active", now, false).
-		Count(&strictCount).Error; err != nil {
+// after the subscription quota usable in group is exhausted. A single matching
+// subscription that disallows wallet overflow (allow_wallet_overflow = false) blocks
+// the fallback.
+func UserActiveSubscriptionsAllowWalletOverflow(userId int, group string) (bool, error) {
+	subs, err := activeUserSubscriptionsForGroup(userId, group)
+	if err != nil {
 		return false, err
 	}
-	return strictCount == 0, nil
+	for _, sub := range subs {
+		if !sub.AllowWalletOverflow {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // GetAllUserSubscriptions returns all subscriptions (active and expired) for a user.
@@ -1301,8 +1348,9 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 	return tx.Save(sub).Error
 }
 
-// PreConsumeUserSubscription pre-consumes from any active subscription total quota.
-func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+// PreConsumeUserSubscription pre-consumes from any active subscription total quota whose
+// usable groups cover group (empty restriction = any group).
+func PreConsumeUserSubscription(requestId string, userId int, group string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
@@ -1348,8 +1396,13 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		if len(subs) == 0 {
 			return errors.New("no active subscription")
 		}
+		skippedByGroup := 0
 		for _, candidate := range subs {
 			sub := candidate
+			if !SubscriptionUsableGroupsAllow(sub.UsableGroups, group) {
+				skippedByGroup++
+				continue
+			}
 			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
 			if err != nil {
 				return err
@@ -1396,6 +1449,11 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			returnValue.AmountUsedBefore = usedBefore
 			returnValue.AmountUsedAfter = sub.AmountUsed
 			return nil
+		}
+		// Every subscription existed but none could pay for this group: report the
+		// restriction instead of a plain shortage so the caller can explain it.
+		if skippedByGroup == len(subs) {
+			return fmt.Errorf("%w (group=%q)", ErrSubscriptionGroupNotUsable, strings.TrimSpace(group))
 		}
 		return fmt.Errorf("subscription quota insufficient, need=%d", amount)
 	})

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -83,6 +84,208 @@ func TestSubscriptionGroupTransitionsPreserveAuthVersionAndSessions(t *testing.T
 	cached, err = GetUserCache(user.Id)
 	require.NoError(t, err)
 	assert.Equal(t, "default", cached.Group)
+}
+
+// TestSubscriptionUsableGroupsRestrictConsumption covers the group restriction
+// end-to-end: the plan snapshot, pre-consume selection, and the two group-aware
+// existence checks that decide wallet fallback.
+func TestSubscriptionUsableGroupsRestrictConsumption(t *testing.T) {
+	truncateTables(t)
+	// The shared fixture migrates plans and subscriptions but not the pre-consume
+	// record table, which this test needs to actually reserve quota.
+	require.NoError(t, DB.AutoMigrate(&SubscriptionPreConsumeRecord{}))
+	t.Cleanup(func() {
+		DB.Exec("DELETE FROM subscription_pre_consume_records")
+	})
+	useUserCacheMiniRedis(t)
+	user := User{
+		Username:    "usable-groups-user",
+		Password:    "unused-password-hash",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+		AuthVersion: 1,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	require.NoError(t, populateUserCache(user))
+
+	restrictedPlan := &SubscriptionPlan{
+		Title:         "VIP only",
+		DurationUnit:  SubscriptionDurationMonth,
+		DurationValue: 1,
+		TotalAmount:   100,
+		UsableGroups:  []string{"vip", "pro"},
+		Enabled:       true,
+	}
+	require.NoError(t, DB.Create(restrictedPlan).Error)
+
+	sub, err := CreateUserSubscriptionFromPlanTx(DB, user.Id, restrictedPlan, "admin")
+	require.NoError(t, err)
+	// The snapshot is taken at purchase time so later plan edits do not move old
+	// subscriptions.
+	require.Equal(t, []string{"vip", "pro"}, sub.UsableGroups)
+
+	t.Run("restricted groups decide wallet fallback", func(t *testing.T) {
+		// Not usable anywhere yet, so the two group-aware checks must say "no
+		// subscription here" and the caller falls back to the wallet.
+		hasDefault, err := HasActiveUserSubscription(user.Id, "default")
+		require.NoError(t, err)
+		assert.False(t, hasDefault)
+
+		hasVip, err := HasActiveUserSubscription(user.Id, "vip")
+		require.NoError(t, err)
+		assert.True(t, hasVip)
+
+		allowDefault, err := UserActiveSubscriptionsAllowWalletOverflow(user.Id, "default")
+		require.NoError(t, err)
+		assert.True(t, allowDefault, "no subscription applies here, so the wallet stays usable")
+	})
+
+	t.Run("pre-consume pays only from a covered group", func(t *testing.T) {
+		_, err := PreConsumeUserSubscription("req-outside", user.Id, "default", 0, 10)
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrSubscriptionGroupNotUsable)
+
+		result, err := PreConsumeUserSubscription("req-vip", user.Id, "vip", 0, 10)
+		require.NoError(t, err)
+		require.Equal(t, sub.Id, result.UserSubscriptionId)
+		assert.EqualValues(t, 10, result.PreConsumed)
+	})
+
+	t.Run("unrestricted plan pays any group", func(t *testing.T) {
+		openPlan := &SubscriptionPlan{
+			Title:         "Any group",
+			DurationUnit:  SubscriptionDurationMonth,
+			DurationValue: 1,
+			TotalAmount:   50,
+			Enabled:       true,
+		}
+		require.NoError(t, DB.Create(openPlan).Error)
+		_, err := CreateUserSubscriptionFromPlanTx(DB, user.Id, openPlan, "admin")
+		require.NoError(t, err)
+
+		hasDefault, err := HasActiveUserSubscription(user.Id, "default")
+		require.NoError(t, err)
+		assert.True(t, hasDefault)
+
+		result, err := PreConsumeUserSubscription("req-open", user.Id, "default", 0, 10)
+		require.NoError(t, err)
+		assert.EqualValues(t, 10, result.PreConsumed)
+	})
+
+	t.Run("legacy rows without the restriction pay any group", func(t *testing.T) {
+		// A row written before the column existed reads back as an empty
+		// restriction, which must keep paying for every group.
+		legacy := &UserSubscription{
+			UserId:      user.Id,
+			PlanId:      restrictedPlan.Id,
+			AmountTotal: 30,
+			StartTime:   time.Now().Unix(),
+			EndTime:     time.Now().Add(24 * time.Hour).Unix(),
+			Status:      "active",
+		}
+		require.NoError(t, DB.Create(legacy).Error)
+
+		var stored UserSubscription
+		require.NoError(t, DB.First(&stored, legacy.Id).Error)
+		assert.Empty(t, stored.UsableGroups)
+
+		hasAny, err := HasActiveUserSubscription(user.Id, "any-group")
+		require.NoError(t, err)
+		assert.True(t, hasAny)
+	})
+}
+
+// legacySubscriptionPlan / legacyUserSubscription mirror the table shape before the
+// usable-groups column existed, so the upgrade path can be exercised on a real file DB.
+type legacySubscriptionPlan struct {
+	Id    int    `gorm:"primaryKey"`
+	Title string `gorm:"type:varchar(128)"`
+	Total int64  `gorm:"type:bigint"`
+}
+
+func (legacySubscriptionPlan) TableName() string { return "subscription_plans" }
+
+type legacyUserSubscription struct {
+	Id          int    `gorm:"primaryKey"`
+	UserId      int    `gorm:"index"`
+	PlanId      int    `gorm:"index"`
+	AmountTotal int64  `gorm:"type:bigint"`
+	AmountUsed  int64  `gorm:"type:bigint"`
+	Status      string `gorm:"type:varchar(32)"`
+	StartTime   int64
+	EndTime     int64
+	// UsableGroups does not exist yet in this shape; the column must be added by
+	// AutoMigrate below.
+}
+
+func (legacyUserSubscription) TableName() string { return "user_subscriptions" }
+
+// TestSubscriptionUsableGroupsMigrationPreservesLegacyRows proves the schema change is
+// additive on a real SQLite file: existing rows survive, keep paying, and a second
+// AutoMigrate is a no-op.
+func TestSubscriptionUsableGroupsMigrationPreservesLegacyRows(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "upgrade.db")
+	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	// Registered after TempDir, so LIFO cleanup closes the file before removal
+	// (Windows refuses to unlink a still-open database).
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
+	// Legacy database: tables without the usable_groups column, plus real rows.
+	require.NoError(t, db.AutoMigrate(&legacySubscriptionPlan{}, &legacyUserSubscription{}))
+	require.NoError(t, db.Create(&legacySubscriptionPlan{Id: 1, Title: "Legacy plan", Total: 100}).Error)
+	require.NoError(t, db.Create(&legacyUserSubscription{
+		Id: 1, UserId: 1, PlanId: 1, AmountTotal: 100, AmountUsed: 40,
+		Status: "active", StartTime: 1, EndTime: time.Now().Add(time.Hour).Unix(),
+	}).Error)
+
+	// Upgrade.
+	require.NoError(t, db.AutoMigrate(&SubscriptionPlan{}, &UserSubscription{}))
+
+	var column string
+	require.NoError(t, db.Raw(
+		"SELECT type FROM pragma_table_info('user_subscriptions') WHERE name = 'usable_groups'",
+	).Scan(&column).Error)
+	require.NotEmpty(t, column, "usable_groups column must be added to existing tables")
+
+	var sub UserSubscription
+	require.NoError(t, db.First(&sub, 1).Error)
+	assert.EqualValues(t, 40, sub.AmountUsed, "existing usage must survive the upgrade")
+	assert.EqualValues(t, 100, sub.AmountTotal)
+	assert.Empty(t, sub.UsableGroups, "legacy rows read back as unrestricted")
+
+	// The upgraded row keeps paying for every group.
+	previousDB, previousLogDB := DB, LOG_DB
+	DB, LOG_DB = db, db
+	t.Cleanup(func() { DB, LOG_DB = previousDB, previousLogDB })
+	has, err := HasActiveUserSubscription(1, "any-group")
+	require.NoError(t, err)
+	assert.True(t, has)
+
+	// Writing a restriction works, and clearing it back to unrestricted works too.
+	require.NoError(t, db.Model(&UserSubscription{}).Where("id = ?", 1).
+		Select("usable_groups").Updates(UserSubscription{UsableGroups: []string{"vip"}}).Error)
+	var restricted UserSubscription
+	require.NoError(t, db.First(&restricted, 1).Error)
+	assert.Equal(t, []string{"vip"}, restricted.UsableGroups)
+	assert.True(t, SubscriptionUsableGroupsAllow(restricted.UsableGroups, "vip"))
+	assert.False(t, SubscriptionUsableGroupsAllow(restricted.UsableGroups, "default"))
+
+	require.NoError(t, db.Model(&UserSubscription{}).Where("id = ?", 1).
+		Select("usable_groups").Updates(UserSubscription{UsableGroups: []string{}}).Error)
+	var cleared UserSubscription
+	require.NoError(t, db.First(&cleared, 1).Error)
+	assert.Empty(t, cleared.UsableGroups)
+	assert.EqualValues(t, 40, cleared.AmountUsed, "clearing the restriction must not touch usage")
+
+	// Idempotency: migrating again changes nothing.
+	require.NoError(t, db.AutoMigrate(&SubscriptionPlan{}, &UserSubscription{}))
+	var after UserSubscription
+	require.NoError(t, db.First(&after, 1).Error)
+	assert.EqualValues(t, 40, after.AmountUsed)
 }
 
 func TestSubscriptionGroupCacheRefreshFailureDoesNotChangeCommittedResult(t *testing.T) {

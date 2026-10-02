@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/form'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Input } from '@/components/ui/input'
+import { MultiSelect } from '@/components/multi-select'
 import {
   Select,
   SelectContent,
@@ -488,6 +489,34 @@ export function SubscriptionsMutateDrawer({
                   )}
                 />
               </div>
+
+              <FormField
+                control={form.control}
+                name='usable_groups'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Usable Groups')}</FormLabel>
+                    <FormControl>
+                      <MultiSelect
+                        options={groupOptions.map((group) => ({
+                          value: group,
+                          label: group,
+                        }))}
+                        selected={field.value ?? []}
+                        onChange={field.onChange}
+                        placeholder={t('Any group')}
+                        disabled={isSubmitting}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Leave empty so this plan can pay for any group. Otherwise only requests in these groups can consume its quota.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}

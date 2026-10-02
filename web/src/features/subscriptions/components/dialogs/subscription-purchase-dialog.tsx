@@ -283,6 +283,18 @@ export function SubscriptionPurchaseDialog(props: Props) {
               <GroupBadge group={plan.upgrade_group} />
             </div>
           )}
+          {!!plan.usable_groups?.length && (
+            <div className='flex flex-wrap items-center justify-between gap-2'>
+              <span className='text-muted-foreground text-sm'>
+                {t('Usable Groups')}
+              </span>
+              <span className='flex flex-wrap justify-end gap-1'>
+                {plan.usable_groups.map((group) => (
+                  <GroupBadge key={group} group={group} />
+                ))}
+              </span>
+            </div>
+          )}
           <Separator />
           <div className='flex items-center justify-between'>
             <span className='text-sm font-medium'>{t('Amount Due')}</span>

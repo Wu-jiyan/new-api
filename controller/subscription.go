@@ -27,6 +27,33 @@ type SubscriptionBalancePayRequest struct {
 	PlanId int `json:"plan_id"`
 }
 
+// maxSubscriptionUsableGroups caps how many groups a plan can be pinned to, so a
+// mistake cannot turn a plan into an unreadable token list.
+const maxSubscriptionUsableGroups = 20
+
+// normalizeSubscriptionUsableGroups trims, de-duplicates and validates the groups whose
+// requests may consume this plan's quota. An empty result means "any group".
+func normalizeSubscriptionUsableGroups(groups []string) ([]string, error) {
+	normalized := make([]string, 0, len(groups))
+	seen := make(map[string]bool, len(groups))
+	groupRatios := ratio_setting.GetGroupRatioCopy()
+	for _, group := range groups {
+		group = strings.TrimSpace(group)
+		if group == "" || seen[group] {
+			continue
+		}
+		if _, ok := groupRatios[group]; !ok {
+			return nil, fmt.Errorf("可用分组不存在: %s", group)
+		}
+		seen[group] = true
+		normalized = append(normalized, group)
+	}
+	if len(normalized) > maxSubscriptionUsableGroups {
+		return nil, fmt.Errorf("可用分组最多 %d 个", maxSubscriptionUsableGroups)
+	}
+	return normalized, nil
+}
+
 // ---- User APIs ----
 
 func GetSubscriptionPlans(c *gin.Context) {
@@ -199,13 +226,18 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 			return
 		}
 	}
+	usableGroups, err := normalizeSubscriptionUsableGroups(req.Plan.UsableGroups)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	req.Plan.UsableGroups = usableGroups
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
 	}
-	err := model.DB.Create(&req.Plan).Error
-	if err != nil {
+	if err := model.DB.Create(&req.Plan).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -273,13 +305,19 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			return
 		}
 	}
+	usableGroups, err := normalizeSubscriptionUsableGroups(req.Plan.UsableGroups)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	req.Plan.UsableGroups = usableGroups
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
 	}
 
-	err := model.DB.Transaction(func(tx *gorm.DB) error {
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
 		updateMap := map[string]any{
 			"title":                      req.Plan.Title,
@@ -309,6 +347,13 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			updateMap["allow_wallet_overflow"] = *req.Plan.AllowWalletOverflow
 		}
 		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap).Error; err != nil {
+			return err
+		}
+		// GORM's JSON serializer only runs for struct writes, so the slice must go
+		// through a Select-ed struct update: it is the only path that can also clear
+		// the restriction (an empty slice is a zero value the map cannot express).
+		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).
+			Select("usable_groups").Updates(model.SubscriptionPlan{UsableGroups: req.Plan.UsableGroups}).Error; err != nil {
 			return err
 		}
 		return nil

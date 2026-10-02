@@ -28,6 +28,7 @@ import {
 } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { GroupBadge } from '@/components/group-badge'
 import { Progress } from '@/components/ui/progress'
 import {
   Select,
@@ -480,6 +481,16 @@ export function SubscriptionPlansCard({
                           {new Date(nextResetTime * 1000).toLocaleString()}
                         </div>
                       )}
+                      {(subscription?.usable_groups?.length ?? 0) > 0 && (
+                        <div className='mt-1 flex flex-wrap items-center gap-1'>
+                          <span className='text-muted-foreground'>
+                            {t('Usable Groups')}:
+                          </span>
+                          {(subscription?.usable_groups ?? []).map((group) => (
+                            <GroupBadge key={group} group={group} />
+                          ))}
+                        </div>
+                      )}
                       <div className='text-muted-foreground mt-1'>
                         {t('Total Quota')}:{' '}
                         {totalAmount > 0 ? (
@@ -546,6 +557,9 @@ export function SubscriptionPlansCard({
                 limit > 0 ? `${t('Purchase Limit')}: ${limit}` : null,
                 plan.upgrade_group
                   ? `${t('Upgrade Group')}: ${plan.upgrade_group}`
+                  : null,
+                plan.usable_groups && plan.usable_groups.length > 0
+                  ? `${t('Usable Groups')}: ${plan.usable_groups.join(', ')}`
                   : null,
               ].filter(Boolean) as string[]
 
