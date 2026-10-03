@@ -9,6 +9,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -342,6 +343,10 @@ type RecordConsumeLogParams struct {
 	IsStream         bool      `json:"is_stream"`
 	Group            string    `json:"group"`
 	Other            *LogOther `json:"other"`
+	// BillingRequestInput 是结算时冻结的请求上下文。渠道成本按上游表达式重算时
+	// 需要它才能复现依赖 header/param/时间窗口的计价条件，缺失会按当前时刻重算。
+	// 体积可能很大（含请求体），因此不参与 params 的 JSON 序列化。
+	BillingRequestInput *billingexpr.RequestInput `json:"-"`
 }
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {

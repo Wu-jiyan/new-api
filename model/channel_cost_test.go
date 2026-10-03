@@ -3,10 +3,33 @@ package model
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/stretchr/testify/assert"
 )
+
+// A time-window rule must be evaluated at the request instant, not at the
+// moment the consume log is written. Repricing a 10:00 request at 20:00
+// would drop the peak multiplier and understate cost by half.
+func TestCalculateModelCostExpressionUsesRequestTime(t *testing.T) {
+	const expr = `(tier("base", p * 1 + c * 4)) * (hour("Asia/Shanghai") >= 9 && hour("Asia/Shanghai") < 12 ? 2 : 1)`
+	mc := dto.ChannelModelCost{BillingExpr: expr}
+	tokens := map[string]interface{}{
+		"billing_tokens": map[string]float64{"p": 1_000_000, "c": 0, "len": 1_000_000},
+	}
+	cst := time.FixedZone("CST", 8*60*60)
+
+	peak := CalculateModelCost(mc, 1, 1_000_000, 0, tokens,
+		&billingexpr.RequestInput{Now: time.Date(2026, 1, 1, 10, 0, 0, 0, cst)})
+	offPeak := CalculateModelCost(mc, 1, 1_000_000, 0, tokens,
+		&billingexpr.RequestInput{Now: time.Date(2026, 1, 1, 20, 0, 0, 0, cst)})
+
+	assert.InDelta(t, 2*common.QuotaPerUnit, peak, 1e-6, "10:00 falls in the doubled window")
+	assert.InDelta(t, 1*common.QuotaPerUnit, offPeak, 1e-6, "20:00 is outside the doubled window")
+}
 
 func TestCalculateChannelCost(t *testing.T) {
 	tests := []struct {
@@ -98,7 +121,7 @@ func TestCalculateModelCost(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := CalculateModelCost(tt.mc, tt.discount, tt.prompt, tt.completion, tt.other); math.Abs(got-tt.want) > 1e-9 {
+			if got := CalculateModelCost(tt.mc, tt.discount, tt.prompt, tt.completion, tt.other, nil); math.Abs(got-tt.want) > 1e-9 {
 				t.Fatalf("CalculateModelCost() = %v, want %v", got, tt.want)
 			}
 		})
@@ -119,7 +142,7 @@ func TestGlobalModelCostFromOtherUsesCacheCreationRatio(t *testing.T) {
 		"cache_tokens":          3840,
 		"cache_creation_tokens": 0,
 		"cache_creation_ratio":  1.25,
-	})
+	}, nil)
 	if got != 945 {
 		t.Fatalf("cache cost = %v, want 945", got)
 	}

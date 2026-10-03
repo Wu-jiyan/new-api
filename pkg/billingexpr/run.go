@@ -134,11 +134,11 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[
 			}
 			return strings.Contains(fmt.Sprint(source), substr)
 		},
-		"hour":    func(tz string) int { return timeInZone(tz).Hour() },
-		"minute":  func(tz string) int { return timeInZone(tz).Minute() },
-		"weekday": func(tz string) int { return int(timeInZone(tz).Weekday()) },
-		"month":   func(tz string) int { return int(timeInZone(tz).Month()) },
-		"day":     func(tz string) int { return timeInZone(tz).Day() },
+		"hour":    func(tz string) int { return timeInZone(tz, request.Now).Hour() },
+		"minute":  func(tz string) int { return timeInZone(tz, request.Now).Minute() },
+		"weekday": func(tz string) int { return int(timeInZone(tz, request.Now).Weekday()) },
+		"month":   func(tz string) int { return int(timeInZone(tz, request.Now).Month()) },
+		"day":     func(tz string) int { return timeInZone(tz, request.Now).Day() },
 		"max":     math.Max,
 		"min":     math.Min,
 		"abs":     math.Abs,
@@ -157,16 +157,22 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[
 	return f, trace, nil
 }
 
-func timeInZone(tz string) time.Time {
+// timeInZone resolves the wall clock a time probe sees. A non-zero now pins
+// the clock so a re-evaluation after the request finished observes the same
+// instant as the original pricing.
+func timeInZone(tz string, now time.Time) time.Time {
+	if now.IsZero() {
+		now = time.Now()
+	}
 	tz = strings.TrimSpace(tz)
 	if tz == "" {
-		return time.Now().UTC()
+		return now.UTC()
 	}
 	loc, err := time.LoadLocation(tz)
 	if err != nil {
-		return time.Now().UTC()
+		return now.UTC()
 	}
-	return time.Now().In(loc)
+	return now.In(loc)
 }
 
 func normalizeHeaders(headers map[string]string) map[string]string {

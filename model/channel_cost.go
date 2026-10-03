@@ -198,7 +198,7 @@ func CalculateChannelCost(settings *dto.ChannelCostSettings, quota int, groupRat
 //
 // other 需携带各计费路径写入的倍率明细（cache_tokens/cache_ratio、cache_creation_tokens[_5m/_1h]、
 // image_output/image_ratio、audio_input/audio_output/audio_ratio/audio_completion_ratio、usage_semantic 等）。
-func CalculateModelCost(mc dto.ChannelModelCost, discount float64, promptTokens int, completionTokens int, other map[string]interface{}) float64 {
+func CalculateModelCost(mc dto.ChannelModelCost, discount float64, promptTokens int, completionTokens int, other map[string]interface{}, requestInput *billingexpr.RequestInput) float64 {
 	// 上游显式 0 元定价：成本恒为 0，不做任何倍率计算。
 	if mc.Free {
 		return 0
@@ -212,7 +212,7 @@ func CalculateModelCost(mc dto.ChannelModelCost, discount float64, promptTokens 
 	// 上游表达式计价：用上游自己的公式重算一次，得到真实标价成本。
 	// 这是上游的真实成本价（与本地计费无关），再乘渠道折扣。
 	if mc.BillingExpr != "" {
-		if cost, ok := calculateExprModelCost(mc.BillingExpr, discount, promptTokens, completionTokens, other); ok {
+		if cost, ok := calculateExprModelCost(mc.BillingExpr, discount, promptTokens, completionTokens, other, requestInput); ok {
 			return cost
 		}
 		// 表达式不可求值（编译失败或缺少计费维度）时由调用方回退反推，
@@ -316,8 +316,8 @@ func CalculateModelCost(mc dto.ChannelModelCost, discount float64, promptTokens 
 // 因此必须复用结算当时的实际取值，而不是重新按用量推算。
 func billingTokensFromLog(other map[string]interface{}, promptTokens, completionTokens int) billingexpr.TokenParams {
 	params := billingexpr.TokenParams{
-		P: float64(promptTokens),
-		C: float64(completionTokens),
+		P:   float64(promptTokens),
+		C:   float64(completionTokens),
 		Len: float64(promptTokens),
 	}
 	values, ok := other["billing_tokens"].(map[string]float64)
@@ -357,19 +357,25 @@ func billingTokensFromLog(other map[string]interface{}, promptTokens, completion
 // 的 quotaConversion 决定，在这里复制一份会在表达式版本升级后悄悄分叉。
 // GroupRatio 固定为 1：分组倍率属于收入侧，渠道折扣在结果上单独乘。
 // 第二个返回值为 false 表示表达式不可求值，调用方需回退反推。
-func calculateExprModelCost(expr string, discount float64, promptTokens, completionTokens int, other map[string]interface{}) (float64, bool) {
+func calculateExprModelCost(expr string, discount float64, promptTokens, completionTokens int, other map[string]interface{}, requestInput *billingexpr.RequestInput) (float64, bool) {
 	if strings.TrimSpace(expr) == "" {
 		return 0, false
 	}
 	request := billingexpr.RequestInput{}
-	if count := readOtherInt(other, "image_count"); count > 0 {
-		request.ImageCount = &count
+	if requestInput != nil {
+		// 结算时冻结的请求上下文：header/param/时间窗口的判定才能与当时一致。
+		request = *requestInput
+	}
+	if request.ImageCount == nil {
+		if count := readOtherInt(other, "image_count"); count > 0 {
+			request.ImageCount = &count
+		}
 	}
 	snap := &billingexpr.BillingSnapshot{
-		BillingMode: "tiered_expr",
-		ExprString:  expr,
-		ExprHash:    billingexpr.ExprHashString(expr),
-		ExprVersion: billingexpr.ExprVersion(expr),
+		BillingMode:  "tiered_expr",
+		ExprString:   expr,
+		ExprHash:     billingexpr.ExprHashString(expr),
+		ExprVersion:  billingexpr.ExprVersion(expr),
 		QuotaPerUnit: common.QuotaPerUnit,
 		GroupRatio:   1,
 	}
@@ -502,13 +508,13 @@ func resolveChannelCost(params RecordConsumeLogParams) float64 {
 			if isExpression && strings.TrimSpace(mc.BillingExpr) == "" {
 				cost = CalculateChannelCost(&settings, params.Quota, groupRatio)
 			} else if isExpression {
-				if exprCost, computed := calculateExprModelCost(mc.BillingExpr, settings.Discount, params.PromptTokens, params.CompletionTokens, snapshot); computed {
+				if exprCost, computed := calculateExprModelCost(mc.BillingExpr, settings.Discount, params.PromptTokens, params.CompletionTokens, snapshot, params.BillingRequestInput); computed {
 					cost = exprCost
 				} else {
 					cost = CalculateChannelCost(&settings, params.Quota, groupRatio)
 				}
 			} else {
-				cost = CalculateModelCost(mc, settings.Discount, params.PromptTokens, params.CompletionTokens, snapshot)
+				cost = CalculateModelCost(mc, settings.Discount, params.PromptTokens, params.CompletionTokens, snapshot, params.BillingRequestInput)
 			}
 		} else {
 			// 表达式计价模型在日志里的 model_ratio / model_price 恒为 0（价格存在表达式中），
@@ -521,7 +527,7 @@ func resolveChannelCost(params RecordConsumeLogParams) float64 {
 				// 全局标价与渠道标价同构，成本 = 全局标价 × 渠道折扣系数，与系统计费算法一致。
 				mc := globalModelCostFromOther(params.ModelName, snapshot)
 				if mc.ModelRatio > 0 || mc.ModelPrice > 0 {
-					cost = CalculateModelCost(mc, settings.Discount, params.PromptTokens, params.CompletionTokens, snapshot)
+					cost = CalculateModelCost(mc, settings.Discount, params.PromptTokens, params.CompletionTokens, snapshot, nil)
 				}
 			}
 		}

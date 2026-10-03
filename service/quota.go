@@ -22,6 +22,20 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// billingRequestInputForLog 返回结算时冻结的请求上下文，并把墙钟钉在请求开始时刻。
+// 渠道成本按上游表达式重算时，依赖 header/param/时间窗口的判定必须看到与原请求
+// 相同的输入与时刻，否则同一请求会按不同时段重复计费或漏计。
+func billingRequestInputForLog(relayInfo *relaycommon.RelayInfo) *billingexpr.RequestInput {
+	if relayInfo == nil || relayInfo.BillingRequestInput == nil {
+		return nil
+	}
+	frozen := *relayInfo.BillingRequestInput
+	if frozen.Now.IsZero() && !relayInfo.StartTime.IsZero() {
+		frozen.Now = relayInfo.StartTime
+	}
+	return &frozen
+}
+
 type TokenDetails struct {
 	TextTokens  int
 	AudioTokens int
@@ -241,18 +255,19 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	}
 	attachQuotaSaturation(ctx, relayInfo, other)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
-		ChannelId:        relayInfo.ChannelId,
-		PromptTokens:     usage.InputTokens,
-		CompletionTokens: usage.OutputTokens,
-		ModelName:        logModel,
-		TokenName:        tokenName,
-		Quota:            quota,
-		Content:          logContent,
-		TokenId:          relayInfo.TokenId,
-		UseTimeSeconds:   int(useTimeSeconds),
-		IsStream:         relayInfo.IsStream,
-		Group:            relayInfo.UsingGroup,
-		Other:            other,
+		ChannelId:           relayInfo.ChannelId,
+		PromptTokens:        usage.InputTokens,
+		CompletionTokens:    usage.OutputTokens,
+		ModelName:           logModel,
+		TokenName:           tokenName,
+		Quota:               quota,
+		Content:             logContent,
+		TokenId:             relayInfo.TokenId,
+		UseTimeSeconds:      int(useTimeSeconds),
+		IsStream:            relayInfo.IsStream,
+		Group:               relayInfo.UsingGroup,
+		Other:               other,
+		BillingRequestInput: billingRequestInputForLog(relayInfo),
 	})
 }
 
@@ -374,18 +389,19 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	}
 	attachQuotaSaturation(ctx, relayInfo, other)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
-		ChannelId:        relayInfo.ChannelId,
-		PromptTokens:     usage.PromptTokens,
-		CompletionTokens: usage.CompletionTokens,
-		ModelName:        logModel,
-		TokenName:        tokenName,
-		Quota:            quota,
-		Content:          logContent,
-		TokenId:          relayInfo.TokenId,
-		UseTimeSeconds:   int(useTimeSeconds),
-		IsStream:         relayInfo.IsStream,
-		Group:            relayInfo.UsingGroup,
-		Other:            other,
+		ChannelId:           relayInfo.ChannelId,
+		PromptTokens:        usage.PromptTokens,
+		CompletionTokens:    usage.CompletionTokens,
+		ModelName:           logModel,
+		TokenName:           tokenName,
+		Quota:               quota,
+		Content:             logContent,
+		TokenId:             relayInfo.TokenId,
+		UseTimeSeconds:      int(useTimeSeconds),
+		IsStream:            relayInfo.IsStream,
+		Group:               relayInfo.UsingGroup,
+		Other:               other,
+		BillingRequestInput: billingRequestInputForLog(relayInfo),
 	})
 	relayInfo.PerformanceOutputTokens = int64(usage.CompletionTokens)
 }

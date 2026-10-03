@@ -3,6 +3,7 @@ package billingexpr
 import (
 	"crypto/sha256"
 	"fmt"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 )
@@ -14,6 +15,11 @@ type RequestInput struct {
 	// ImageCount is a validated billing quantity, separate from the frozen
 	// request's n. Settlement can replace it with the actual returned count.
 	ImageCount *int
+	// Now pins the wall clock seen by the time probes (hour/minute/weekday/
+	// month/day). Zero means "use the current time". Callers that re-evaluate
+	// an expression after the request finished must set this to the request
+	// time, otherwise a time-window rule silently prices at the wrong hour.
+	Now time.Time
 }
 
 // TokenParams holds all token dimensions passed into an Expr evaluation.
