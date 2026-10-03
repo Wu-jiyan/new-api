@@ -181,6 +181,37 @@ describe('ChannelCostPriceTable', () => {
     ).toBeDisabled()
   })
 
+  test('shows the synced expression and reports edits to it', async () => {
+    const onPrices = vi.fn()
+    render(
+      <Host
+        initial={{
+          'deepseek-v4.1-flash': {
+            billing_expr: 'tier("base", p * 1)',
+          },
+        }}
+        onPrices={onPrices}
+      />
+    )
+
+    // The expression must be visible and editable, not hidden behind a badge.
+    const field = screen.getByLabelText(
+      'deepseek-v4.1-flash Billing expression'
+    ) as HTMLInputElement
+    expect(field.value).toBe('tier("base", p * 1)')
+
+    await userEvent.clear(field)
+    await userEvent.type(field, 'tier("base", p * 2)')
+
+    expect(onPrices).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        'deepseek-v4.1-flash': expect.objectContaining({
+          billing_expr: 'tier("base", p * 2)',
+        }),
+      })
+    )
+  })
+
   test('adds an expression entry and ignores the numeric inputs', async () => {
     const onPrices = vi.fn()
     render(<Host initial={{}} onPrices={onPrices} />)

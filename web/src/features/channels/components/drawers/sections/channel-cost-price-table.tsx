@@ -165,7 +165,18 @@ export function ChannelCostPriceTable(props: ChannelCostPriceTableProps) {
                   <td className='px-3 py-1.5 font-mono text-xs'>{model}</td>
                   <td className='px-3 py-1.5'>{renderTypeBadge(mc)}</td>
                   <td className='px-3 py-1.5 font-mono text-xs'>
-                    {renderPriceValue(mc)}
+                    {'billing_expr' in mc ? (
+                      <Input
+                        value={mc.billing_expr}
+                        onChange={(e) =>
+                          updateEntry(model, { billing_expr: e.target.value })
+                        }
+                        aria-label={`${model} ${t('Billing expression')}`}
+                        className='h-7 w-80 px-2 font-mono text-xs'
+                      />
+                    ) : (
+                      renderPriceValue(mc)
+                    )}
                   </td>
                   {ratioFields.map((field) => (
                     <td key={field.key} className='px-3 py-1.5'>

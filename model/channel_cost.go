@@ -352,8 +352,10 @@ func billingTokensFromLog(other map[string]interface{}, promptTokens, completion
 }
 
 // calculateExprModelCost 用上游的表达式计价公式重算一次真实成本。
-// 表达式系数是 $/1M tokens，RunExpr 返回按 1M 缩放的结果，因此要除以 1e6
-// 还原成美元，再按渠道折扣与 QuotaPerUnit 换算成成本额度。
+// 换算走 billingexpr 的权威路径 ComputeTieredQuotaWithRequest，而不是自己
+// 除以 1e6：表达式输出的刻度、版本差异与按次固定价的处理都由 pkg/billingexpr
+// 的 quotaConversion 决定，在这里复制一份会在表达式版本升级后悄悄分叉。
+// GroupRatio 固定为 1：分组倍率属于收入侧，渠道折扣在结果上单独乘。
 // 第二个返回值为 false 表示表达式不可求值，调用方需回退反推。
 func calculateExprModelCost(expr string, discount float64, promptTokens, completionTokens int, other map[string]interface{}) (float64, bool) {
 	if strings.TrimSpace(expr) == "" {
@@ -363,18 +365,30 @@ func calculateExprModelCost(expr string, discount float64, promptTokens, complet
 	if count := readOtherInt(other, "image_count"); count > 0 {
 		request.ImageCount = &count
 	}
-	rawCost, _, err := billingexpr.RunExpr(expr, billingTokensFromLog(other, promptTokens, completionTokens))
+	snap := &billingexpr.BillingSnapshot{
+		BillingMode: "tiered_expr",
+		ExprString:  expr,
+		ExprHash:    billingexpr.ExprHashString(expr),
+		ExprVersion: billingexpr.ExprVersion(expr),
+		QuotaPerUnit: common.QuotaPerUnit,
+		GroupRatio:   1,
+	}
+	result, err := billingexpr.ComputeTieredQuotaWithRequest(
+		snap,
+		billingTokensFromLog(other, promptTokens, completionTokens),
+		request,
+	)
 	if err != nil {
 		// 表达式编译/求值失败时必须让调用方回退反推。吞掉错误并返回 0
 		// 会把成本变成 0，等于凭空造出 100% 利润。
 		logger.LogWarn(nil, "channel cost expression failed, falling back: %v", err)
 		return 0, false
 	}
-	if rawCost < 0 {
+	cost := result.ActualQuotaBeforeGroup
+	if cost < 0 {
 		return 0, false
 	}
-	usd := rawCost / 1_000_000
-	return usd * discount * common.QuotaPerUnit, true
+	return cost * discount, true
 }
 
 // channelModelCostValid 判断一个渠道模型成本配置是否已配置有效定价。
