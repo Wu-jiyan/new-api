@@ -197,6 +197,11 @@ func CalculateChannelCost(settings *dto.ChannelCostSettings, quota int, groupRat
 // other 需携带各计费路径写入的倍率明细（cache_tokens/cache_ratio、cache_creation_tokens[_5m/_1h]、
 // image_output/image_ratio、audio_input/audio_output/audio_ratio/audio_completion_ratio、usage_semantic 等）。
 func CalculateModelCost(mc dto.ChannelModelCost, discount float64, promptTokens int, completionTokens int, other map[string]interface{}) float64 {
+	// 上游显式 0 元定价：成本恒为 0，不做任何倍率计算。
+	if mc.Free {
+		return 0
+	}
+
 	// 按次/按图计费：成本 = 模型价格 × 折扣系数（每次调用）
 	if mc.ModelPrice > 0 {
 		return mc.ModelPrice * discount * common.QuotaPerUnit
@@ -295,8 +300,12 @@ func CalculateModelCost(mc dto.ChannelModelCost, discount float64, promptTokens 
 }
 
 // channelModelCostValid 判断一个渠道模型成本配置是否已配置有效定价。
-// 留空（所有定价字段为 0）视为未配置，调用时回退全局模型定价。
+// Free 是上游显式的 0 元定价，属于有效定价；留空（所有定价字段为 0 且未标记）
+// 视为未配置，调用时回退全局模型定价。
 func channelModelCostValid(mc dto.ChannelModelCost) bool {
+	if mc.Free {
+		return true
+	}
 	return mc.ModelPrice > 0 || mc.ModelRatio > 0 || mc.CompletionRatio > 0 ||
 		mc.CacheRatio > 0 || mc.CreateCacheRatio > 0 || mc.ImageRatio > 0 ||
 		mc.AudioRatio > 0 || mc.AudioCompletionRatio > 0
@@ -399,11 +408,18 @@ func resolveChannelCost(params RecordConsumeLogParams) float64 {
 				cost = CalculateModelCost(mc, settings.Discount, params.PromptTokens, params.CompletionTokens, snapshot)
 			}
 		} else {
-			// 未同步/留空该模型的渠道成本：以日志中的全局模型标价（乘算）回退，避免从用户费用反推的除法误差。
-			// 全局标价与渠道标价同构，成本 = 全局标价 × 渠道折扣系数，与系统计费算法一致。
-			mc := globalModelCostFromOther(params.ModelName, snapshot)
-			if mc.ModelRatio > 0 || mc.ModelPrice > 0 {
-				cost = CalculateModelCost(mc, settings.Discount, params.PromptTokens, params.CompletionTokens, snapshot)
+			// 表达式计价模型在日志里的 model_ratio / model_price 恒为 0（价格存在表达式中），
+			// 用全局标价还原必然得到 0，成本会静默变成 0 并把利润虚报成 100%。
+			// 必须像上面的在表分支一样反推，否则整个表达式计价的分组都是假利润。
+			if readOtherString(snapshot, "billing_mode") == "tiered_expr" {
+				cost = CalculateChannelCost(&settings, params.Quota, groupRatio)
+			} else {
+				// 未同步/留空该模型的渠道成本：以日志中的全局模型标价（乘算）回退，避免从用户费用反推的除法误差。
+				// 全局标价与渠道标价同构，成本 = 全局标价 × 渠道折扣系数，与系统计费算法一致。
+				mc := globalModelCostFromOther(params.ModelName, snapshot)
+				if mc.ModelRatio > 0 || mc.ModelPrice > 0 {
+					cost = CalculateModelCost(mc, settings.Discount, params.PromptTokens, params.CompletionTokens, snapshot)
+				}
 			}
 		}
 	}

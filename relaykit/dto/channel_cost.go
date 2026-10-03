@@ -36,6 +36,9 @@ type ChannelModelCost struct {
 	ImageRatio           float64 `json:"image_ratio,omitempty"`            // 图像倍率
 	AudioRatio           float64 `json:"audio_ratio,omitempty"`            // 音频倍率
 	AudioCompletionRatio float64 `json:"audio_completion_ratio,omitempty"` // 音频补全倍率
+	// Free 标记上游对该模型按 0 收费。必须与"未配置定价"区分：上游显式返回 0 是有效定价
+	// （成本恒为 0），而字段全 0 且未标记表示未配置，需要回退全局标价。
+	Free bool `json:"free,omitempty"`
 }
 
 // Validate 校验成本配置。未启用时忽略其余字段。

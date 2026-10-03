@@ -47,6 +47,8 @@ func TestCalculateModelCost(t *testing.T) {
 		want       float64
 	}{
 		{"per-call price", dto.ChannelModelCost{ModelPrice: 0.001}, 1, 0, 0, nil, 0.001 * common.QuotaPerUnit},
+		// Free 覆盖所有倍率：即使带着非零倍率，上游 0 元定价也必须算出 0 成本。
+		{"free model ignores ratios", dto.ChannelModelCost{Free: true, ModelRatio: 1, CompletionRatio: 2, CacheRatio: 0.5}, 1, 1000, 100, nil, 0},
 		{"per-call price with discount", dto.ChannelModelCost{ModelPrice: 0.001}, 0.5, 0, 0, nil, 0.001 * 0.5 * common.QuotaPerUnit},
 		{"basic ratio", dto.ChannelModelCost{ModelRatio: 1, CompletionRatio: 2}, 1, 1000, 100, nil, 1200},
 		{"ratio with discount", dto.ChannelModelCost{ModelRatio: 1, CompletionRatio: 2}, 0.5, 1000, 100, nil, 600},

@@ -25,6 +25,11 @@ const (
 // 1 === $0.002 / 1K tokens
 // 1 === ￥0.014 / 1k tokens
 
+// SelfUseModelRatio 是自用模式兜底倍率，不是任何模型的真实标价。
+// 未配置倍率的模型会返回该值，因此任何把它当作真实价格发布或同步的代码
+// 都必须先与它比对，避免把兜底值写进定价表或成本表。
+const SelfUseModelRatio = 37.5
+
 var defaultModelRatio = map[string]float64{
 	//"midjourney":                50,
 	"gpt-4-gizmo-*":                            15,
@@ -387,7 +392,7 @@ func GetModelRatio(name string) (float64, bool, string) {
 
 	ratio, ok := modelRatioMap.Get(name)
 	if !ok {
-		return 37.5, operation_setting.SelfUseModeEnabled, name
+		return SelfUseModelRatio, operation_setting.SelfUseModeEnabled, name
 	}
 	return ratio, true, name
 }
@@ -749,5 +754,5 @@ func GetModelRatioOrPrice(model string) (float64, bool, bool) { // price or rati
 	if success {
 		return modelRatio, false, true
 	}
-	return 37.5, false, false
+	return SelfUseModelRatio, false, false
 }

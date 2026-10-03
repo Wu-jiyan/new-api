@@ -128,6 +128,9 @@ export interface ChannelModelCost {
   image_ratio?: number
   audio_ratio?: number
   audio_completion_ratio?: number
+  // 上游显式 0 元定价。区别于"未配置"：free 为 true 时成本恒为 0，
+  // 未配置则回退全局标价乘渠道折扣。
+  free?: boolean
 }
 
 export interface ChannelCostSettings {

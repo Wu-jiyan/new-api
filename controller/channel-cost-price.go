@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -135,18 +137,7 @@ func SyncChannelCostPrices(c *gin.Context) {
 
 		// type2: /api/pricing 风格（[]Pricing 列表）
 		if converted == nil {
-			var pricingItems []struct {
-				ModelName            string   `json:"model_name"`
-				QuotaType            int      `json:"quota_type"`
-				ModelRatio           float64  `json:"model_ratio"`
-				ModelPrice           float64  `json:"model_price"`
-				CompletionRatio      float64  `json:"completion_ratio"`
-				CacheRatio           *float64 `json:"cache_ratio"`
-				CreateCacheRatio     *float64 `json:"create_cache_ratio"`
-				ImageRatio           *float64 `json:"image_ratio"`
-				AudioRatio           *float64 `json:"audio_ratio"`
-				AudioCompletionRatio *float64 `json:"audio_completion_ratio"`
-			}
+			var pricingItems []channelCostPricingItem
 			if err := common.Unmarshal(body.Data, &pricingItems); err != nil {
 				c.JSON(http.StatusOK, gin.H{"success": false, "message": "无法解析上游返回数据"})
 				return
@@ -155,7 +146,7 @@ func SyncChannelCostPrices(c *gin.Context) {
 		}
 	}
 
-	modelPrices := extractChannelCostPrices(converted, channel.GetModels())
+	modelPrices, skipped := extractChannelCostPrices(converted, channel.GetModels(), upstreamModelNames(channel.GetModelMapping()))
 	if len(modelPrices) == 0 {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "上游未返回该渠道已添加模型的价格信息"})
 		return
@@ -164,23 +155,36 @@ func SyncChannelCostPrices(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    gin.H{"model_prices": modelPrices},
+		"data": gin.H{
+			"model_prices": modelPrices,
+			// skipped 明确告知哪些模型上游没有定价，会回退全局标价乘折扣，
+			// 避免管理员把"没同步到"误读成"同步完成"。
+			"skipped": skipped,
+		},
 	})
 }
 
-// buildChannelCostPricingMap 将 type2（[]Pricing）转换为与 type1 一致的 map 结构。
-func buildChannelCostPricingMap(items []struct {
+// channelCostPricingItem 是上游 /api/pricing 返回的单条定价。
+// 数值字段用指针，与 ratio_sync.go 的解析保持一致：上游省略字段时必须与"配了 0"区分开，
+// 否则免费模型会被误当成无数据而丢弃。BillingMode/BillingExpr 用于识别表达式计价模型，
+// 这类模型没有可用的 model_ratio，必须排除在按量成本表之外。
+type channelCostPricingItem struct {
 	ModelName            string   `json:"model_name"`
 	QuotaType            int      `json:"quota_type"`
-	ModelRatio           float64  `json:"model_ratio"`
-	ModelPrice           float64  `json:"model_price"`
-	CompletionRatio      float64  `json:"completion_ratio"`
+	ModelRatio           *float64 `json:"model_ratio"`
+	ModelPrice           *float64 `json:"model_price"`
+	CompletionRatio      *float64 `json:"completion_ratio"`
 	CacheRatio           *float64 `json:"cache_ratio"`
 	CreateCacheRatio     *float64 `json:"create_cache_ratio"`
 	ImageRatio           *float64 `json:"image_ratio"`
 	AudioRatio           *float64 `json:"audio_ratio"`
 	AudioCompletionRatio *float64 `json:"audio_completion_ratio"`
-}) map[string]any {
+	BillingMode          string   `json:"billing_mode"`
+	BillingExpr          string   `json:"billing_expr"`
+}
+
+// buildChannelCostPricingMap 将 type2（[]Pricing）转换为与 type1 一致的 map 结构。
+func buildChannelCostPricingMap(items []channelCostPricingItem) map[string]any {
 	modelRatioMap := make(map[string]float64)
 	modelPriceMap := make(map[string]float64)
 	completionRatioMap := make(map[string]float64)
@@ -194,11 +198,22 @@ func buildChannelCostPricingMap(items []struct {
 		if item.ModelName == "" {
 			continue
 		}
+		// 表达式计价模型的价格在表达式里，model_ratio 只是自用兜底值，
+		// 写进成本表会算出完全错误的成本，因此不产出任何按量字段。
+		if item.BillingMode == billing_setting.BillingModeTieredExpr {
+			continue
+		}
 		if item.QuotaType == 1 {
-			modelPriceMap[item.ModelName] = item.ModelPrice
+			if item.ModelPrice != nil {
+				modelPriceMap[item.ModelName] = *item.ModelPrice
+			}
 		} else {
-			modelRatioMap[item.ModelName] = item.ModelRatio
-			completionRatioMap[item.ModelName] = item.CompletionRatio
+			if item.ModelRatio != nil {
+				modelRatioMap[item.ModelName] = *item.ModelRatio
+			}
+			if item.CompletionRatio != nil {
+				completionRatioMap[item.ModelName] = *item.CompletionRatio
+			}
 		}
 		if item.CacheRatio != nil {
 			cacheRatioMap[item.ModelName] = *item.CacheRatio
@@ -245,8 +260,49 @@ func buildChannelCostPricingMap(items []struct {
 	return converted
 }
 
+// upstreamModelNames 返回"渠道模型名 -> 上游模型名"的映射。
+// 渠道配置了模型重定向时，上游定价表里的键是重定向后的名字；没有重定向则同名。
+// 未显式重定向的模型保持原样，让上游表里直接以渠道名索引的条目也能命中。
+func upstreamModelNames(modelMapping string) map[string]string {
+	names := make(map[string]string)
+	if strings.TrimSpace(modelMapping) == "" {
+		return names
+	}
+	mapping := make(map[string]string)
+	if err := common.UnmarshalJsonStr(modelMapping, &mapping); err != nil {
+		common.SysError("channel model mapping parse failed: " + err.Error())
+		return names
+	}
+	// model_mapping 的键是渠道（对外）模型名，值是上游模型名，见 relay/helper/model_mapped.go。
+	for channelModel, upstream := range mapping {
+		channelModel = strings.TrimSpace(channelModel)
+		upstream = strings.TrimSpace(upstream)
+		if channelModel != "" && upstream != "" {
+			names[channelModel] = upstream
+		}
+	}
+	return names
+}
+
+// costPriceLookup 按上游模型名读取一个数值字段，返回值与"上游是否显式提供了该字段"。
+func costPriceLookup(source map[string]any, upstream string) (float64, bool) {
+	raw, ok := source[upstream]
+	if !ok {
+		return 0, false
+	}
+	value, ok := asFloat64(raw)
+	if !ok || value < 0 || math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, false
+	}
+	return value, true
+}
+
 // extractChannelCostPrices 从上游 converted map 提取该渠道已添加模型的成本价格表。
-func extractChannelCostPrices(converted map[string]any, models []string) map[string]dto.ChannelModelCost {
+// 结果以渠道模型名为键，并通过 upstreamNames 解析模型重定向后再查上游定价表。
+// skipped 说明未能按量定价的模型及原因，两者运行时回退方式不同，不能混为一谈：
+//   - no_upstream_price：回退全局标价 × 渠道折扣
+//   - tiered_expr：价格存在表达式里，无法按量还原，运行时按用户实付反推
+func extractChannelCostPrices(converted map[string]any, models []string, upstreamNames map[string]string) (map[string]dto.ChannelModelCost, map[string]string) {
 	modelRatioMap := valueMap(converted["model_ratio"])
 	modelPriceMap := valueMap(converted["model_price"])
 	completionRatioMap := valueMap(converted["completion_ratio"])
@@ -255,62 +311,63 @@ func extractChannelCostPrices(converted map[string]any, models []string) map[str
 	imageRatioMap := valueMap(converted["image_ratio"])
 	audioRatioMap := valueMap(converted["audio_ratio"])
 	audioCompletionRatioMap := valueMap(converted["audio_completion_ratio"])
+	billingModeMap := valueMap(converted[billing_setting.BillingModeField])
 
 	result := make(map[string]dto.ChannelModelCost)
+	skipped := make(map[string]string)
 	for _, model := range models {
 		model = strings.TrimSpace(model)
 		if model == "" {
 			continue
 		}
+		upstream := model
+		if mapped, ok := upstreamNames[model]; ok {
+			upstream = mapped
+		}
+
+		// 表达式计价模型的价格在表达式里，其 model_ratio 只是自用兜底值。
+		// type1 直接给出 billing_mode 字段；type2 已在 buildChannelCostPricingMap 阶段剔除。
+		if mode, ok := billingModeMap[upstream].(string); ok &&
+			mode == billing_setting.BillingModeTieredExpr {
+			skipped[model] = "tiered_expr"
+			continue
+		}
+
 		mc := dto.ChannelModelCost{}
-		has := false
-		if v, ok := modelRatioMap[model]; ok {
-			if f, ok := asFloat64(v); ok && f > 0 {
-				mc.ModelRatio = f
-				has = true
-			}
+		// 上游显式给出 model_price 即按次/按图计费，与 model_ratio 互斥。
+		// 免费模型上游返回 0，必须与"未提供"区分：0 是有效定价，缺失才是无定价。
+		if price, ok := costPriceLookup(modelPriceMap, upstream); ok {
+			mc.ModelPrice = price
+			mc.Free = price == 0
+			mc.ModelRatio = 0
+		} else if ratio, ok := costPriceLookup(modelRatioMap, upstream); ok &&
+			upstreamRatioTrusted(upstream, modelRatioMap, billingModeMap) {
+			mc.ModelRatio = ratio
+			mc.Free = ratio == 0
+		} else {
+			skipped[model] = "no_upstream_price"
+			continue
 		}
-		if v, ok := modelPriceMap[model]; ok {
-			if f, ok := asFloat64(v); ok && f > 0 {
-				mc.ModelPrice = f
-				// model_price 与 model_ratio 互斥（Validate 强制二选一），按次/按图计费优先。
-				mc.ModelRatio = 0
-				has = true
-			}
+
+		if v, ok := costPriceLookup(completionRatioMap, upstream); ok {
+			mc.CompletionRatio = v
 		}
-		if v, ok := completionRatioMap[model]; ok {
-			if f, ok := asFloat64(v); ok {
-				mc.CompletionRatio = f
-			}
+		if v, ok := costPriceLookup(cacheRatioMap, upstream); ok {
+			mc.CacheRatio = v
 		}
-		if v, ok := cacheRatioMap[model]; ok {
-			if f, ok := asFloat64(v); ok {
-				mc.CacheRatio = f
-			}
+		if v, ok := costPriceLookup(createCacheRatioMap, upstream); ok {
+			mc.CreateCacheRatio = v
 		}
-		if v, ok := createCacheRatioMap[model]; ok {
-			if f, ok := asFloat64(v); ok {
-				mc.CreateCacheRatio = f
-			}
+		if v, ok := costPriceLookup(imageRatioMap, upstream); ok {
+			mc.ImageRatio = v
 		}
-		if v, ok := imageRatioMap[model]; ok {
-			if f, ok := asFloat64(v); ok {
-				mc.ImageRatio = f
-			}
+		if v, ok := costPriceLookup(audioRatioMap, upstream); ok {
+			mc.AudioRatio = v
 		}
-		if v, ok := audioRatioMap[model]; ok {
-			if f, ok := asFloat64(v); ok {
-				mc.AudioRatio = f
-			}
+		if v, ok := costPriceLookup(audioCompletionRatioMap, upstream); ok {
+			mc.AudioCompletionRatio = v
 		}
-		if v, ok := audioCompletionRatioMap[model]; ok {
-			if f, ok := asFloat64(v); ok {
-				mc.AudioCompletionRatio = f
-			}
-		}
-		if has {
-			result[model] = mc
-		}
+		result[model] = mc
 	}
-	return result
+	return result, skipped
 }

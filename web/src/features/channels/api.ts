@@ -725,7 +725,9 @@ export async function getChannelProfitSummary(): Promise<{
 
 /**
  * Sync channel cost model prices from the channel's own upstream.
- * Returns the cost price table for the models already added to this channel.
+ * Returns the cost price table for the models already added to this channel,
+ * plus the models the upstream did not price (these fall back to the global
+ * model price times the channel discount).
  */
 export async function syncChannelCostPrices(
   channelId: number
@@ -734,6 +736,12 @@ export async function syncChannelCostPrices(
   message?: string
   data?: {
     model_prices: Record<string, ChannelModelCost>
+    /**
+     * Models left out of the cost table, mapped to why.
+     * `tiered_expr` prices live in the expression and cannot be reduced to a
+     * ratio; `no_upstream_price` means the upstream did not price the model.
+     */
+    skipped?: Record<string, 'tiered_expr' | 'no_upstream_price'>
   }
 }> {
   const res = await api.post('/api/channel/cost_prices/sync', {

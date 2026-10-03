@@ -140,3 +140,36 @@ func TestPricingSyncCompleteSourcesAndArrayFormats(t *testing.T) {
 	assert.Equal(t, float64(0), response.Data.Prices["sync-token"].Upstreams["Expressions(1)"]["cache_ratio"])
 	assert.Equal(t, float64(0), response.Data.Prices["sync-free"].Upstreams["Legacy(2)"]["model_ratio"])
 }
+
+func TestUpstreamRatioTrusted(t *testing.T) {
+	ratios := map[string]any{
+		"priced":       1.5,
+		"fallback":     ratio_setting.SelfUseModelRatio,
+		"fallback-tok": ratio_setting.SelfUseModelRatio,
+	}
+	modes := map[string]any{"expression": "tiered_expr"}
+
+	cases := []struct {
+		name  string
+		model string
+		want  bool
+	}{
+		{"real price is trusted", "priced", true},
+		{
+			// The removed heuristic only caught the (37.5, 1.0) pair and missed
+			// this one, because completion_ratio here is 3.
+			name:  "self-use fallback is untrusted regardless of completion ratio",
+			model: "fallback-tok",
+			want:  false,
+		},
+		{"self-use fallback is untrusted", "fallback", false},
+		{"expression-priced model is untrusted", "expression", false},
+		{"model absent upstream keeps default confidence", "unknown", true},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, upstreamRatioTrusted(tt.model, ratios, modes))
+		})
+	}
+}

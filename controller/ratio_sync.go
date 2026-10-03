@@ -122,6 +122,27 @@ func asFloat64(value any) (float64, bool) {
 	}
 }
 
+// upstreamRatioTrusted 判断上游为某模型给出的按量倍率是否是一条真实标价。
+// 模型价格同步与渠道成本同步共用这一条规则，否则同一次同步在两处会得出不同的
+// 可信度结论。可信度只在上游确实给出值时才有结论：上游没有提到的模型返回 true。
+func upstreamRatioTrusted(model string, modelRatios, billingModes map[string]any) bool {
+	// 表达式计价模型的价格在表达式里，model_ratio 只是占位值。
+	if mode, ok := billingModes[model].(string); ok &&
+		mode == billing_setting.BillingModeTieredExpr {
+		return false
+	}
+	raw, ok := modelRatios[model]
+	if !ok {
+		return true
+	}
+	ratio, ok := asFloat64(raw)
+	if !ok {
+		return true
+	}
+	// 上游未为该模型配价时返回的是自用兜底倍率，不是标价。
+	return !nearlyEqual(ratio, ratio_setting.SelfUseModelRatio)
+}
+
 func normalizeSyncValue(field string, value any) any {
 	if numericPricingSyncFields[field] {
 		if parsed, ok := asFloat64(value); ok {
@@ -665,36 +686,17 @@ func buildDifferences(localData map[string]any, successfulChannels []struct {
 
 	confidenceMap := make(map[string]map[string]bool)
 
-	// 预处理阶段：检查pricing接口的可信度
+	// 预处理阶段：检查pricing接口的可信度。
+	// 与渠道成本同步共用 upstreamRatioTrusted，不再依赖 (37.5, 1.0) 这个
+	// 容易漏判的组合，也不依赖上游是否返回 completion_ratio。
 	for _, channel := range successfulChannels {
 		confidenceMap[channel.name] = make(map[string]bool)
 
 		modelRatios := valueMap(channel.data["model_ratio"])
-		completionRatios := valueMap(channel.data["completion_ratio"])
+		billingModes := valueMap(channel.data[billing_setting.BillingModeField])
 
-		if len(modelRatios) > 0 && len(completionRatios) > 0 {
-			// 遍历所有模型，检查是否满足不可信条件
-			for modelName := range allModels {
-				// 默认为可信
-				confidenceMap[channel.name][modelName] = true
-
-				// 检查是否满足不可信条件：model_ratio为37.5且completion_ratio为1
-				if modelRatioVal, ok := modelRatios[modelName]; ok {
-					if completionRatioVal, ok := completionRatios[modelName]; ok {
-						// 转换为float64进行比较
-						modelRatioFloat, modelRatioOK := asFloat64(modelRatioVal)
-						completionRatioFloat, completionRatioOK := asFloat64(completionRatioVal)
-						if modelRatioOK && completionRatioOK && nearlyEqual(modelRatioFloat, 37.5) && nearlyEqual(completionRatioFloat, 1.0) {
-							confidenceMap[channel.name][modelName] = false
-						}
-					}
-				}
-			}
-		} else {
-			// 如果不是从pricing接口获取的数据，则全部标记为可信
-			for modelName := range allModels {
-				confidenceMap[channel.name][modelName] = true
-			}
+		for modelName := range allModels {
+			confidenceMap[channel.name][modelName] = upstreamRatioTrusted(modelName, modelRatios, billingModes)
 		}
 	}
 

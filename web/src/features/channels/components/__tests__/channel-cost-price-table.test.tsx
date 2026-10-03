@@ -1,0 +1,147 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { createInstance } from 'i18next'
+import { useState } from 'react'
+import { I18nextProvider } from 'react-i18next'
+import { beforeAll, describe, expect, test, vi } from 'vitest'
+
+import en from '@/i18n/locales/en.json'
+
+import { ChannelCostPriceTable } from '../drawers/sections/channel-cost-price-table'
+
+type Prices = Parameters<typeof ChannelCostPriceTable>[0]['prices']
+
+let i18n: ReturnType<typeof createInstance>
+
+beforeAll(async () => {
+  i18n = createInstance()
+  await i18n.init({ lng: 'en', resources: { en }, keySeparator: false })
+})
+
+/** Stateful host so edits flow back through onChange like the real drawer. */
+function Host(props: { initial: Prices; onPrices: (next: Prices) => void }) {
+  const [prices, setPrices] = useState(props.initial)
+  return (
+    <I18nextProvider i18n={i18n}>
+      <ChannelCostPriceTable
+        prices={prices}
+        onChange={(next) => {
+          setPrices(next)
+          props.onPrices(next)
+        }}
+      />
+    </I18nextProvider>
+  )
+}
+
+describe('ChannelCostPriceTable', () => {
+  test('shows synced cache and create-cache ratios as editable inputs', async () => {
+    const onPrices = vi.fn()
+    render(
+      <Host
+        initial={{
+          'deepseek-v4-flash': {
+            model_ratio: 1.5,
+            completion_ratio: 3,
+            cache_ratio: 0.05,
+            create_cache_ratio: 1.25,
+          },
+        }}
+        onPrices={onPrices}
+      />
+    )
+
+    const cache = screen.getByLabelText(
+      'deepseek-v4-flash Cache Ratio'
+    ) as HTMLInputElement
+    const createCache = screen.getByLabelText(
+      'deepseek-v4-flash Create Cache Ratio'
+    ) as HTMLInputElement
+
+    expect(cache.value).toBe('0.05')
+    expect(createCache.value).toBe('1.25')
+  })
+
+  test('reports an edited cache ratio to the host', async () => {
+    const onPrices = vi.fn()
+    render(
+      <Host
+        initial={{ 'deepseek-v4-flash': { model_ratio: 1.5, cache_ratio: 0.05 } }}
+        onPrices={onPrices}
+      />
+    )
+
+    await userEvent.clear(
+      screen.getByLabelText('deepseek-v4-flash Cache Ratio')
+    )
+    await userEvent.type(
+      screen.getByLabelText('deepseek-v4-flash Cache Ratio'),
+      '0.2'
+    )
+
+    expect(onPrices).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        'deepseek-v4-flash': expect.objectContaining({ cache_ratio: 0.2 }),
+      })
+    )
+  })
+
+  test('renders an upstream free entry as free instead of a fallback', () => {
+    render(
+      <Host
+        initial={{ 'space-bunny-free': { free: true, model_ratio: 0 } }}
+        onPrices={vi.fn()}
+      />
+    )
+
+    // Rendered in both the type badge and the price cell.
+    expect(screen.getAllByText('Free of charge').length).toBeGreaterThan(0)
+    expect(
+      screen.queryByText('Fallback to global price')
+    ).not.toBeInTheDocument()
+  })
+
+  test('disables ratio inputs for a free entry', () => {
+    render(
+      <Host
+        initial={{ 'space-bunny-free': { free: true, model_ratio: 0 } }}
+        onPrices={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.getByLabelText('space-bunny-free Cache Ratio')
+    ).toBeDisabled()
+  })
+
+  test('adds a free entry when only the free checkbox is set', async () => {
+    const onPrices = vi.fn()
+    render(<Host initial={{}} onPrices={onPrices} />)
+
+    await userEvent.type(screen.getByPlaceholderText('Model name'), 'new-free')
+    await userEvent.click(screen.getByRole('checkbox'))
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    expect(onPrices).toHaveBeenLastCalledWith({
+      'new-free': { free: true, model_price: 0, model_ratio: 0 },
+    })
+  })
+})

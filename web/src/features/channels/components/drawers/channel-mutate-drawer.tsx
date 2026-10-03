@@ -1286,13 +1286,51 @@ export function ChannelMutateDrawer({
       if (!res.success) {
         throw new Error(res.message || t('Failed to sync cost prices'))
       }
-      const prices = res.data?.model_prices ?? {}
-      form.setValue('cost_model_prices', prices, { shouldDirty: true })
-      toast.success(
+      const synced = res.data?.model_prices ?? {}
+      const skipped = res.data?.skipped ?? {}
+      // Merge instead of replace: upstream only prices the models it knows, so
+      // replacing the whole table would silently drop manual entries.
+      const previous = form.getValues('cost_model_prices')
+      form.setValue('cost_model_prices', { ...previous, ...synced }, {
+        shouldDirty: true,
+      })
+
+      const added = Object.keys(synced).filter(
+        (model) => !(model in (previous ?? {}))
+      ).length
+      const syncedCount = Object.keys(synced).length
+      const parts = [
         t('Synced {{count}} model cost prices from upstream', {
-          count: Object.keys(prices).length,
-        })
-      )
+          count: syncedCount,
+        }),
+      ]
+      if (added > 0) {
+        parts.push(t('{{count}} new models added', { count: added }))
+      }
+      const skippedModels = Object.keys(skipped)
+      if (skippedModels.length > 0) {
+        const expressionPriced = skippedModels.filter(
+          (model) => skipped[model] === 'tiered_expr'
+        )
+        const unpriced = skippedModels.filter(
+          (model) => skipped[model] !== 'tiered_expr'
+        )
+        if (unpriced.length > 0) {
+          parts.push(
+            t('{{count}} models have no upstream price and keep the global price', {
+              count: unpriced.length,
+            })
+          )
+        }
+        if (expressionPriced.length > 0) {
+          parts.push(
+            t('{{count}} expression-priced models use reverse-derivation cost', {
+              count: expressionPriced.length,
+            })
+          )
+        }
+      }
+      toast.success(parts.join(' · '))
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : t('Sync cost prices failed')
