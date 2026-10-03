@@ -193,6 +193,7 @@ func buildChannelCostPricingMap(items []channelCostPricingItem) map[string]any {
 	imageRatioMap := make(map[string]float64)
 	audioRatioMap := make(map[string]float64)
 	audioCompletionRatioMap := make(map[string]float64)
+	billingModeMap := make(map[string]string)
 
 	for _, item := range items {
 		if item.ModelName == "" {
@@ -200,7 +201,10 @@ func buildChannelCostPricingMap(items []channelCostPricingItem) map[string]any {
 		}
 		// 表达式计价模型的价格在表达式里，model_ratio 只是自用兜底值，
 		// 写进成本表会算出完全错误的成本，因此不产出任何按量字段。
+		// 但必须记录计费模式：否则 extractChannelCostPrices 无从区分
+		// "表达式计价"与"上游没定价"，会把前者误报成后者。
 		if item.BillingMode == billing_setting.BillingModeTieredExpr {
+			billingModeMap[item.ModelName] = billing_setting.BillingModeTieredExpr
 			continue
 		}
 		if item.QuotaType == 1 {
@@ -256,6 +260,9 @@ func buildChannelCostPricingMap(items []channelCostPricingItem) map[string]any {
 	}
 	if len(audioCompletionRatioMap) > 0 {
 		converted["audio_completion_ratio"] = audioCompletionRatioMap
+	}
+	if len(billingModeMap) > 0 {
+		converted[billing_setting.BillingModeField] = billingModeMap
 	}
 	return converted
 }

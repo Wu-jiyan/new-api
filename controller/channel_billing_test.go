@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -138,6 +139,40 @@ func TestBuildChannelCostPricingMapSkipsExpressionPricedModels(t *testing.T) {
 	assert.NotContains(t, converted, "deepseek-v4.1-flash")
 	assert.NotContains(t, valueMap(converted["model_ratio"]), "deepseek-v4.1-flash")
 	assert.Contains(t, valueMap(converted["model_ratio"]), "deepseek-v4-flash")
+	// The billing mode must survive: without it the extraction step cannot
+	// tell "expression priced" apart from "upstream did not price it" and
+	// reports the wrong reason.
+	assert.Equal(
+		t,
+		map[string]string{"deepseek-v4.1-flash": "tiered_expr"},
+		converted[billing_setting.BillingModeField],
+	)
+}
+
+func TestExtractChannelCostPricesReportsType2ExpressionModelAsTiered(t *testing.T) {
+	ratio := 37.5
+	converted := buildChannelCostPricingMap([]channelCostPricingItem{
+		{
+			ModelName:   "deepseek-v4.1-flash",
+			QuotaType:   0,
+			ModelRatio:  &ratio,
+			BillingMode: billing_setting.BillingModeTieredExpr,
+		},
+	})
+
+	prices, skipped := extractChannelCostPrices(
+		converted,
+		[]string{"deepseek-v4.1-flash"},
+		nil,
+	)
+
+	assert.Empty(t, prices)
+	assert.Equal(
+		t,
+		map[string]string{"deepseek-v4.1-flash": "tiered_expr"},
+		skipped,
+		"a /api/pricing expression model must not be reported as unpriced",
+	)
 }
 
 func TestExtractChannelCostPricesHonorsModelMapping(t *testing.T) {
