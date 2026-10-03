@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -207,6 +209,17 @@ func CalculateModelCost(mc dto.ChannelModelCost, discount float64, promptTokens 
 		return mc.ModelPrice * discount * common.QuotaPerUnit
 	}
 
+	// 上游表达式计价：用上游自己的公式重算一次，得到真实标价成本。
+	// 这是上游的真实成本价（与本地计费无关），再乘渠道折扣。
+	if mc.BillingExpr != "" {
+		if cost, ok := calculateExprModelCost(mc.BillingExpr, discount, promptTokens, completionTokens, other); ok {
+			return cost
+		}
+		// 表达式不可求值（编译失败或缺少计费维度）时由调用方回退反推，
+		// 这里返回 0 并用 ok=false 表明未算出。
+		return 0
+	}
+
 	isClaude := readOtherString(other, "usage_semantic") == "anthropic" || readOtherBool(other, "claude")
 
 	dPrompt := decimal.NewFromInt(int64(promptTokens))
@@ -299,11 +312,79 @@ func CalculateModelCost(mc dto.ChannelModelCost, discount float64, promptTokens 
 	return result
 }
 
+// billingTokensFromLog 读取结算时落盘的计费 token 维度。表达式按这些维度计价，
+// 因此必须复用结算当时的实际取值，而不是重新按用量推算。
+func billingTokensFromLog(other map[string]interface{}, promptTokens, completionTokens int) billingexpr.TokenParams {
+	params := billingexpr.TokenParams{
+		P: float64(promptTokens),
+		C: float64(completionTokens),
+		Len: float64(promptTokens),
+	}
+	values, ok := other["billing_tokens"].(map[string]float64)
+	if !ok {
+		// JSON 反序列化后可能是 map[string]any，退化读取。
+		if raw, exists := other["billing_tokens"]; exists {
+			if converted, convertedOK := raw.(map[string]any); convertedOK {
+				for key, value := range converted {
+					if number, numberOK := value.(float64); numberOK {
+						values[key] = number
+					}
+				}
+				ok = len(values) > 0
+			}
+		}
+	}
+	if !ok {
+		return params
+	}
+	params.P = values["p"]
+	params.C = values["c"]
+	params.Len = values["len"]
+	params.CR = values["cr"]
+	params.CC = values["cc"]
+	params.CC1h = values["cc1h"]
+	params.Img = values["img"]
+	params.ImgCR = values["img_cr"]
+	params.ImgO = values["img_o"]
+	params.AI = values["ai"]
+	params.AO = values["ao"]
+	return params
+}
+
+// calculateExprModelCost 用上游的表达式计价公式重算一次真实成本。
+// 表达式系数是 $/1M tokens，RunExpr 返回按 1M 缩放的结果，因此要除以 1e6
+// 还原成美元，再按渠道折扣与 QuotaPerUnit 换算成成本额度。
+// 第二个返回值为 false 表示表达式不可求值，调用方需回退反推。
+func calculateExprModelCost(expr string, discount float64, promptTokens, completionTokens int, other map[string]interface{}) (float64, bool) {
+	if strings.TrimSpace(expr) == "" {
+		return 0, false
+	}
+	request := billingexpr.RequestInput{}
+	if count := readOtherInt(other, "image_count"); count > 0 {
+		request.ImageCount = &count
+	}
+	rawCost, _, err := billingexpr.RunExpr(expr, billingTokensFromLog(other, promptTokens, completionTokens))
+	if err != nil {
+		// 表达式编译/求值失败时必须让调用方回退反推。吞掉错误并返回 0
+		// 会把成本变成 0，等于凭空造出 100% 利润。
+		logger.LogWarn(nil, "channel cost expression failed, falling back: %v", err)
+		return 0, false
+	}
+	if rawCost < 0 {
+		return 0, false
+	}
+	usd := rawCost / 1_000_000
+	return usd * discount * common.QuotaPerUnit, true
+}
+
 // channelModelCostValid 判断一个渠道模型成本配置是否已配置有效定价。
 // Free 是上游显式的 0 元定价，属于有效定价；留空（所有定价字段为 0 且未标记）
 // 视为未配置，调用时回退全局模型定价。
 func channelModelCostValid(mc dto.ChannelModelCost) bool {
 	if mc.Free {
+		return true
+	}
+	if strings.TrimSpace(mc.BillingExpr) != "" {
 		return true
 	}
 	return mc.ModelPrice > 0 || mc.ModelRatio > 0 || mc.CompletionRatio > 0 ||
@@ -401,9 +482,17 @@ func resolveChannelCost(params RecordConsumeLogParams) float64 {
 		// 否则（未同步 / 留空未配置）回退全局模型标价 × 渠道折扣系数。
 		mc, ok := settings.ModelPrices[params.ModelName]
 		if ok && channelModelCostValid(mc) {
-			if readOtherString(snapshot, "billing_mode") == "tiered_expr" {
-				// tiered_expr 无法用渠道价格表还原，回退反推（decimal 精确计算）
+			// 表达式计价模型若同步到了上游表达式，就按上游真实公式算成本，
+			// 与倍率/按次等其他定价方式同等对待；只有没同步到表达式时才反推。
+			isExpression := readOtherString(snapshot, "billing_mode") == "tiered_expr"
+			if isExpression && strings.TrimSpace(mc.BillingExpr) == "" {
 				cost = CalculateChannelCost(&settings, params.Quota, groupRatio)
+			} else if isExpression {
+				if exprCost, computed := calculateExprModelCost(mc.BillingExpr, settings.Discount, params.PromptTokens, params.CompletionTokens, snapshot); computed {
+					cost = exprCost
+				} else {
+					cost = CalculateChannelCost(&settings, params.Quota, groupRatio)
+				}
 			} else {
 				cost = CalculateModelCost(mc, settings.Discount, params.PromptTokens, params.CompletionTokens, snapshot)
 			}

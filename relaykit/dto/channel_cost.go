@@ -39,6 +39,10 @@ type ChannelModelCost struct {
 	// Free 标记上游对该模型按 0 收费。必须与"未配置定价"区分：上游显式返回 0 是有效定价
 	// （成本恒为 0），而字段全 0 且未标记表示未配置，需要回退全局标价。
 	Free bool `json:"free,omitempty"`
+	// BillingExpr 是上游的表达式计价公式（上游真实 USD 标价）。上游按表达式计价时
+	// model_ratio 只是占位值，必须保留表达式本身才能算出真实成本。它与各倍率字段
+	// 互斥：设置后按表达式结算，倍率字段被忽略。
+	BillingExpr string `json:"billing_expr,omitempty"`
 }
 
 // Validate 校验成本配置。未启用时忽略其余字段。
@@ -60,6 +64,11 @@ func (s *ChannelCostSettings) Validate() error {
 			}
 			if mc.ModelPrice > 0 && mc.ModelRatio > 0 {
 				return fmt.Errorf("模型 %s 的 model_price 与 model_ratio 不能同时配置", model)
+			}
+			// 表达式计价自带完整价格规则，再配倍率会产生两种口径。
+			if strings.TrimSpace(mc.BillingExpr) != "" &&
+				(mc.ModelPrice > 0 || mc.ModelRatio > 0 || mc.CompletionRatio > 0) {
+				return fmt.Errorf("模型 %s 的 billing_expr 不能与价格倍率同时配置", model)
 			}
 			if mc.CompletionRatio < 0 || mc.CacheRatio < 0 || mc.CreateCacheRatio < 0 ||
 				mc.ImageRatio < 0 || mc.AudioRatio < 0 || mc.AudioCompletionRatio < 0 {

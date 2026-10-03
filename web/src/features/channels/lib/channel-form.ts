@@ -893,6 +893,8 @@ function buildCostConfigJSON(formData: ChannelFormValues): string {
         // A free entry is priced explicitly at 0 upstream, so it must survive
         // the save filter even though both numeric fields are zero.
         (mc.free === true ||
+          // An expression-priced entry carries no ratio at all.
+          Boolean(mc.billing_expr?.trim()) ||
           Number(mc.model_ratio) > 0 ||
           Number(mc.model_price) > 0)
     )

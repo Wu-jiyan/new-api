@@ -194,6 +194,7 @@ func buildChannelCostPricingMap(items []channelCostPricingItem) map[string]any {
 	audioRatioMap := make(map[string]float64)
 	audioCompletionRatioMap := make(map[string]float64)
 	billingModeMap := make(map[string]string)
+	billingExprMap := make(map[string]string)
 
 	for _, item := range items {
 		if item.ModelName == "" {
@@ -201,10 +202,13 @@ func buildChannelCostPricingMap(items []channelCostPricingItem) map[string]any {
 		}
 		// 表达式计价模型的价格在表达式里，model_ratio 只是自用兜底值，
 		// 写进成本表会算出完全错误的成本，因此不产出任何按量字段。
-		// 但必须记录计费模式：否则 extractChannelCostPrices 无从区分
-		// "表达式计价"与"上游没定价"，会把前者误报成后者。
+		// 但必须带上计费模式与表达式本身：前者让抽取阶段能正确归类，
+		// 后者让成本计算能按上游真实公式重算，而不是退化成按用户实付反推。
 		if item.BillingMode == billing_setting.BillingModeTieredExpr {
 			billingModeMap[item.ModelName] = billing_setting.BillingModeTieredExpr
+			if expr := strings.TrimSpace(item.BillingExpr); expr != "" {
+				billingExprMap[item.ModelName] = expr
+			}
 			continue
 		}
 		if item.QuotaType == 1 {
@@ -264,6 +268,9 @@ func buildChannelCostPricingMap(items []channelCostPricingItem) map[string]any {
 	if len(billingModeMap) > 0 {
 		converted[billing_setting.BillingModeField] = billingModeMap
 	}
+	if len(billingExprMap) > 0 {
+		converted[billing_setting.BillingExprField] = billingExprMap
+	}
 	return converted
 }
 
@@ -306,9 +313,12 @@ func costPriceLookup(source map[string]any, upstream string) (float64, bool) {
 
 // extractChannelCostPrices 从上游 converted map 提取该渠道已添加模型的成本价格表。
 // 结果以渠道模型名为键，并通过 upstreamNames 解析模型重定向后再查上游定价表。
-// skipped 说明未能按量定价的模型及原因，两者运行时回退方式不同，不能混为一谈：
-//   - no_upstream_price：回退全局标价 × 渠道折扣
-//   - tiered_expr：价格存在表达式里，无法按量还原，运行时按用户实付反推
+// skipped 说明未能定价的模型及原因，两者运行时回退方式不同，不能混为一谈：
+//   - no_upstream_price：上游没给价，回退全局标价 × 渠道折扣
+//   - tiered_expr：上游是表达式计价但没给出表达式，只能按用户实付反推
+//
+// 表达式计价且上游给出了表达式时，模型会带着 BillingExpr 进入成本表，
+// 与其他定价方式一样参与精确成本计算。
 func extractChannelCostPrices(converted map[string]any, models []string, upstreamNames map[string]string) (map[string]dto.ChannelModelCost, map[string]string) {
 	modelRatioMap := valueMap(converted["model_ratio"])
 	modelPriceMap := valueMap(converted["model_price"])
@@ -319,6 +329,7 @@ func extractChannelCostPrices(converted map[string]any, models []string, upstrea
 	audioRatioMap := valueMap(converted["audio_ratio"])
 	audioCompletionRatioMap := valueMap(converted["audio_completion_ratio"])
 	billingModeMap := valueMap(converted[billing_setting.BillingModeField])
+	billingExprMap := valueMap(converted[billing_setting.BillingExprField])
 
 	result := make(map[string]dto.ChannelModelCost)
 	skipped := make(map[string]string)
@@ -332,10 +343,16 @@ func extractChannelCostPrices(converted map[string]any, models []string, upstrea
 			upstream = mapped
 		}
 
-		// 表达式计价模型的价格在表达式里，其 model_ratio 只是自用兜底值。
-		// type1 直接给出 billing_mode 字段；type2 已在 buildChannelCostPricingMap 阶段剔除。
+		// 表达式计价模型：价格就在表达式里，同步表达式本身即可按上游真实
+		// 公式计算成本，不能退化成按用户实付反推。只有上游没给出表达式时
+		// 才无法定价，此时才计入 skipped。
 		if mode, ok := billingModeMap[upstream].(string); ok &&
 			mode == billing_setting.BillingModeTieredExpr {
+			expr, _ := billingExprMap[upstream].(string)
+			if expr = strings.TrimSpace(expr); expr != "" {
+				result[model] = dto.ChannelModelCost{BillingExpr: expr}
+				continue
+			}
 			skipped[model] = "tiered_expr"
 			continue
 		}

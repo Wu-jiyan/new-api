@@ -60,6 +60,7 @@ export function ChannelCostPriceTable(props: ChannelCostPriceTableProps) {
   const [newPrice, setNewPrice] = useState('')
   const [newRatio, setNewRatio] = useState('')
   const [newFree, setNewFree] = useState(false)
+  const [newExpr, setNewExpr] = useState('')
 
   const updateEntry = (model: string, patch: Partial<ChannelModelCost>) => {
     props.onChange?.({
@@ -79,23 +80,33 @@ export function ChannelCostPriceTable(props: ChannelCostPriceTableProps) {
     if (!model) return
     const price = Number(newPrice)
     const ratio = Number(newRatio)
-    // A free entry is a valid configuration on its own; otherwise a price or
-    // ratio is required, matching the backend validation.
-    if (!newFree && !(price > 0) && !(ratio > 0)) return
-    const entry: ChannelModelCost = newFree
-      ? { free: true, model_price: 0, model_ratio: 0 }
-      : {
-          ...(price > 0 ? { model_price: price } : {}),
-          ...(ratio > 0 ? { model_ratio: ratio } : {}),
-        }
+    const expr = newExpr.trim()
+    // Free and expression entries are valid on their own; otherwise a price
+    // or ratio is required, matching the backend validation.
+    if (!newFree && !expr && !(price > 0) && !(ratio > 0)) return
+    let entry: ChannelModelCost
+    if (expr) {
+      entry = { billing_expr: expr }
+    } else if (newFree) {
+      entry = { free: true, model_price: 0, model_ratio: 0 }
+    } else {
+      entry = {
+        ...(price > 0 ? { model_price: price } : {}),
+        ...(ratio > 0 ? { model_ratio: ratio } : {}),
+      }
+    }
     props.onChange?.({ ...pricesMap, [model]: entry })
     setNewModel('')
     setNewPrice('')
     setNewRatio('')
     setNewFree(false)
+    setNewExpr('')
   }
 
   const renderPriceValue = (mc: ChannelModelCost) => {
+    if (mc.billing_expr?.trim()) {
+      return t('Expression')
+    }
     if (mc.free) {
       return t('Free of charge')
     }
@@ -109,6 +120,9 @@ export function ChannelCostPriceTable(props: ChannelCostPriceTableProps) {
   }
 
   const renderTypeBadge = (mc: ChannelModelCost) => {
+    if (mc.billing_expr?.trim()) {
+      return <Badge variant='outline'>{t('Expression')}</Badge>
+    }
     if (mc.free) {
       return <Badge variant='outline'>{t('Free of charge')}</Badge>
     }
@@ -159,7 +173,7 @@ export function ChannelCostPriceTable(props: ChannelCostPriceTableProps) {
                         type='number'
                         step='0.0001'
                         min='0'
-                        disabled={mc.free}
+                        disabled={mc.free || Boolean(mc.billing_expr?.trim())}
                         value={formatRatio(mc[field.key])}
                         onChange={(e) =>
                           updateEntry(model, {
@@ -200,10 +214,17 @@ export function ChannelCostPriceTable(props: ChannelCostPriceTableProps) {
             className='h-8 text-xs sm:w-56'
           />
           <Input
+            value={newExpr}
+            onChange={(e) => setNewExpr(e.target.value)}
+            placeholder={t('Billing expression')}
+            aria-label={t('Billing expression')}
+            className='h-8 text-xs sm:w-72'
+          />
+          <Input
             type='number'
             step='0.0001'
             min='0'
-            disabled={newFree}
+            disabled={newFree || Boolean(newExpr.trim())}
             value={newPrice}
             onChange={(e) => setNewPrice(e.target.value)}
             placeholder={t('Price $/call')}
@@ -213,7 +234,7 @@ export function ChannelCostPriceTable(props: ChannelCostPriceTableProps) {
             type='number'
             step='0.0001'
             min='0'
-            disabled={newFree}
+            disabled={newFree || Boolean(newExpr.trim())}
             value={newRatio}
             onChange={(e) => setNewRatio(e.target.value)}
             placeholder={t('Model Ratio')}
@@ -224,6 +245,7 @@ export function ChannelCostPriceTable(props: ChannelCostPriceTableProps) {
               type='checkbox'
               checked={newFree}
               onChange={(e) => setNewFree(e.target.checked)}
+              disabled={Boolean(newExpr.trim())}
               className='size-3.5'
             />
             {t('Free of charge')}
@@ -242,7 +264,7 @@ export function ChannelCostPriceTable(props: ChannelCostPriceTableProps) {
         </div>
         <p className='text-muted-foreground mt-2 text-xs'>
           {t(
-            'Fill either the per-call price or the model ratio. Leave both empty to keep the global model price.'
+            'Fill the billing expression, the per-call price, or the model ratio. An expression carries the upstream price rule and is evaluated for cost like any other price. Leave everything empty to keep the global model price.'
           )}
         </p>
       </div>

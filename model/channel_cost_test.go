@@ -49,6 +49,39 @@ func TestCalculateModelCost(t *testing.T) {
 		{"per-call price", dto.ChannelModelCost{ModelPrice: 0.001}, 1, 0, 0, nil, 0.001 * common.QuotaPerUnit},
 		// Free 覆盖所有倍率：即使带着非零倍率，上游 0 元定价也必须算出 0 成本。
 		{"free model ignores ratios", dto.ChannelModelCost{Free: true, ModelRatio: 1, CompletionRatio: 2, CacheRatio: 0.5}, 1, 1000, 100, nil, 0},
+		// 上游表达式计价：用结算时落盘的 billing_tokens 重算上游真实标价成本。
+		// p=1e6, c=0 → 表达式得 2e6 → /1e6 = $2 → ×折扣0.5 ×QuotaPerUnit。
+		{
+			name:       "billing expression uses logged billing tokens",
+			mc:         dto.ChannelModelCost{BillingExpr: `tier("base", p * 2 + c * 8)`},
+			discount:   0.5,
+			prompt:     1_000_000,
+			completion: 0,
+			other: map[string]interface{}{
+				"billing_tokens": map[string]float64{"p": 1_000_000, "c": 0, "len": 1_000_000},
+			},
+			want: 0.5 * 2 * common.QuotaPerUnit,
+		},
+		{
+			// 日志里没有 billing_tokens 时退化为按 prompt/completion 求值。
+			name:       "billing expression falls back to prompt and completion",
+			mc:         dto.ChannelModelCost{BillingExpr: `tier("base", p * 2 + c * 8)`},
+			discount:   1,
+			prompt:     1_000_000,
+			completion: 0,
+			other:      nil,
+			want:       2 * common.QuotaPerUnit,
+		},
+		{
+			// 表达式非法：必须回退反推（由调用方处理），不能静默变成 0 成本。
+			name:       "invalid billing expression yields zero cost",
+			mc:         dto.ChannelModelCost{BillingExpr: `tier("base", p * )`},
+			discount:   1,
+			prompt:     1_000_000,
+			completion: 0,
+			other:      nil,
+			want:       0,
+		},
 		{"per-call price with discount", dto.ChannelModelCost{ModelPrice: 0.001}, 0.5, 0, 0, nil, 0.001 * 0.5 * common.QuotaPerUnit},
 		{"basic ratio", dto.ChannelModelCost{ModelRatio: 1, CompletionRatio: 2}, 1, 1000, 100, nil, 1200},
 		{"ratio with discount", dto.ChannelModelCost{ModelRatio: 1, CompletionRatio: 2}, 0.5, 1000, 100, nil, 600},

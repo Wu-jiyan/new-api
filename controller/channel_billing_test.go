@@ -157,22 +157,29 @@ func TestExtractChannelCostPricesReportsType2ExpressionModelAsTiered(t *testing.
 			QuotaType:   0,
 			ModelRatio:  &ratio,
 			BillingMode: billing_setting.BillingModeTieredExpr,
+			BillingExpr: `tier("base", p * 1 + c * 4)`,
+		},
+		{
+			// Expression mode without an expression cannot be priced at all.
+			ModelName:   "gpt-6-astra",
+			QuotaType:   0,
+			ModelRatio:  &ratio,
+			BillingMode: billing_setting.BillingModeTieredExpr,
 		},
 	})
 
 	prices, skipped := extractChannelCostPrices(
 		converted,
-		[]string{"deepseek-v4.1-flash"},
+		[]string{"deepseek-v4.1-flash", "gpt-6-astra"},
 		nil,
 	)
 
-	assert.Empty(t, prices)
-	assert.Equal(
-		t,
-		map[string]string{"deepseek-v4.1-flash": "tiered_expr"},
-		skipped,
-		"a /api/pricing expression model must not be reported as unpriced",
-	)
+	// An expression-priced upstream must be synced like any other price, not
+	// reported as unpriced and not replaced by the self-use fallback ratio.
+	require.Contains(t, prices, "deepseek-v4.1-flash")
+	assert.Equal(t, `tier("base", p * 1 + c * 4)`, prices["deepseek-v4.1-flash"].BillingExpr)
+	assert.Zero(t, prices["deepseek-v4.1-flash"].ModelRatio)
+	assert.Equal(t, map[string]string{"gpt-6-astra": "tiered_expr"}, skipped)
 }
 
 func TestExtractChannelCostPricesHonorsModelMapping(t *testing.T) {

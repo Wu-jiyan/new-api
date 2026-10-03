@@ -131,6 +131,9 @@ export interface ChannelModelCost {
   // 上游显式 0 元定价。区别于"未配置"：free 为 true 时成本恒为 0，
   // 未配置则回退全局标价乘渠道折扣。
   free?: boolean
+  // 上游的表达式计价公式（上游真实 USD 标价）。与其他定价方式同等参与
+  // 成本计算；设置后本条目的各倍率字段被忽略。
+  billing_expr?: string
 }
 
 export interface ChannelCostSettings {

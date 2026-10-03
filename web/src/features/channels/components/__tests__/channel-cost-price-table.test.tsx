@@ -144,4 +144,61 @@ describe('ChannelCostPriceTable', () => {
       'new-free': { free: true, model_price: 0, model_ratio: 0 },
     })
   })
+
+  test('renders a synced expression entry as expression, not fallback', () => {
+    render(
+      <Host
+        initial={{
+          'deepseek-v4.1-flash': {
+            billing_expr: 'tier("base", p * 1 + c * 4)',
+          },
+        }}
+        onPrices={vi.fn()}
+      />
+    )
+
+    // Rendered in both the type badge and the price cell.
+    expect(screen.getAllByText('Expression').length).toBeGreaterThan(0)
+    expect(
+      screen.queryByText('Fallback to global price')
+    ).not.toBeInTheDocument()
+  })
+
+  test('disables ratio inputs for an expression entry', () => {
+    render(
+      <Host
+        initial={{
+          'deepseek-v4.1-flash': {
+            billing_expr: 'tier("base", p * 1 + c * 4)',
+          },
+        }}
+        onPrices={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.getByLabelText('deepseek-v4.1-flash Completion Ratio')
+    ).toBeDisabled()
+  })
+
+  test('adds an expression entry and ignores the numeric inputs', async () => {
+    const onPrices = vi.fn()
+    render(<Host initial={{}} onPrices={onPrices} />)
+
+    await userEvent.type(
+      screen.getByPlaceholderText('Model name'),
+      'deepseek-v4.1-flash'
+    )
+    // A ratio is typed first to prove the expression wins over it.
+    await userEvent.type(screen.getByPlaceholderText('Model Ratio'), '1.5')
+    await userEvent.type(
+      screen.getByLabelText('Billing expression'),
+      'tier("base", p * 1 + c * 4)'
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    expect(onPrices).toHaveBeenLastCalledWith({
+      'deepseek-v4.1-flash': { billing_expr: 'tier("base", p * 1 + c * 4)' },
+    })
+  })
 })
