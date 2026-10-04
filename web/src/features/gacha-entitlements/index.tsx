@@ -1,70 +1,75 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Copy, KeyRound, Layers, PackageOpen, RotateCcw, ShieldOff } from 'lucide-react'
-import { toast } from 'sonner'
+import { useEffect, useState } from 'react'
+import { Layers, PackageOpen } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { fetchGachaCards, resetGachaCardToken, revokeGachaCardToken } from '@/features/gacha/api'
-import { QQLevel, RARITY_CARD_CLASS, RARITY_TEXT_CLASS, rarityName } from '@/features/gacha/level'
+import { fetchGachaEntitlements } from '@/features/gacha/api'
+import {
+  RARITY_CARD_CLASS,
+  RARITY_TEXT_CLASS,
+  rarityName,
+} from '@/features/gacha/level'
+import { MergeBadgeView } from '@/features/gacha/merge-badge'
 import { formatQuotaWithCurrency } from '@/lib/currency'
 
-import type { UserGachaCard } from '@/features/gacha/types'
+import type { GachaEntitlement } from '@/features/gacha/types'
 
-const STATUS_LABEL: Record<number, { text: string; className: string }> = {
-  0: { text: '可用', className: 'bg-green-500/15 text-green-600' },
-  1: { text: '已用完', className: 'bg-slate-500/15 text-slate-500' },
-  2: { text: '已过期', className: 'bg-slate-500/15 text-slate-500' },
-  3: { text: '已禁用', className: 'bg-red-500/15 text-red-500' },
+type StatusFilter = 'all' | 'active' | 'expired'
+
+const SKELETON_KEYS = ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8']
+
+function StatusBadge({ status }: { status: string }) {
+  const { t } = useTranslation()
+  if (status === 'active') {
+    return (
+      <Badge className='bg-green-500/15 text-green-600'>{t('Active')}</Badge>
+    )
+  }
+  return <Badge className='bg-slate-500/15 text-slate-500'>{t('Expired')}</Badge>
 }
 
-function StatusBadge({ status }: { status: number }) {
-  const st = STATUS_LABEL[status] ?? STATUS_LABEL[0]
-  return <Badge className={st.className}>{st.text}</Badge>
+/** 模型范围折叠：超过 3 个时只显示前几个并给出 +N。 */
+function ModelRange({ models }: { models: string[] }) {
+  const { t } = useTranslation()
+  if (models.length === 0) {
+    return <span className='text-muted-foreground'>{t('All models')}</span>
+  }
+  const shown = models.slice(0, 3)
+  const rest = models.length - shown.length
+  return (
+    <div className='flex flex-wrap items-center gap-1'>
+      {shown.map((model) => (
+        <code
+          key={model}
+          className='max-w-full truncate rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]'
+        >
+          {model}
+        </code>
+      ))}
+      {rest > 0 && (
+        <span className='text-[11px] text-muted-foreground'>
+          {t('+{{count}} more', { count: rest })}
+        </span>
+      )}
+    </div>
+  )
 }
 
-function CardView({ card, rating }: { card: UserGachaCard; rating?: string }) {
+function EntitlementView({
+  entitlement,
+  rating,
+}: {
+  entitlement: GachaEntitlement
+  rating?: string
+}) {
+  const { t } = useTranslation()
   const rarity = rarityName(rating)
-  const [token, setToken] = useState<string | null>(null)
-  const [tokenExists, setTokenExists] = useState(card.token_exists ?? false)
-  const [busy, setBusy] = useState(false)
-
-  async function copy(value: string) {
-    try {
-      await navigator.clipboard.writeText(value)
-      toast.success('令牌已复制')
-    } catch {
-      toast.error('复制失败，请手动复制')
-    }
-  }
-
-  async function reset() {
-    setBusy(true)
-    try {
-      const value = await resetGachaCardToken(card.id)
-      setToken(value)
-      toast.success('已生成新令牌，请立即复制保存')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '生成令牌失败')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function revoke() {
-    setBusy(true)
-    try {
-      await revokeGachaCardToken(card.id)
-      setToken(null)
-      setTokenExists(false)
-      toast.success('令牌已撤销')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '撤销令牌失败')
-    } finally {
-      setBusy(false)
-    }
-  }
+  const models = entitlement.usable_models ?? []
+  const groups = entitlement.usable_groups ?? []
+  const remain = Math.max(entitlement.amount_total - entitlement.amount_used, 0)
   return (
     <Card
       className={`relative flex flex-col gap-3 overflow-hidden border-2 p-4 shadow-lg shadow-primary/5 ${RARITY_CARD_CLASS[rarity] ?? 'border-border/70 bg-card/80'}`}
@@ -75,129 +80,150 @@ function CardView({ card, rating }: { card: UserGachaCard; rating?: string }) {
         {rarity}
       </span>
       <div className='flex items-start justify-between gap-2'>
-        <span className='truncate font-mono text-sm font-bold'>{card.model_name}</span>
-        <StatusBadge status={card.status} />
+        <span className='truncate text-sm font-bold'>
+          {models.length > 0 ? models[0] : t('All models')}
+        </span>
+        <StatusBadge status={entitlement.status} />
       </div>
-      {(card.merge_count ?? 1) > 1 && <QQLevel count={card.merge_count ?? 1} />}
-      <div className='flex items-center justify-between text-xs'>
-        <span className='text-muted-foreground'>分组</span>
-        <code className='rounded bg-muted px-1.5 py-0.5'>{card.group}</code>
+      <MergeBadgeView count={entitlement.merge_count} className='absolute top-9 right-3' />
+      <div className='space-y-1'>
+        <span className='text-[11px] text-muted-foreground'>{t('Model range')}</span>
+        <ModelRange models={models} />
       </div>
+      {groups.length > 0 && (
+        <div className='flex items-center justify-between text-xs'>
+          <span className='text-muted-foreground'>{t('Group')}</span>
+          <code className='rounded bg-muted px-1.5 py-0.5'>{groups.join(', ')}</code>
+        </div>
+      )}
       <div className='flex items-center justify-between text-sm'>
-        <span className='text-muted-foreground'>剩余额度</span>
-        <span className='font-semibold'>{formatQuotaWithCurrency(card.remain_quota)}</span>
+        <span className='text-muted-foreground'>{t('Remaining balance')}</span>
+        <span className='font-semibold'>{formatQuotaWithCurrency(remain)}</span>
       </div>
-      {card.total_quota !== card.remain_quota && (
+      {remain !== entitlement.amount_total && (
         <div className='flex items-center justify-between text-[11px] text-muted-foreground'>
-          <span>累计获得</span>
-          <span>{formatQuotaWithCurrency(card.total_quota)}</span>
+          <span>{t('Total granted')}</span>
+          <span>{formatQuotaWithCurrency(entitlement.amount_total)}</span>
         </div>
       )}
       <div className='flex items-center justify-between text-xs text-muted-foreground'>
-        <span>有效期</span>
-        <span>
-          {card.expired_time === -1
-            ? '永久'
-            : new Date(card.expired_time * 1000).toLocaleDateString()}
-        </span>
-      </div>
-      <div className='mt-auto space-y-2 rounded-lg bg-muted/60 p-2 text-[11px] leading-relaxed text-muted-foreground'>
-        <div className='flex items-center justify-between gap-2'>
-          <span className='flex items-center gap-1'><KeyRound className='size-3' /> 专属 API 令牌</span>
-          {tokenExists && <span className='text-green-600'>已启用</span>}
-        </div>
-        {token ? (
-          <div className='space-y-1'>
-            <code className='block break-all rounded bg-background px-1.5 py-1 font-mono text-foreground'>{token}</code>
-            <p>请立即复制保存，关闭或刷新页面后无法再次查看。</p>
-            <Button size='sm' className='h-7 w-full' onClick={() => void copy(token)}><Copy className='size-3' />复制令牌</Button>
-          </div>
-        ) : (
-          <>
-            <code className='block rounded bg-background px-1.5 py-0.5 font-mono'>{card.token_masked ?? '尚未生成'}</code>
-            <div className='flex gap-2'>
-              <Button size='sm' className='h-7 flex-1' disabled={busy} onClick={() => void reset()}><RotateCcw className='size-3' />{tokenExists ? '重置' : '生成令牌'}</Button>
-              {tokenExists && <Button size='sm' variant='outline' className='h-7' disabled={busy} onClick={() => void revoke()}><ShieldOff className='size-3' />撤销</Button>}
-            </div>
-          </>
-        )}
+        <span>{t('Expires at')}</span>
+        <span>{new Date(entitlement.end_time * 1000).toLocaleDateString()}</span>
       </div>
     </Card>
   )
 }
 
-export default function GachaCardsPage() {
-  const [cards, setCards] = useState<UserGachaCard[]>([])
-  const [ratings, setRatings] = useState<Record<string, string>>({})
-  const [filter, setFilter] = useState<number | undefined>(undefined)
-  const [loading, setLoading] = useState(true)
-  const [total, setTotal] = useState(0)
+type EntitlementPageResult = {
+  data: GachaEntitlement[]
+  ratings: Record<string, string>
+  total: number
+}
+
+export default function GachaEntitlementsPage() {
+  const { t } = useTranslation()
+  const [filter, setFilter] = useState<StatusFilter>('all')
+  // The response is tagged with the filter it was fetched for, so switching
+  // filters renders the skeleton without a synchronous state update.
+  const [result, setResult] = useState<{
+    filter: StatusFilter
+    value: EntitlementPageResult
+  } | null>(null)
 
   useEffect(() => {
-    setLoading(true)
-    void fetchGachaCards(filter)
-      .then((r) => {
-        setCards(r.data)
-        setRatings(r.ratings)
-        setTotal(r.total)
-      })
-      .finally(() => setLoading(false))
+    let cancelled = false
+    void fetchGachaEntitlements(filter === 'all' ? undefined : filter).then(
+      (value) => {
+        if (!cancelled) {
+          setResult({ filter, value })
+        }
+      }
+    )
+    return () => {
+      cancelled = true
+    }
   }, [filter])
 
-  const usable = useMemo(() => cards.filter((c) => c.status === 0).length, [cards])
+  const loaded = result?.filter === filter ? result.value : null
+  const entitlements = loaded?.data ?? []
+  const total = loaded?.total ?? 0
+  const activeCount = entitlements.filter(
+    (item) => item.status === 'active'
+  ).length
 
-  const filters: Array<{ label: string; value?: number }> = [
-    { label: '全部' },
-    { label: '可用', value: 0 },
-    { label: '已用完', value: 1 },
-    { label: '已过期', value: 2 },
+  const filters: Array<{ key: StatusFilter; label: string }> = [
+    { key: 'all', label: t('All') },
+    { key: 'active', label: t('Active') },
+    { key: 'expired', label: t('Expired') },
   ]
+
+  function renderEntitlements() {
+    if (!loaded) {
+      return (
+        <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'>
+          {SKELETON_KEYS.map((key) => (
+            <Skeleton key={key} className='h-44 rounded-2xl' />
+          ))}
+        </div>
+      )
+    }
+    if (entitlements.length === 0) {
+      return (
+        <div className='flex flex-col items-center gap-3 rounded-2xl border border-dashed py-16 text-muted-foreground'>
+          <PackageOpen className='size-10' />
+          <p>{t('No entitlements yet — try your luck on the gacha page')}</p>
+        </div>
+      )
+    }
+    return (
+      <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'>
+        {entitlements.map((item) => (
+          <EntitlementView
+            key={item.id}
+            entitlement={item}
+            rating={loaded.ratings[item.usable_models?.[0] ?? '']}
+          />
+        ))}
+      </div>
+    )
+  }
 
   return (
     <main className='min-h-0 flex-1 overflow-y-auto'>
       <div className='container mx-auto max-w-6xl space-y-6 py-8'>
-      <div className='flex flex-wrap items-end justify-between gap-4'>
-        <div className='space-y-1'>
-          <div className='flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-primary'>
-            <Layers className='size-4' /> My Cards
+        <div className='flex flex-wrap items-end justify-between gap-4'>
+          <div className='space-y-1'>
+            <div className='flex items-center gap-2 text-sm font-semibold tracking-[0.2em] text-primary uppercase'>
+              <Layers className='size-4' /> My Entitlements
+            </div>
+            <h1 className='text-2xl font-bold'>{t('My entitlements')}</h1>
+            <p className='text-sm text-muted-foreground'>
+              {t(
+                'Pulled quota is a subscription restricted to its model range. Use your own API token — the balance is deducted automatically.'
+              )}
+            </p>
+            <p className='text-xs text-muted-foreground'>
+              {t('Total {{total}} · Active on this page {{active}}', {
+                total,
+                active: activeCount,
+              })}
+            </p>
           </div>
-          <h1 className='text-2xl font-bold'>我的卡库</h1>
-          <p className='text-sm text-muted-foreground'>
-            共 {total} 张 · 本页可用 {usable} 张 · 重复卡自动合并叠加
-          </p>
+          <div className='flex gap-2'>
+            {filters.map((item) => (
+              <Button
+                key={item.key}
+                size='sm'
+                variant={filter === item.key ? 'default' : 'outline'}
+                onClick={() => setFilter(item.key)}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
         </div>
-        <div className='flex gap-2'>
-          {filters.map((f) => (
-            <Button
-              key={f.label}
-              size='sm'
-              variant={filter === f.value ? 'default' : 'outline'}
-              onClick={() => setFilter(f.value)}
-            >
-              {f.label}
-            </Button>
-          ))}
-        </div>
-      </div>
 
-      {loading ? (
-        <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className='h-44 rounded-2xl' />
-          ))}
-        </div>
-      ) : cards.length === 0 ? (
-        <div className='flex flex-col items-center gap-3 rounded-2xl border border-dashed py-16 text-muted-foreground'>
-          <PackageOpen className='size-10' />
-          <p>还没有抽到卡，去抽卡页试试手气吧</p>
-        </div>
-      ) : (
-        <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'>
-          {cards.map((card) => (
-            <CardView key={card.id} card={card} rating={ratings[card.model_name]} />
-          ))}
-        </div>
-      )}
+        {renderEntitlements()}
       </div>
     </main>
   )

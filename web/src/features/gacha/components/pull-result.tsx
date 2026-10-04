@@ -1,20 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Copy } from 'lucide-react'
-import { toast } from 'sonner'
-
-import { Button } from '@/components/ui/button'
+import { useTranslation } from 'react-i18next'
 
 import { cn } from '@/lib/utils'
 import { formatQuotaWithCurrency } from '@/lib/currency'
 
-import { QQLevel, RARITY_STYLE, RARITY_TEXT_CLASS, rarityName } from '../level'
+import { RARITY_STYLE, RARITY_TEXT_CLASS, rarityName } from '../level'
+import { MergeBadgeView } from '../merge-badge'
 import { gachaAudio } from '../lib/audio'
 import { burstAtCenter, rain } from '../lib/fx'
-import type { PullCardResult } from '../types'
+import type { PullResult } from '../types'
 
 const RARITY_ORDER: Record<string, number> = { N: 0, R: 1, SR: 2, SSR: 3, UR: 4 }
 
-export function PullResult({ cards, onClose }: { cards: PullCardResult[]; onClose: () => void }) {
+export function PullResult({ cards, onClose }: { cards: PullResult[]; onClose: () => void }) {
+  const { t } = useTranslation()
   const [flipped, setFlipped] = useState<boolean[]>(() => cards.map(() => false))
   const [done, setDone] = useState(false)
   const [shake, setShake] = useState(false)
@@ -26,6 +25,18 @@ export function PullResult({ cards, onClose }: { cards: PullCardResult[]; onClos
       if ((RARITY_ORDER[c.rarity] ?? 0) > (RARITY_ORDER[best] ?? 0)) best = c.rarity
     }
     return best
+  }, [cards])
+
+  // A ten-pull can stack several results onto the same entitlement, so the
+  // subscription id alone is not unique; the occurrence counter keeps keys
+  // stable without indexing by position.
+  const keyed = useMemo(() => {
+    const seen = new Map<number, number>()
+    return cards.map((card) => {
+      const occurrence = seen.get(card.subscription_id) ?? 0
+      seen.set(card.subscription_id, occurrence + 1)
+      return { card, key: occurrence === 0 ? String(card.subscription_id) : `${card.subscription_id}-${occurrence}` }
+    })
   }, [cards])
 
   const style = RARITY_STYLE[top] ?? RARITY_STYLE.N
@@ -61,15 +72,6 @@ export function PullResult({ cards, onClose }: { cards: PullCardResult[]; onClos
     { UR: 'rgba(236,72,153,0.55)', SSR: 'rgba(245,158,11,0.5)', SR: 'rgba(147,51,234,0.45)', R: 'rgba(59,130,246,0.4)' }[top] ??
     'rgba(100,116,139,0.3)'
 
-  async function copy(value: string) {
-    try {
-      await navigator.clipboard.writeText(value)
-      toast.success('令牌已复制')
-    } catch {
-      toast.error('复制失败，请手动复制')
-    }
-  }
-
   return (
     <div
       className={cn('fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden bg-gradient-to-br to-slate-950 via-slate-950 p-6', style.bg, shake && 'gacha-shake')}
@@ -100,10 +102,10 @@ export function PullResult({ cards, onClose }: { cards: PullCardResult[]; onClos
         </header>
 
         <div className={cn('grid gap-4', cards.length > 5 ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5' : 'grid-cols-2 sm:grid-cols-3')}>
-          {cards.map((card, i) => {
+          {keyed.map(({ card, key }, i) => {
             const s = RARITY_STYLE[card.rarity] ?? RARITY_STYLE.N
             return (
-              <div key={`${card.card_id}-${i}`} className='relative aspect-[3/4] w-28 sm:w-32 md:w-36 [perspective:1000px]'>
+              <div key={key} className='relative aspect-[3/4] w-28 sm:w-32 md:w-36 [perspective:1000px]'>
                 <div
                   className={cn(
                     'relative h-full w-full transition-transform duration-500 [transform-style:preserve-3d] ease-[cubic-bezier(.2,.7,.3,1.15)]',
@@ -128,11 +130,18 @@ export function PullResult({ cards, onClose }: { cards: PullCardResult[]; onClos
                     <span className={cn('absolute top-2 right-2 rounded px-1.5 py-0.5 text-[11px] font-black', s.badge)}>
                       {rarityName(card.rarity)}
                     </span>
-                    <QQLevel count={card.merge_count ?? 1} className='size-4' />
+                    <MergeBadgeView count={card.merge_count} className='text-[10px]' />
                     <span className='max-w-full truncate text-center text-xs font-bold text-white sm:text-sm'>
-                      {card.model_name}
+                      {card.models[0] ?? t('All models')}
                     </span>
-                    <span className='max-w-full truncate text-[10px] text-muted-foreground'>{card.group}</span>
+                    {card.models.length > 1 && (
+                      <span className='max-w-full truncate text-[10px] text-muted-foreground'>
+                        {t('+{{count}} more', { count: card.models.length - 1 })}
+                      </span>
+                    )}
+                    {card.group && (
+                      <span className='max-w-full truncate text-[10px] text-muted-foreground'>{card.group}</span>
+                    )}
                     <span className='text-[11px] font-bold text-amber-300'>{formatQuotaWithCurrency(card.quota)}</span>
                   </div>
                 </div>
@@ -141,16 +150,14 @@ export function PullResult({ cards, onClose }: { cards: PullCardResult[]; onClos
           })}
         </div>
 
-        {done && cards.some((card) => card.card_token_created) && (
-          <div className='w-full max-w-xl space-y-2 rounded-xl border border-white/15 bg-black/25 p-3 text-left'>
-            <p className='text-sm font-semibold text-white'>新卡专属 API 令牌</p>
-            <p className='text-xs text-slate-300'>请立即复制保存，关闭后无法再次查看。</p>
-            {cards.filter((card) => card.card_token_created && card.card_token).map((card) => (
-              <div key={card.card_id} className='flex items-center gap-2 rounded-lg bg-black/30 p-2'>
-                <code className='min-w-0 flex-1 truncate font-mono text-xs text-amber-200'>{card.card_token}</code>
-                <Button size='sm' variant='secondary' className='shrink-0' onClick={(event) => { event.stopPropagation(); void copy(card.card_token!) }}><Copy className='size-3' />复制</Button>
-              </div>
-            ))}
+        {done && cards.some((card) => card.merged) && (
+          <div className='w-full max-w-xl space-y-1 rounded-xl border border-white/15 bg-black/25 p-3 text-left'>
+            <p className='text-sm font-semibold text-white'>{t('Stacked onto existing entitlements')}</p>
+            <p className='text-xs text-slate-300'>
+              {t(
+                'Quota was added to a matching entitlement instead of creating a new one. Use your own API token — the balance is deducted automatically.'
+              )}
+            </p>
           </div>
         )}
 

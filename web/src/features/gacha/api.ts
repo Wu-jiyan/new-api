@@ -1,6 +1,11 @@
 import { api } from '@/lib/api'
 
-import type { GachaPool, GachaStats, PullResponse, UserGachaCard } from './types'
+import type {
+  GachaEntitlement,
+  GachaPool,
+  GachaStats,
+  PullResponse,
+} from './types'
 
 export async function fetchGachaPools(): Promise<GachaPool[]> {
   const res = await api.get<{ success: boolean; data: GachaPool[] }>('/api/gacha/pools')
@@ -19,29 +24,34 @@ export async function pullGachaCards(
   return res.data?.data
 }
 
-export async function fetchGachaCards(
-  status?: number,
+export async function fetchGachaEntitlements(
+  status?: string,
   page = 1,
   pageSize = 50
-): Promise<{ data: UserGachaCard[]; total: number; ratings: Record<string, string> }> {
-  const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
-  if (status != null) params.set('status', String(status))
-  const res = await api.get<{ success: boolean; data: UserGachaCard[]; total: number; ratings: Record<string, string> }>(
-    `/api/gacha/cards?${params.toString()}`
-  )
-  return { data: res.data?.data ?? [], total: res.data?.total ?? 0, ratings: res.data?.ratings ?? {} }
+): Promise<{
+  data: GachaEntitlement[]
+  total: number
+  ratings: Record<string, string>
+}> {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  })
+  if (status) params.set('status', status)
+  const res = await api.get<{
+    success: boolean
+    data: GachaEntitlement[]
+    total: number
+    ratings: Record<string, string>
+  }>(`/api/gacha/entitlements?${params.toString()}`)
+  return {
+    data: res.data?.data ?? [],
+    total: res.data?.total ?? 0,
+    ratings: res.data?.ratings ?? {},
+  }
 }
 
 export async function fetchGachaStats(): Promise<GachaStats | null> {
   const res = await api.get<{ success: boolean; data: GachaStats }>('/api/gacha/stats')
   return res.data?.data ?? null
-}
-
-export async function resetGachaCardToken(cardId: number): Promise<string> {
-  const res = await api.post<{ success: boolean; data: { card_token: string } }>(`/api/gacha/cards/${cardId}/token/reset`)
-  return res.data?.data?.card_token
-}
-
-export async function revokeGachaCardToken(cardId: number): Promise<void> {
-  await api.post(`/api/gacha/cards/${cardId}/token/revoke`)
 }

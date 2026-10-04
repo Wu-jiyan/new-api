@@ -18,7 +18,8 @@ export interface GachaPool {
 export interface GachaCardEntry {
   id: number
   pool_id: number
-  model_name: string
+  /** Comma-separated model range granted by this entry. */
+  models: string
   group: string
   weight: number
   quota: number
@@ -27,40 +28,51 @@ export interface GachaCardEntry {
   expire_days: number
 }
 
-export interface PullCardResult {
-  card_id: number
-  model_name: string
+/** Merge badge shown on an entitlement and on a pull result. */
+export type MergeBadge = 'star' | 'moon' | 'sun'
+
+export interface PullResult {
+  subscription_id: number
+  models: string[]
   group: string
   rarity: string
   quota: number
   expire_days: number
   expired_at: number
-  merge_count?: number
-  card_token?: string
-  card_token_created?: boolean
+  merge_count: number
+  /** True when this pull was stacked onto an existing entitlement. */
+  merged: boolean
 }
 
 export interface PullResponse {
   pull_record_id: number
-  cards: PullCardResult[]
+  cards: PullResult[]
   pity_before: number
   pity_after: number
 }
 
-export interface UserGachaCard {
+/** A gacha grant is a subscription limited to a model range. */
+export interface GachaEntitlement {
   id: number
   user_id: number
-  model_name: string
-  group: string
-  total_quota: number
-  remain_quota: number
-  status: number
+  source: string
+  usable_models: string[] | null
+  usable_groups: string[] | null
+  amount_total: number
+  amount_used: number
+  start_time: number
+  end_time: number
+  status: string
   merge_count?: number
-  expired_time: number
-  created_time: number
-  token_masked?: string
-  token_status?: number
-  token_exists?: boolean
+}
+
+/** 1-2 grants ⭐, 3-5 🌙, 6+ ☀️. */
+export function mergeBadgeOf(mergeCount?: number): MergeBadge | null {
+  const count = mergeCount ?? 0
+  if (count <= 0) return null
+  if (count <= 2) return 'star'
+  if (count <= 5) return 'moon'
+  return 'sun'
 }
 
 export interface GachaStats {

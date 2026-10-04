@@ -18,7 +18,7 @@ import { fetchGachaPools, fetchGachaStats, pullGachaCards } from './api'
 import { PullResult } from './components/pull-result'
 import { gachaAudio } from './lib/audio'
 import './lib/gacha.css'
-import type { GachaPool, GachaStats, PullCardResult } from './types'
+import type { GachaPool, GachaStats, PullResult as PullResultType } from './types'
 
 function ProbabilityDialog({ pool }: { pool: GachaPool }) {
   const entries = pool.entries ?? []
@@ -46,7 +46,13 @@ function ProbabilityDialog({ pool }: { pool: GachaPool }) {
             {entries.map((e) => (
               <div key={e.id} className='flex items-center justify-between rounded-lg bg-muted/50 px-3 py-1.5'>
                 <div className='flex min-w-0 items-center gap-2'>
-                  <span className='truncate font-mono'>{e.model_name}</span>
+                  <span className='truncate font-mono'>
+                    {e.models
+                      .split(',')
+                      .map((name) => name.trim())
+                      .filter(Boolean)
+                      .join(', ')}
+                  </span>
                   <span className='shrink-0 rounded bg-muted px-1 py-0.5'>{e.group}</span>
                 </div>
                 <div className='flex shrink-0 gap-4 text-muted-foreground'>
@@ -67,10 +73,16 @@ function ProbabilityDialog({ pool }: { pool: GachaPool }) {
   )
 }
 
+function rtpTextClass(rtp?: number): string {
+  if ((rtp ?? 0) >= 1) return 'text-green-500'
+  if ((rtp ?? 0) >= 0.8) return 'text-amber-500'
+  return 'text-muted-foreground'
+}
+
 export default function GachaPage() {
   const { auth } = useAuthStore()
   const [pools, setPools] = useState<GachaPool[]>([])
-  const [cards, setCards] = useState<PullCardResult[]>([])
+  const [cards, setCards] = useState<PullResultType[]>([])
   const [stats, setStats] = useState<GachaStats | null>(null)
   const [pulling, setPulling] = useState(false)
   const [muted, setMuted] = useState(gachaAudio.muted)
@@ -130,11 +142,7 @@ export default function GachaPage() {
           <div className='flex items-center gap-2'>
             <span className='text-base'>{stats.recent_rtp && stats.recent_rtp >= 1 ? '🎉' : '📊'}</span>
             <span className='text-muted-foreground'>近 {stats.recent_pulls} 抽回本率</span>
-            <strong
-              className={
-                (stats.recent_rtp ?? 0) >= 1 ? 'text-green-500' : (stats.recent_rtp ?? 0) >= 0.8 ? 'text-amber-500' : 'text-muted-foreground'
-              }
-            >
+            <strong className={rtpTextClass(stats.recent_rtp)}>
               {((stats.recent_rtp ?? 0) * 100).toFixed(1)}%
             </strong>
             <span className='text-xs text-muted-foreground'>

@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import GachaCardsPage from '@/features/gacha-cards'
+import GachaEntitlementsPage from '@/features/gacha-entitlements'
 
 export const Route = createFileRoute('/_authenticated/gacha/cards/')({
-  component: GachaCardsPage,
+  component: GachaEntitlementsPage,
 })

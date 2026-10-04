@@ -1,6 +1,9 @@
-import { Crown, Moon, Star, Sun } from 'lucide-react'
+import { Moon, Star, Sun } from 'lucide-react'
 
-// 抽卡档位与等级展示工具（统一源：卡库、抽卡动画、管理端共用）。
+import type { MergeBadge } from './types'
+
+// 抽卡档位与等级展示常量（统一源：权益列表、抽卡动画、管理端共用）。
+// 组件放在 merge-badge.tsx，本文件只保留常量以便 Fast Refresh 正常工作。
 
 export const RARITIES = ['N', 'R', 'SR', 'SSR', 'UR'] as const
 
@@ -70,35 +73,15 @@ export const RARITY_STYLE: Record<string, RarityStyle> = {
   },
 }
 
-// QQ 等级制度：星星 -> 月亮 -> 太阳 -> 皇冠，每 4 个低一级升级，无上限。
-// count 为抽中次数：第 1 次为 0 星（无图标），之后每多抽中一次累加一个等级图标。
-export function QQLevel({ count, className }: { count: number; className?: string }) {
-  const n = Math.max(0, count - 1)
-  if (n <= 0) return null
-  let stars = n
-  const moons = Math.floor(stars / 4)
-  stars %= 4
-  const suns = Math.floor(moons / 4)
-  let moon = moons % 4
-  const crowns = Math.floor(suns / 4)
-  let sun = suns % 4
-  const iconCls = `size-3.5 ${className ?? ''}`
-  return (
-    <span className='flex flex-wrap items-center gap-0.5'>
-      {Array.from({ length: crowns }).map((_, i) => (
-        <Crown key={`c${i}`} className={`${iconCls} fill-amber-400 text-amber-400`} />
-      ))}
-      {Array.from({ length: sun }).map((_, i) => (
-        <Sun key={`s${i}`} className={`${iconCls} fill-orange-400 text-orange-400`} />
-      ))}
-      {Array.from({ length: moon }).map((_, i) => (
-        <Moon key={`m${i}`} className={`${iconCls} fill-sky-300 text-sky-300`} />
-      ))}
-      {Array.from({ length: stars }).map((_, i) => (
-        <Star key={`x${i}`} className={`${iconCls} fill-yellow-400 text-yellow-400`} />
-      ))}
-    </span>
-  )
+// 合并徽标：抽中次数越高，等级越高 —— 1-2 ⭐ / 3-5 🌙 / 6+ ☀️。
+// 与抽卡动画、权益列表共用同一套阈值。
+export const MERGE_BADGE_META: Record<
+  MergeBadge,
+  { icon: typeof Star; className: string; label: string }
+> = {
+  star: { icon: Star, className: 'fill-yellow-400 text-yellow-400', label: '⭐' },
+  moon: { icon: Moon, className: 'fill-sky-300 text-sky-300', label: '🌙' },
+  sun: { icon: Sun, className: 'fill-orange-400 text-orange-400', label: '☀️' },
 }
 
 // 档位展示名：统一使用 SSR 等拉丁命名。

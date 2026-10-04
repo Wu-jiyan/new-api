@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Pencil, Plus, RefreshCw, Search, Trash2, TrendingUp, Wand2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { MultiSelect, type Option } from '@/components/multi-select'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -202,19 +204,48 @@ function PoolEditor(props: { pool?: GachaPool; onClose: () => void; onSaved: () 
 }
 
 function EntryEditor(props: { poolId: number; entry?: GachaCardEntry; onClose: () => void; onSaved: () => void }) {
+  const { t } = useTranslation()
   const { poolId, entry, onClose, onSaved } = props
   const [form, setForm] = useState<GachaCardEntry>(
-    entry ?? { pool_id: poolId, model_name: '', group: '', weight: 1, quota: 0, quota_min: 0, quota_max: 0, expire_days: 0 }
+    entry ?? { pool_id: poolId, models: '', group: '', weight: 1, quota: 0, quota_min: 0, quota_max: 0, expire_days: 0 }
+  )
+  const [modelOptions, setModelOptions] = useState<Option[]>([])
+
+  const selectedModels = useMemo(
+    () =>
+      form.models
+        .split(',')
+        .map((name) => name.trim())
+        .filter(Boolean),
+    [form.models]
   )
 
+  useEffect(() => {
+    void listRatings(undefined, undefined, 1, 100)
+      .then((result) =>
+        setModelOptions(
+          result.data.map((model) => ({
+            label: model.model_name,
+            value: model.model_name,
+            hint: model.rating,
+          }))
+        )
+      )
+      .catch(() => undefined)
+  }, [])
+
   async function save() {
+    if (selectedModels.length === 0) {
+      toast.error(t('Select at least one model'))
+      return
+    }
     try {
-      await upsertEntry(poolId, form)
-      toast.success('条目已保存')
+      await upsertEntry(poolId, { ...form, models: selectedModels.join(',') })
+      toast.success(t('Entry saved'))
       onSaved()
       onClose()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '保存失败')
+      toast.error(error instanceof Error ? error.message : t('Save failed'))
     }
   }
 
@@ -222,48 +253,68 @@ function EntryEditor(props: { poolId: number; entry?: GachaCardEntry; onClose: (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{entry ? '编辑条目' : '新增条目'}</DialogTitle>
+          <DialogTitle>
+            {entry ? t('Edit entry') : t('Add entry')}
+          </DialogTitle>
         </DialogHeader>
         <div className='space-y-3'>
           <div className='space-y-1.5'>
-            <Label>模型名</Label>
-            <Input value={form.model_name} onChange={(e) => setForm({ ...form, model_name: e.target.value })} />
+            <Label>{t('Model range')}</Label>
+            <MultiSelect
+              options={modelOptions}
+              selected={selectedModels}
+              onChange={(values) => setForm({ ...form, models: values.join(',') })}
+              placeholder={t('Select models granted by this entry')}
+              emptyText={t('No models found')}
+              allowCreate
+              createLabel={t('Add "{{value}}"')}
+            />
+            <p className='text-xs text-muted-foreground'>
+              {t(
+                'Pulling grants one entitlement limited to these models. Pulling the same range again stacks onto the same entitlement.'
+              )}
+            </p>
           </div>
           <div className='space-y-1.5'>
-            <Label>分组</Label>
+            <Label>{t('Group')}</Label>
             <Input value={form.group} onChange={(e) => setForm({ ...form, group: e.target.value })} />
           </div>
           <div className='grid grid-cols-3 gap-3'>
             <div className='space-y-1.5'>
-              <Label>权重</Label>
+              <Label>{t('Weight')}</Label>
               <Input type='number' value={form.weight} onChange={(e) => setForm({ ...form, weight: Number(e.target.value) })} />
             </div>
             <div className='space-y-1.5'>
-              <Label>基准额度 (quota)</Label>
+              <Label>{t('Base quota')}</Label>
               <Input type='number' value={form.quota} onChange={(e) => setForm({ ...form, quota: Number(e.target.value) })} />
             </div>
             <div className='space-y-1.5'>
-              <Label>过期天数</Label>
+              <Label>{t('Expire days')}</Label>
               <Input type='number' value={form.expire_days} onChange={(e) => setForm({ ...form, expire_days: Number(e.target.value) })} />
             </div>
             <div className='space-y-1.5'>
-              <Label>额度下限 (随机)</Label>
+              <Label>{t('Quota min (random)')}</Label>
               <Input type='number' value={form.quota_min ?? 0} onChange={(e) => setForm({ ...form, quota_min: Number(e.target.value) })} />
             </div>
             <div className='space-y-1.5'>
-              <Label>额度上限 (随机)</Label>
+              <Label>{t('Quota max (random)')}</Label>
               <Input type='number' value={form.quota_max ?? 0} onChange={(e) => setForm({ ...form, quota_max: Number(e.target.value) })} />
             </div>
           </div>
           {(form.quota_max ?? 0) > (form.quota_min ?? 0) && (
-            <p className='text-xs text-muted-foreground'>抽中时额度将在 {form.quota_min} ~ {form.quota_max} 之间随机</p>
+            <p className='text-xs text-muted-foreground'>
+              {t('Quota is random between {{min}} and {{max}} on each pull', {
+                min: form.quota_min,
+                max: form.quota_max,
+              })}
+            </p>
           )}
         </div>
         <DialogFooter>
           <Button variant='outline' onClick={onClose}>
-            取消
+            {t('Cancel')}
           </Button>
-          <Button onClick={() => void save()}>保存</Button>
+          <Button onClick={() => void save()}>{t('Save')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -543,9 +594,9 @@ function GenerateEntriesDialog(props: { pool: GachaPool; onClose: () => void; on
               {preview.warn && <p className='text-destructive'>⚠ {preview.warn_reason}</p>}
               <div className='max-h-36 space-y-1 overflow-y-auto border-t pt-2'>
                 {preview.entries.map((v) => (
-                  <div key={v.entry.model_name} className='flex items-center justify-between gap-2'>
+                  <div key={v.entry.models} className='flex items-center justify-between gap-2'>
                     <span className='flex min-w-0 items-center gap-2'>
-                      <span className='truncate font-mono'>{v.entry.model_name}</span>
+                      <span className='truncate font-mono'>{v.entry.models}</span>
                       <RatingBadge rating={v.rating} />
                     </span>
                     <span className='shrink-0 text-muted-foreground'>
@@ -610,7 +661,17 @@ function PoolsTab() {
   }
 
   useEffect(() => {
-    void load()
+    let cancelled = false
+    void listPools()
+      .then((value) => {
+        if (!cancelled) setPools(value)
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) toast.error(error instanceof Error ? error.message : '加载失败')
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   async function removePool(pool: GachaPool) {
@@ -688,7 +749,7 @@ function PoolsTab() {
                   {pool.entries.map((entry) => (
                     <div key={entry.id} className='flex items-center justify-between rounded-lg bg-muted/50 px-3 py-1.5 text-xs'>
                       <div className='flex min-w-0 items-center gap-2'>
-                        <span className='truncate font-mono'>{entry.model_name}</span>
+                        <span className='truncate font-mono'>{entry.models}</span>
                         <Badge className='shrink-0' variant='secondary'>
                           {entry.group}
                         </Badge>
@@ -756,14 +817,13 @@ function RatingRow({
   thresholds: RatingThresholds
   onSave: (id: number, score: number) => Promise<void>
 }) {
-  const [score, setScore] = useState(item.rating_score ?? 0)
+  // Edited value wins until it is saved, so an incoming prop update never has to
+  // be copied into state inside an effect.
+  const [editedScore, setEditedScore] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    setScore(item.rating_score ?? 0)
-  }, [item.id, item.rating_score])
-
   const storedScore = item.rating_score ?? 0
+  const score = editedScore ?? storedScore
   const dirty = score !== storedScore
   // 档位由分数推导，不接受直接编辑；无分数时展示已存档位（历史手动数据）。
   const displayRating = score > 0 ? ratingForScore(score, thresholds) : (item.rating ?? '')
@@ -772,6 +832,7 @@ function RatingRow({
     setSaving(true)
     try {
       await onSave(item.id, nextScore)
+      setEditedScore(null)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '保存失败')
     } finally {
@@ -799,7 +860,7 @@ function RatingRow({
             max='100'
             value={score || ''}
             placeholder='分数'
-            onChange={(e) => setScore(Number(e.target.value))}
+            onChange={(e) => setEditedScore(Number(e.target.value))}
           />
           <span className='absolute top-1/2 right-2 -translate-y-1/2 text-[10px] text-muted-foreground'>%</span>
         </div>
@@ -819,7 +880,7 @@ function RatingRow({
             className='h-7 px-2 text-muted-foreground hover:text-destructive'
             disabled={saving}
             onClick={() => {
-              setScore(0)
+              setEditedScore(0)
               void saveScore(0)
             }}
           >
@@ -844,26 +905,49 @@ function RatingsTab() {
   const [resetting, setResetting] = useState(false)
   const totalPages = Math.max(1, Math.ceil(total / RATINGS_PAGE_SIZE))
 
-  const load = useCallback(async () => {
-    try {
-      const res = await listRatings(keyword, undefined, page, RATINGS_PAGE_SIZE)
+  const fetchRatings = useCallback(
+    () => listRatings(keyword, undefined, page, RATINGS_PAGE_SIZE),
+    [keyword, page]
+  )
+
+  const applyRatings = useCallback(
+    (res: Awaited<ReturnType<typeof fetchRatings>>) => {
       setModels(res.data)
       setTotal(res.total)
       setThresholds(res.thresholds)
       setLastSyncAt(res.lastSyncAt)
       setLastSyncNum(res.lastSyncNum)
+    },
+    []
+  )
+
+  const load = useCallback(async () => {
+    try {
+      applyRatings(await fetchRatings())
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '加载失败')
     }
-  }, [keyword, page])
+  }, [applyRatings, fetchRatings])
 
-  useEffect(() => {
+  // Changing the keyword restarts paging instead of syncing state in an effect.
+  const changeKeyword = useCallback((value: string) => {
+    setKeyword(value)
     setPage(1)
-  }, [keyword])
+  }, [])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    let cancelled = false
+    void fetchRatings()
+      .then((res) => {
+        if (!cancelled) applyRatings(res)
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) toast.error(error instanceof Error ? error.message : '加载失败')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [applyRatings, fetchRatings])
 
   async function changeRating(id: number, score: number) {
     await setRating(id, score)
@@ -920,7 +1004,7 @@ function RatingsTab() {
           className='max-w-xs'
           placeholder='搜索模型名'
           value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
+          onChange={(e) => changeKeyword(e.target.value)}
         />
         <div className='flex items-center gap-2'>
           <Button size='sm' variant='outline' disabled={models.length === 0 || resetting} onClick={() => void resetCurrentPage()}>

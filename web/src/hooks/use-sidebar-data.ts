@@ -121,7 +121,7 @@ export function useSidebarData(): SidebarData {
             icon: Sparkles,
           },
           {
-            title: t('Gacha Cards'),
+            title: t('Gacha Entitlements'),
             url: '/gacha/cards',
             icon: Layers,
           },

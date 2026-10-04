@@ -19,7 +19,8 @@ export interface GachaPool {
 export interface GachaCardEntry {
   id?: number
   pool_id: number
-  model_name: string
+  /** Comma-separated model range granted by this entry. */
+  models: string
   group: string
   weight: number
   quota: number
