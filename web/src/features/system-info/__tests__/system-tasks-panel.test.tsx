@@ -32,6 +32,12 @@ import { api } from '@/lib/api'
 
 import { SystemTasksPanel } from '../components/system-tasks-panel'
 
+// The mocked api.get erases the axios params generic, so the requested scope is
+// read through a narrow local type instead of an untyped property access.
+function requestedScope(config: unknown): string | undefined {
+  return (config as { params?: { scope?: string } } | undefined)?.params?.scope
+}
+
 const task = {
   id: 1,
   task_id: 'history-task',
@@ -62,7 +68,7 @@ afterEach(() => {
 
 it('filters history on the server and resets pagination without hiding active tasks', async () => {
   const get = vi.spyOn(api, 'get').mockImplementation(async (_url, config) => {
-    if (config?.params?.scope === 'active') {
+    if (requestedScope(config) === 'active') {
       return {
         data: {
           success: true,
@@ -135,7 +141,7 @@ it('requires confirmation and cleans all matching history pages using the select
   vi.spyOn(api, 'get').mockImplementation(async (_url, config) => ({
     data: {
       success: true,
-      data: config?.params?.scope === 'active' ? [] : [task],
+      data: requestedScope(config) === 'active' ? [] : [task],
       total: 21,
     },
   }))
@@ -218,7 +224,7 @@ it('retains the confirmation and shows the server error when cleanup fails', asy
 it('shows history query failures without hiding active tasks and allows retry', async () => {
   let historyFailed = true
   vi.spyOn(api, 'get').mockImplementation(async (_url, config) => {
-    if (config?.params?.scope === 'history' && historyFailed) {
+    if (requestedScope(config) === 'history' && historyFailed) {
       return { data: { success: false, message: 'History unavailable' } }
     }
     return {
@@ -228,7 +234,7 @@ it('shows history query failures without hiding active tasks and allows retry', 
           {
             ...task,
             locked_by:
-              config?.params?.scope === 'active'
+              requestedScope(config) === 'active'
                 ? 'active-runner'
                 : 'history-runner',
           },
@@ -254,7 +260,7 @@ it('shows history query failures without hiding active tasks and allows retry', 
 it('refreshes history when the last running task finishes', async () => {
   let finished = false
   vi.spyOn(api, 'get').mockImplementation(async (_url, config) => {
-    const active = config?.params?.scope === 'active'
+    const active = requestedScope(config) === 'active'
     const data =
       active === finished
         ? []

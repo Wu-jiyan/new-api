@@ -39,6 +39,12 @@ import type {
 } from '../../api'
 import { AccessTokensCard } from '../access-tokens-card'
 
+// The mocked api.get erases the axios params generic, so the requested scope is
+// read through a narrow local type instead of an untyped property access.
+function requestedScope(config: unknown): string | undefined {
+  return (config as { params?: { scope?: string } } | undefined)?.params?.scope
+}
+
 const NOW = Math.floor(Date.now() / 1000)
 
 const catalog: AccessTokenCatalog = {
@@ -139,7 +145,7 @@ beforeEach(() => {
         data: {
           success: true,
           data: {
-            scope: config?.params?.scope,
+            scope: requestedScope(config),
             methods: [{ method: 'password', available: true }],
             oauth_providers: [],
             password_encryption_enabled: false,
