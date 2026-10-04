@@ -307,9 +307,7 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	// scope, so scoped access tokens cannot call them.
 	"GET /api/gacha/pools":                                            accessTokenSessionRule,
 	"POST /api/gacha/pool/:id/pull":                                   accessTokenSessionRule,
-	"GET /api/gacha/cards":                                            accessTokenSessionRule,
-	"POST /api/gacha/cards/:id/token/reset":                           accessTokenSessionRule,
-	"POST /api/gacha/cards/:id/token/revoke":                          accessTokenSessionRule,
+	"GET /api/gacha/entitlements":                                     accessTokenSessionRule,
 	"GET /api/gacha/stats":                                            accessTokenSessionRule,
 	"GET /api/gacha/admin/ratings":                                    accessTokenSessionRule,
 	"POST /api/gacha/admin/sync-rating":                               accessTokenSessionRule,

@@ -25,7 +25,8 @@ var (
 	gachaSyncCount   atomic.Int64
 )
 
-// StartGachaTasks 启动抽卡相关后台任务（DeepSWE 分级同步 + 过期卡清理）。
+// StartGachaTasks 启动抽卡相关后台任务（DeepSWE 分级同步）。
+// 抽卡权益是订阅，过期清理沿用订阅的 ExpireDueSubscriptions 定时任务。
 func StartGachaTasks() {
 	gachaTaskOnce.Do(func() {
 		if !common.IsMasterNode {
@@ -35,16 +36,14 @@ func StartGachaTasks() {
 			ctx := context.Background()
 			logger.LogInfo(ctx, "gacha tasks started")
 			syncTicker := time.NewTicker(gachaRatingSyncInterval)
-			cleanupTicker := time.NewTicker(gachaCardCleanupInterval)
 			defer syncTicker.Stop()
-			defer cleanupTicker.Stop()
 			runGachaRatingSyncOnce(ctx)
 			for {
 				select {
 				case <-syncTicker.C:
 					runGachaRatingSyncOnce(ctx)
-				case <-cleanupTicker.C:
-					runGachaCardCleanupOnce(ctx)
+				case <-ctx.Done():
+					return
 				}
 			}
 		})
@@ -69,12 +68,6 @@ func runGachaRatingSyncOnce(ctx context.Context) {
 	gachaLastSyncAt.Store(time.Now().Unix())
 	gachaSyncCount.Store(int64(n))
 	logger.LogInfo(ctx, "deepswe rating sync done")
-}
-
-func runGachaCardCleanupOnce(ctx context.Context) {
-	if _, err := model.ExpireDueGachaCards(500); err != nil {
-		logger.LogWarn(ctx, "gacha card cleanup failed: "+err.Error())
-	}
 }
 
 // GetGachaRatingSyncStatus 返回同步状态（供管理端展示）。

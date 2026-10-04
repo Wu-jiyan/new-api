@@ -128,25 +128,25 @@ func TestSubscriptionUsableGroupsRestrictConsumption(t *testing.T) {
 	t.Run("restricted groups decide wallet fallback", func(t *testing.T) {
 		// Not usable anywhere yet, so the two group-aware checks must say "no
 		// subscription here" and the caller falls back to the wallet.
-		hasDefault, err := HasActiveUserSubscription(user.Id, "default")
+		hasDefault, err := HasActiveUserSubscription(user.Id, "default", "")
 		require.NoError(t, err)
 		assert.False(t, hasDefault)
 
-		hasVip, err := HasActiveUserSubscription(user.Id, "vip")
+		hasVip, err := HasActiveUserSubscription(user.Id, "vip", "")
 		require.NoError(t, err)
 		assert.True(t, hasVip)
 
-		allowDefault, err := UserActiveSubscriptionsAllowWalletOverflow(user.Id, "default")
+		allowDefault, err := UserActiveSubscriptionsAllowWalletOverflow(user.Id, "default", "")
 		require.NoError(t, err)
 		assert.True(t, allowDefault, "no subscription applies here, so the wallet stays usable")
 	})
 
 	t.Run("pre-consume pays only from a covered group", func(t *testing.T) {
-		_, err := PreConsumeUserSubscription("req-outside", user.Id, "default", 0, 10)
+		_, err := PreConsumeUserSubscription("req-outside", user.Id, "default", "", 0, 10)
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrSubscriptionGroupNotUsable)
 
-		result, err := PreConsumeUserSubscription("req-vip", user.Id, "vip", 0, 10)
+		result, err := PreConsumeUserSubscription("req-vip", user.Id, "vip", "", 0, 10)
 		require.NoError(t, err)
 		require.Equal(t, sub.Id, result.UserSubscriptionId)
 		assert.EqualValues(t, 10, result.PreConsumed)
@@ -164,11 +164,11 @@ func TestSubscriptionUsableGroupsRestrictConsumption(t *testing.T) {
 		_, err := CreateUserSubscriptionFromPlanTx(DB, user.Id, openPlan, "admin")
 		require.NoError(t, err)
 
-		hasDefault, err := HasActiveUserSubscription(user.Id, "default")
+		hasDefault, err := HasActiveUserSubscription(user.Id, "default", "")
 		require.NoError(t, err)
 		assert.True(t, hasDefault)
 
-		result, err := PreConsumeUserSubscription("req-open", user.Id, "default", 0, 10)
+		result, err := PreConsumeUserSubscription("req-open", user.Id, "default", "", 0, 10)
 		require.NoError(t, err)
 		assert.EqualValues(t, 10, result.PreConsumed)
 	})
@@ -190,7 +190,7 @@ func TestSubscriptionUsableGroupsRestrictConsumption(t *testing.T) {
 		require.NoError(t, DB.First(&stored, legacy.Id).Error)
 		assert.Empty(t, stored.UsableGroups)
 
-		hasAny, err := HasActiveUserSubscription(user.Id, "any-group")
+		hasAny, err := HasActiveUserSubscription(user.Id, "any-group", "")
 		require.NoError(t, err)
 		assert.True(t, hasAny)
 	})
@@ -261,7 +261,7 @@ func TestSubscriptionUsableGroupsMigrationPreservesLegacyRows(t *testing.T) {
 	previousDB, previousLogDB := DB, LOG_DB
 	DB, LOG_DB = db, db
 	t.Cleanup(func() { DB, LOG_DB = previousDB, previousLogDB })
-	has, err := HasActiveUserSubscription(1, "any-group")
+	has, err := HasActiveUserSubscription(1, "any-group", "")
 	require.NoError(t, err)
 	assert.True(t, has)
 
@@ -418,4 +418,98 @@ func TestSubscriptionGroupCacheRefreshFailureDoesNotChangeCommittedResult(t *tes
 	var subscription UserSubscription
 	require.NoError(t, DB.Where("user_id = ?", user.Id).First(&subscription).Error)
 	assert.Equal(t, "active", subscription.Status)
+}
+
+// TestSubscriptionUsableModelsRestrictConsumption covers the model restriction
+// end-to-end: the plan snapshot, pre-consume selection, the existence checks that
+// decide wallet fallback, and a plan-less gacha grant.
+func TestSubscriptionUsableModelsRestrictConsumption(t *testing.T) {
+	truncateTables(t)
+	require.NoError(t, DB.AutoMigrate(&SubscriptionPreConsumeRecord{}))
+	t.Cleanup(func() { DB.Exec("DELETE FROM subscription_pre_consume_records") })
+	useUserCacheMiniRedis(t)
+
+	user := User{
+		Username:    "usable-models-user",
+		Password:    "unused-password-hash",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+		AuthVersion: 1,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	require.NoError(t, populateUserCache(user))
+
+	plan := &SubscriptionPlan{
+		Title:         "GPT only",
+		DurationUnit:  SubscriptionDurationMonth,
+		DurationValue: 1,
+		TotalAmount:   100,
+		UsableModels:  []string{"gpt-5", "gpt-5-codex"},
+		Enabled:       true,
+	}
+	require.NoError(t, DB.Create(plan).Error)
+	sub, err := CreateUserSubscriptionFromPlanTx(DB, user.Id, plan, "admin")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"gpt-5", "gpt-5-codex"}, sub.UsableModels,
+		"the plan snapshot must carry the model restriction")
+
+	t.Run("restricted models decide wallet fallback", func(t *testing.T) {
+		hasOther, err := HasActiveUserSubscription(user.Id, "default", "claude-x")
+		require.NoError(t, err)
+		assert.False(t, hasOther, "a subscription limited to other models cannot pay for this request")
+
+		hasCovered, err := HasActiveUserSubscription(user.Id, "default", "gpt-5")
+		require.NoError(t, err)
+		assert.True(t, hasCovered)
+
+		allowOther, err := UserActiveSubscriptionsAllowWalletOverflow(user.Id, "default", "claude-x")
+		require.NoError(t, err)
+		assert.True(t, allowOther, "no subscription applies to this model, so the wallet stays usable")
+	})
+
+	t.Run("pre-consume pays only from a covered model", func(t *testing.T) {
+		_, err := PreConsumeUserSubscription("model-outside", user.Id, "default", "claude-x", 0, 10)
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrSubscriptionModelNotUsable)
+
+		result, err := PreConsumeUserSubscription("model-inside", user.Id, "default", "gpt-5", 0, 10)
+		require.NoError(t, err)
+		require.Equal(t, sub.Id, result.UserSubscriptionId)
+		assert.EqualValues(t, 10, result.PreConsumed)
+	})
+
+	t.Run("plan-less gacha grant pays without loading a plan", func(t *testing.T) {
+		now := time.Now().Unix()
+		granted := &UserSubscription{
+			UserId:              user.Id,
+			PlanId:              0,
+			AmountTotal:         50,
+			StartTime:           now,
+			EndTime:             now + 3600,
+			Status:              "active",
+			Source:              "gacha",
+			UsableModels:        []string{"jev-1.13"},
+			MergeCount:          2,
+			AllowWalletOverflow: true,
+		}
+		require.NoError(t, DB.Create(granted).Error)
+
+		result, err := PreConsumeUserSubscription("model-grant", user.Id, "default", "jev-1.13", 0, 10)
+		require.NoError(t, err, "a subscription without a plan must not fail the plan lookup")
+		require.Equal(t, granted.Id, result.UserSubscriptionId)
+
+		// The gpt-only subscription still pays a gpt request, so a model-restricted
+		// grant never hides an otherwise usable subscription.
+		other, err := PreConsumeUserSubscription("model-gpt-again", user.Id, "default", "gpt-5-codex", 0, 10)
+		require.NoError(t, err)
+		require.Equal(t, sub.Id, other.UserSubscriptionId)
+	})
+
+	t.Run("unverifiable request model never matches a restriction", func(t *testing.T) {
+		assert.True(t, SubscriptionUsableModelsAllow(nil, ""))
+		assert.False(t, SubscriptionUsableModelsAllow([]string{"gpt-5"}, ""))
+		assert.False(t, SubscriptionUsableModelsAllow([]string{"gpt-5"}, "gpt-4"))
+		assert.True(t, SubscriptionUsableModelsAllow([]string{"gpt-5"}, " gpt-5 "))
+	})
 }

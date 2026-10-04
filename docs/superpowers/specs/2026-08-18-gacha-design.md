@@ -1,19 +1,30 @@
 # 抽卡（Gacha）功能设计
 
-- 日期：2026-08-18
+- 日期：2026-08-18（2026-10-04 修订：产出物由「卡片 + 独立令牌」改为「受限订阅」）
 - 仓库：e:\new-api（QuantumNous/new-api fork）
-- 状态：待审阅（用户确认核心产品决策，等待设计文档审阅）
+- 状态：设计已确认（方案 A：抽卡直接发放 `UserSubscription`）
 - 参考实现：https://github.com/Animnia/TokenGacha（抽卡交互、保底、稀有度分档）
 
 ## 1. 背景与目标
 
-在 new-api 中转站中加入"抽卡"玩法：用户可以用钱包余额（quota）购买不同价格的卡包（青铜盲盒 / 白银盲盒 / 王者盲盒等），抽到绑定**模型 + 分组 + 额度**的真实可用卡，用卡调用对应模型（走已有计价系统与成本系统），运营商可自定义用户回报率并保证自身不亏。
+在 new-api 中转站中加入"抽卡"玩法：用户可以用钱包余额（quota）购买不同价格的卡包（青铜盲盒 / 白银盲盒 / 王者盲盒等），抽到**绑定模型范围 + 分组 + 额度 + 有效期**的订阅权益，用自己的普通令牌即可消费（走已有订阅抵扣与计价系统），运营商可自定义用户回报率并保证自身不亏。
 
 目标：
-1. 用户侧：抽卡页（高级翻卡动画 + 音效）、卡库页、模型广场稀有度展示。
+1. 用户侧：抽卡页（高级翻卡动画 + 音效）、我的抽卡权益页、模型广场稀有度展示。
 2. 经济侧：卡包价格由运营者配置，系统实时测算"期望回报率 / 期望成本"，保证运营者不亏（期望成本 < 价格）。
-3. 凭证侧：抽到的卡是用户资产，调用 API 时通过请求头指定使用某张卡，后端校验"模型 + 分组"匹配后从卡额度扣费（新增资金来源，接入现有 BillingSession）。
+3. 权益侧：抽到的权益复用订阅链路，**不再需要专属令牌或请求头**；订阅新增模型范围维度，只有范围内的模型可消耗该订阅额度。
 4. 分级侧：模型元数据增加 N / R / SR / SSR / UR 稀有度分级，支持从 DeepSWE 公开榜单自动同步 + 管理端手动覆盖，展示到模型广场卡片。
+
+### 2026-10-04 修订要点（替代原卡片方案）
+
+原方案抽到的是 `UserGachaCard`（模型 + 分组 + 额度），必须通过独立 `GachaCardToken` 令牌或 `New-Api-Card` 请求头才能消费，而完整令牌只在抽卡瞬间显示一次、之后只有掩码且没有重置入口。功能从未上线，因此直接废弃卡片与令牌机制，不保留双轨：
+
+- 抽到的权益改为 `UserSubscription`（`plan_id = 0`、`source = gacha`），额度与有效期直接落在订阅上。
+- `SubscriptionPlan` / `UserSubscription` 新增 `usable_models` 维度，与既有 `usable_groups` 完全同构（空 = 不限制）。
+- 相同模型范围 + 相同分组的抽卡权益自动叠加到同一张订阅（额度相加、到期取更晚、累计抽中次数 +1）。
+- 累计抽中次数驱动合并徽标：1-2 ⭐ / 3-5 🌙 / 6+ ☀️（保留原多卡合并的等级展示特色）。
+- 抽卡权益额度用完后**回退钱包余额**，与普通订阅一致（抽卡本质是变相加余额，稀有度只影响抽取概率）。
+- `user_gacha_cards`、`gacha_card_tokens`、`GachaCardFunding`、`New-Api-Card` 头及其认证中间件一并删除。
 
 ### 产品决策（用户已确认）
 
@@ -32,24 +43,26 @@
                         │ 购买卡包（扣费，LogTypeGacha）
                         ▼
              卡池（青铜/白银/王者）── 抽卡（概率 + 保底 + 幂等）
-                        │ 事务内发卡
+                        │ 事务内发放 / 叠加订阅
                         ▼
-             UserGachaCard 卡库（模型 + 分组 + 额度 + 有效期）
+        UserSubscription（source=gacha, plan_id=0）
+             usable_models（模型范围）+ usable_groups（分组）
+             amount_total / end_time / merge_count（合并徽标）
                         │
-   用户令牌 + header `New-Api-Card: <card_id>`
-                        │ 校验：卡归属 / 状态 / 有效期 / 模型匹配 / 分组匹配
+                用户自己的普通 API 令牌
+                        │ 订阅抵扣：模型 ∈ usable_models 且分组 ∈ usable_groups
                         ▼
-        BillingSession ── GachaCardFunding（新资金源，实现 FundingSource）
+        BillingSession ── SubscriptionFunding（既有资金源，不新增）
                         │ 预扣 → 上游请求 → 结算/退款
                         ▼
-   消费日志（Other.gacha_card_id）→ 利润聚合口径调整
+   消费日志（Other.subscription_id）→ 抽卡来源消耗不计重复收入
 ```
 
 关键原则：
-- 抽卡扣费、发卡、保底计数、流水写入在**同一事务**内完成，`pull_id` 做幂等键。
-- 卡扣费走 `FundingSource` 接口，复用 BillingSession 的预扣 / 结算 / 退款链路，与钱包、订阅并列。
-- 未带 `New-Api-Card` 头的请求完全走现有逻辑，不改变现有计费行为。
-- 会计口径：卡包购买收入计入"调用收入"之外的独立收入项；卡调用消费日志不计重复收入、只计成本与用量。
+- 抽卡扣费、发放订阅、保底计数、流水写入在**同一事务**内完成，`pull_id` 做幂等键。
+- 抽卡权益**不新增资金源**，完全走既有 `SubscriptionFunding` 的预扣 / 结算 / 退款链路。
+- 不带任何特殊请求头：用户用原有令牌即可消费抽到的额度，未订阅模型自动落到钱包或其它订阅。
+- 会计口径：卡包购买收入计入"抽卡收入"独立收入项；抽卡来源订阅的消耗不计重复收入（钱在买卡时已收）、只计成本与用量。
 
 ## 3. 数据模型
 
@@ -92,34 +105,33 @@ type GachaPool struct {
 type GachaCardEntry struct {
 	Id         int    `json:"id" gorm:"primaryKey"`
 	PoolId     int    `json:"pool_id" gorm:"index;not null"`
-	ModelName  string `json:"model_name" gorm:"size:128;not null"` // 模型名（须在模型配置中且该分组下有启用渠道）
-	Group      string `json:"group" gorm:"size:64;not null"`       // 绑定分组（须存在分组倍率配置）
-	Weight     int    `json:"weight" gorm:"not null"`              // 概率权重（池内相对权重，同一档位多条叠加即该档概率）
-	Quota      int64  `json:"quota" gorm:"not null"`               // 卡额度（quota）
-	ExpireDays int    `json:"expire_days" gorm:"default:0"`        // 过期天数，0 = 永久
+	Models     string `json:"models" gorm:"type:text;not null"`   // 模型范围，逗号分隔；须全部在模型配置中且该分组下有启用渠道
+	Group      string `json:"group" gorm:"size:64;not null"`      // 绑定分组（须存在分组倍率配置），发放为订阅 usable_groups
+	Weight     int    `json:"weight" gorm:"not null"`             // 概率权重（池内相对权重，同一档位多条叠加即该档概率）
+	Quota      int64  `json:"quota" gorm:"not null"`              // 订阅额度（quota）
+	ExpireDays int    `json:"expire_days" gorm:"default:0"`       // 有效期天数，0 = 永久
 }
 ```
 
-一条条目 = 一种可抽到的卡（模型 + 分组 + 额度）。同一模型可配置多条不同分组的条目（如"GPT-5.6 Sol × GPT Pro 分组"、"GPT-5.6 Sol × GPT Team 分组"）。
+一条条目 = 一种可抽到的权益（模型范围 + 分组 + 额度 + 有效期）。模型范围可只填一个模型，也可填一组模型（如"GPT-5 全家桶"），发放后成为该范围的专属订阅。同一模型范围 + 同一分组只会存在一张抽卡订阅，重复抽中自动叠加。
 
-### 3.4 user_gacha_cards 表（UserGachaCard）— 用户卡库
+### 3.4 user_subscriptions 表新增字段 — 抽卡权益落在订阅上
+
+原 `user_gacha_cards` 表整体废弃（功能未上线，无历史数据需要迁移），抽卡权益直接落在既有订阅表：
 
 ```go
-type UserGachaCard struct {
-	Id           int    `json:"id" gorm:"primaryKey"`
-	UserId       int    `json:"user_id" gorm:"index;not null"`
-	PoolId       int    `json:"pool_id" gorm:"index"`
-	PullRecordId int    `json:"pull_record_id" gorm:"index"`
-	ModelName    string `json:"model_name" gorm:"size:128;not null;index"`
-	Group        string `json:"group" gorm:"size:64;not null"`
-	TotalQuota   int64  `json:"total_quota" gorm:"not null"` // 原始额度
-	RemainQuota  int64  `json:"remain_quota" gorm:"not null"` // 剩余额度
-	Status       int    `json:"status" gorm:"default:0"`      // 0 可用 / 1 已用完 / 2 已过期 / 3 已禁用
-	ExpiredTime  int64  `json:"expired_time" gorm:"bigint"`   // 过期时间戳，-1 永久
-	CreatedTime  int64  `json:"created_time" gorm:"bigint"`
-	UpdatedTime  int64  `json:"updated_time" gorm:"bigint"`
-}
+// UserSubscription 新增
+UsableModels []string `json:"usable_models" gorm:"type:text;serializer:json"` // 模型范围（空 = 任意模型）
+MergeCount   int      `json:"merge_count" gorm:"not null;default:1"`          // 累计抽中次数，驱动 ⭐/🌙/☀️ 徽标
 ```
+
+- `plan_id = 0`：抽卡权益没有对应套餐计划，因此不参与额度重置周期（`QuotaResetPeriod` 是套餐属性）。
+- `source = "gacha"`：与 `order` / `admin` 区分，用于权益页筛选、展示与利润聚合口径。
+- `allow_wallet_overflow = true`：额度用完后回退钱包（抽卡本质是变相加余额）。
+- `usable_groups` 复用条目上的 `group`，语义与既有分组限制完全一致。
+- 合并徽标阈值（前端展示映射）：`merge_count` 1-2 ⭐ / 3-5 🌙 / 6+ ☀️。
+
+`SubscriptionPlan` 同步新增 `usable_models`，让运营购买的套餐也能限定模型范围（本期可选，默认空 = 不限制）。
 
 ### 3.5 gacha_pull_records 表（GachaPullRecord）— 抽卡流水
 
@@ -131,7 +143,7 @@ type GachaPullRecord struct {
 	PoolId      int    `json:"pool_id" gorm:"index;not null"`
 	Count       int    `json:"count" gorm:"not null"`          // 1 或 10
 	Cost        int64  `json:"cost" gorm:"not null"`           // 消耗 quota
-	Cards       string `json:"cards" gorm:"type:text"`         // 抽到卡列表 JSON（card_id/model/group/quota/rarity）
+	Cards       string `json:"cards" gorm:"type:text"`         // 抽中权益快照 JSON（subscription_id/models/group/quota/rarity/merge_count）
 	PityBefore  int    `json:"pity_before" gorm:"default:0"`
 	PityAfter   int    `json:"pity_after" gorm:"default:0"`
 	Status      int    `json:"status" gorm:"default:0"`
@@ -152,7 +164,7 @@ GachaPity string `json:"gacha_pity,omitempty" gorm:"type:text"` // JSON: {"<pool
 ### 3.7 logs 表
 
 - 新增日志类型常量：`LogTypeGacha = 8`（卡包购买 / 抽卡）。
-- 卡调用消费日志**不新增列**，通过 `Other` JSON 快照记录审计字段：`{"gacha_card_id": 123, "gacha_model": "...", "gacha_group": "..."}`。
+- 抽卡权益的调用消费日志**不新增列**：沿用订阅既有的 `Other.subscription_id / subscription_plan_title` 等字段，另记 `gacha_source: true` 供利润聚合区分。
   - 理由：`logs` 表支持 ClickHouse 独立库，加列需同步处理 ClickHouse 迁移（此前 cost_quota 已踩过 `type "double" does not exist` 的坑）；`Other` JSON 已存在且快照语义一致，成本最低。
 
 ## 4. 经济模型
@@ -231,71 +243,67 @@ POST /api/gacha/pool/:id/pull  { "count": 1|10, "pull_id": "<uuid>" }
 3. 事务：
    a. SELECT 用户行 FOR UPDATE（锁 pity 计数 + 后续余额扣减）
    b. 校验钱包余额 ≥ cost（单抽 Price / 十连 TenPrice）
-   c. 生成 count 张卡（5.1 + 5.2 保底逻辑），写 user_gacha_cards
+   c. 生成 count 份权益（5.1 + 5.2 保底逻辑），逐份发放或叠加到抽卡订阅（见 5.4）
    d. 更新 users.gacha_pity
    e. 扣费：model.DecreaseUserQuota(userId, cost, false)
    f. 写 gacha_pull_records（含 PityBefore/After）+ LogTypeGacha 日志（quota=cost）
-4. 提交；返回抽卡结果（每张卡：card_id/model/group/rarity/icon/quota/expire）。
+4. 提交；返回抽卡结果（每份权益：subscription_id/models/group/quota/rarity/expire/merge_count）。
 ```
 
 幂等：`gacha_pull_records.pull_id` 唯一索引。客户端生成 UUID，网络重试重发相同 pull_id 时服务端直接返回原结果，不重复扣费。
 
-## 6. 卡的使用（GachaCardFunding）
+### 5.4 权益发放与自动叠加
 
-### 6.1 请求协议
-
-用户调用 API 时在请求头指定：
+同一事务内，对每份抽中的权益执行"发放或叠加"：
 
 ```
-New-Api-Card: <card_id>
+grantGachaSubscriptionTx(tx, userId, entry):
+  models = 归一化(entry.Models)          // 去空白、去重、排序，作为合并键的一部分
+  quota  = EntryDrawQuota(entry)          // 支持区间随机
+  now    = 当前时间
+  end    = entry.ExpireDays > 0 ? now + ExpireDays*86400 : 极大值（永久）
+
+  目标行 = tx.Where("user_id = ? AND source = 'gacha' AND status = 'active' AND end_time > ?
+                      AND usable_models = ? AND usable_groups = ?", ...)  // 归一化后的规范形式
+  if 命中:
+      AmountTotal += quota
+      EndTime     = max(EndTime, end)   // 有效期取更晚，额度不因叠加而提前过期
+      MergeCount += 1
+  else:
+      新建 UserSubscription{ PlanId: 0, Source: "gacha", UsableModels: models,
+                             UsableGroups: [entry.Group], AmountTotal: quota,
+                             StartTime: now, EndTime: end, MergeCount: 1,
+                             AllowWalletOverflow: true }
 ```
 
-一次请求**只使用一张卡**（不支持多卡叠加）。未带该头 → 走原有钱包 / 订阅逻辑，完全兼容。
+- 合并键 = （用户, 归一化模型集合, 归一化分组集合, source=gacha, 未过期）。模型集合不同绝不合并，避免"GPT 全家桶"和"Claude 套件"混在一张权益里。
+- 归一化必须稳定（排序 + 去空白），否则 `['a','b']` 与 `['b','a']` 会分裂成两张权益。
+- 已耗尽（`AmountUsed >= AmountTotal`）或已过期的订阅不参与叠加，改为新建一张，避免把已用完的额度"复活"。
+- `SELECT ... FOR UPDATE` 锁命中的订阅行，保证并发抽卡不会把两份额度叠加丢一份。
 
-### 6.2 校验规则（鉴权后、计费前）
+## 6. 抽卡权益的使用（订阅抵扣 + 模型范围）
 
-1. 卡属于当前用户，且 `Status = 0`（可用），未过期（`ExpiredTime == -1` 或 `> now`）。
-2. `card.ModelName == 请求模型名`。
-3. **请求分组以卡的 group 为准**：将 RelayInfo 的请求分组覆盖为 `card.Group`（token 分组仅需是用户的任意可用分组——鉴权阶段已校验；用户可能没有卡分组的 token，所以不能要求 token 分组等于卡分组）。
-4. 校验模型在 `card.Group` 下存在启用渠道与分组倍率（确保可计费）。
-5. 校验通过 → BillingSession 使用 GachaCardFunding；任一步失败 → 返回明确错误（"卡不可用 / 卡与请求模型或分组不匹配"），提示用户更换卡或移除请求头。
+### 6.1 调用方式
 
-### 6.3 GachaCardFunding（service/funding_source.go 新增）
+抽到的权益就是一张普通订阅，用户用**自己已有的 API 令牌**直接调用即可，不需要任何特殊请求头、专属令牌或分组切换。
 
-```go
-type GachaCardFunding struct {
-	cardId     int
-	userId     int
-	requestId  string
-	preConsumed int64 // 预扣额度
-}
+### 6.2 模型范围校验
 
-func (f *GachaCardFunding) Source() string { return BillingSourceGachaCard } // "gacha_card"
+1. `SubscriptionUsableModelsAllow(usableModels, model)`：空列表 = 不限制；非空 = 请求模型必须在列表内（与 `SubscriptionUsableGroupsAllow` 同构）。
+2. `PreConsumeUserSubscription(requestId, userId, group, model, quotaType, amount)` 增加 `model` 参数，候选过滤顺序：状态/有效期 → 分组匹配 → **模型匹配** → 额度是否够 → 扣减。
+3. `HasActiveUserSubscription` / `UserActiveSubscriptionsAllowWalletOverflow` / `activeUserSubscriptionsForGroup` 同步接受模型参数，否则会出现"该模型不可用却判定有订阅"的错判，导致本该回退钱包的请求被拒。
+4. 匹配不到任何订阅时按既有逻辑回退钱包（`allow_wallet_overflow = true`），抽卡权益不改变这一行为。
 
-func (f *GachaCardFunding) PreConsume(amount int) error {
-	// SELECT ... FOR UPDATE 锁卡行 → 校验状态/过期/剩余额度 → 扣减 RemainQuota → 更新状态（用完置 1）
-}
+### 6.3 无 plan 的抽卡订阅
 
-func (f *GachaCardFunding) Settle(delta int) error {
-	// 正数补扣 / 负数退还卡额度；用完置 1
-}
+`PreConsumeUserSubscription` 现有实现会对每个候选订阅 `getSubscriptionPlanByIdTx(sub.PlanId)`，而 `plan_id <= 0` 直接返回 `invalid plan id`。抽卡订阅 `plan_id = 0`，因此：
 
-func (f *GachaCardFunding) Refund() error {
-	// 退还预扣（带 requestId 幂等保护，参考 SubscriptionFunding.Refund 的事务退款模式）
-}
-```
-
-- 预扣金额仍由现有 `ModelPriceHelperPerCall` 按（模型, 卡分组）计算，分组折扣生效，与用户正常调用扣费口径完全一致（**计价系统复用**）。
-- 卡额度不足：预扣失败返回"卡余额不足"，不自动回退钱包（用户显式指定卡即期望用卡）。
-- 消费日志：`Other` JSON 写入 `gacha_card_id / gacha_model / gacha_group`；`cost_quota` 照常计算。
+- 载入 plan 失败且 `sub.PlanId <= 0` 时跳过额度重置（`maybeResetUserSubscriptionWithPlanTx`），其余流程不变。
+- 这是本方案对订阅抵扣链路的**唯一**行为改动，其余预扣 / 结算 / 退款 / 额度提醒全部复用既有实现。
 
 ### 6.4 权限说明（分组解锁）
 
-抽到的卡绑定分组可能是用户平时不可用的分组（如 GPT Pro）。卡本身作为**该模型 + 该分组的临时授权凭证**，允许该用户仅对**卡内模型 + 卡内分组**发起调用。这是一个刻意的权限设计（抽卡解锁），但必须限定边界：
-- 只有携带有效 `New-Api-Card` 头且卡归属当前用户才放行；
-- 带卡时请求分组被覆盖为卡分组（类似订阅升级的临时分组，但范围更小：仅卡内模型 + 分组）；
-- 模型以卡内为准，不允许通过改请求模型绕过卡的限制去调其他模型；
-- token 鉴权仍走现有流程（状态 / 过期 / 归属 / 用户可用分组），分组覆盖发生在鉴权通过后、计费前。
+抽卡条目上的 `group` 映射为订阅的 `usable_groups`，语义与购买套餐的分组限制一致：用户对**该分组内、且在模型范围内**的模型可用抽卡权益抵扣额度，不因抽卡获得任何额外的分组权限或令牌权限。
 
 ## 7. 模型分级（DeepSWE 同步）
 
@@ -339,8 +347,8 @@ N   < 30   （灰   #94a3b8）
 | GET | `/api/gacha/pools` | 卡池列表（含价格、概率公示、保底说明、期望价值展示） |
 | GET | `/api/gacha/pool/:id` | 卡池详情（条目预览、概率公示） |
 | POST | `/api/gacha/pool/:id/pull` | 抽卡 `{count, pull_id}` |
-| GET | `/api/gacha/cards` | 我的卡库（分页、状态/模型/分组筛选） |
-| GET | `/api/gacha/cards/:id` | 卡详情 |
+| GET | `/api/gacha/pool/:id/pull` 结果内 | 抽卡结果（每份含 subscription_id/models/group/quota/rarity/expire/merge_count/badge） |
+| GET | `/api/gacha/entitlements` | 我的抽卡权益（source=gacha 的订阅：模型范围 / 分组 / 剩余额度 / 到期 / 合并徽标），支持分页与状态筛选 |
 | GET | `/api/gacha/stats` | 我的抽卡统计（总抽数、各档出货、总花费） |
 
 管理端（`/api/gacha/admin/*`）：
@@ -349,7 +357,7 @@ N   < 30   （灰   #94a3b8）
 |---|---|---|
 | GET/POST | `/api/gacha/admin/pools` | 卡池列表 / 新建 |
 | PUT/DELETE | `/api/gacha/admin/pools/:id` | 编辑 / 删除 |
-| GET/POST/PUT/DELETE | `/api/gacha/admin/pools/:id/entries` | 条目 CRUD |
+| GET/POST/PUT/DELETE | `/api/gacha/admin/pools/:id/entries` | 条目 CRUD（模型多选 + 分组 + 权重 + 额度 + 有效期） |
 | GET | `/api/gacha/admin/pools/:id/economics` | 经济测算（期望价值/回报率/期望成本/保底修正/告警） |
 | POST | `/api/gacha/admin/sync-rating` | 手动触发 DeepSWE 同步 |
 | GET | `/api/gacha/admin/ratings` | 模型分级列表（含未分级、同步状态） |
@@ -365,52 +373,57 @@ N   < 30   （灰   #94a3b8）
   - 单抽 / 十连按钮，余额展示（`formatCurrencyFromUSD`）。
   - **高级抽卡动画**（参考 TokenGacha `llm-gacha.html`）：3D 翻卡（`perspective` + `rotateY` + 弹性曲线 + `.pop` 弹跳）、SSR 金色 / UR 粉色流光（`urGlow`）、canvas 全屏粒子爆发、金币飞向余额（`element.animate` 抛物线 + 落点 burst）、屏幕震动。JS 文件拆分，不改主路由页结构。
   - **高级音效**：Web Audio API 程序化合成（零外部资源）：抽卡前奏鼓点、单卡翻转音、十连连翻、SR 金色琶音、SSR 号角、UR 流星坠落、扣款/入账金币声；右上角音效开关（localStorage 记忆）。
-- `/gacha/cards` 卡库页：卡片网格（模型图标 + 名称 + 分组 badge + 稀有度边框 + 剩余额度 quota→法币 + 过期时间），"如何用卡"提示（`New-Api-Card` 头示例），筛选 / 搜索。
+- `/gacha/entitlements` 我的权益页（原卡库页）：按权益展示模型范围（多模型折叠为 "+N"）、分组 badge、剩余额度（quota→法币）、到期时间与合并徽标（⭐/🌙/☀️ + "已合并 N 次"）。顶部一句话说明"用你自己的 API 令牌直接调用，额度自动抵扣"，不再展示任何令牌或请求头用法。
+- 抽中结果卡：模型范围 + 分组 + 额度 + 到期 + 合并徽标；若本次叠加到已有权益，显示"已合并到现有权益（累计 N 次）"而不是新卡。
+- 订阅页（`/subscription` 等既有页面）：模型范围非空的订阅显示"仅限：模型 A / B / C"标签，与分组限制并列。
 - 模型广场（`/pricing`）：卡片稀有度角标；模型详情页 DeepSWE 分数展示。
 
 管理端：
 
-- `/admin/gacha` 卡池管理：池 CRUD（价格 / 十连价 / 保底配置 / 启用）；条目管理（模型 + 分组 + 权重 + 额度 + 过期天数）；经济测算面板（期望价值 / 回报率 / 期望成本 / 告警）。
+- `/admin/gacha` 卡池管理：池 CRUD（价格 / 十连价 / 保底配置 / 启用）；条目管理（**模型多选** + 分组 + 权重 + 额度 + 过期天数，保存时校验每个模型在绑定分组下有启用渠道）；经济测算面板（期望价值 / 回报率 / 期望成本 / 告警）。
 - `/admin/gacha/ratings` 模型分级：分级列表（模型名 / DeepSWE 分数 / 档位 / 来源），手动覆盖，同步按钮与状态。
 
 ## 10. 风控与并发
 
-1. **抽卡幂等**：`pull_id` 唯一索引，重试返回原结果，防重复扣费 / 重复发卡。
-2. **抽卡事务**：用户行 `FOR UPDATE` 串行化同用户的并发抽卡，保证保底计数与余额扣减原子。
-3. **卡扣费并发**：`PreConsume` 对卡行 `FOR UPDATE`；`Refund` 带 `requestId` 幂等保护（同订阅退款模式），不允许非幂等重试多退。
-4. **过期清理**：调用时校验；后台定时任务把过期卡置 `Status = 2`。
-5. **条目合法性校验**：创建条目时校验模型存在、分组存在分组倍率、该模型在该分组有启用渠道，否则拒绝创建（避免抽到废卡）。
-6. **权限边界**：卡作为分组解锁凭证仅限卡内模型 + 分组，不允许扩大；审计通过 `Other.gacha_card_id` 可溯源。
+1. **抽卡幂等**：`pull_id` 唯一索引，重试返回原结果，防重复扣费 / 重复发放。
+2. **抽卡事务**：用户行 `FOR UPDATE` 串行化同用户的并发抽卡，保证保底计数、权益叠加与余额扣减原子。
+3. **叠加并发**：命中已有权益时对该行 `FOR UPDATE` 后再累加，避免两笔并发抽卡互相覆盖额度。
+4. **过期清理**：沿用订阅的 `ExpireDueSubscriptions` 定时任务，抽卡权益无需独立清理器。
+5. **条目合法性校验**：创建/编辑条目时校验模型列表非空、每个模型存在、分组存在分组倍率、每个模型在该分组有启用渠道，否则拒绝保存（避免抽到废权益）。
+6. **权益边界**：模型范围与分组限制叠加生效，模型不在范围内时该权益不参与抵扣，自然落到钱包或其它订阅；审计通过 `Other.subscription_id` 可溯源。
 7. **经济安全**：管理端实时测算与告警；保底抬高的成本纳入"含保底回报率"展示。
 8. **促销 / 免费额度**：抽卡消费与普通消费一致，直接从钱包 quota 扣除。是否允许免费赠送 / 邀请奖励等"白嫖"额度用于抽卡，由运营者通过现有余额发放机制自行控制，本期不单独做余额冻结。
 
 ## 11. 测试计划
 
 - 单元测试：
-  - 概率分布：大样本（如 10 万次）抽取频率与配置权重偏差 < 1%；各档位聚合概率正确。
+  - 概率分布：大样本抽取频率与配置权重偏差 < 1%；各档位聚合概率正确。
   - 保底：连续 PityMax−1 次不出 ≥ PityRarity 档后必出；PityUprate 升级；出高档次后计数清零；十连软保底替换逻辑。
   - 经济计算：`E_value / E_cost / 含保底修正回报率` 公式单测。
   - 档位映射：DeepSWE 分数 → 档位阈值边界（含临界值）与手动覆盖优先级。
+  - 模型范围：`SubscriptionUsableModelsAllow` 的空列表 / 命中 / 未命中三态。
 - 集成测试：
   - 抽卡事务：并发抽卡（同用户）、`pull_id` 幂等重试、余额不足拒绝且无副作用。
-  - 卡扣费：`PreConsume / Settle / Refund` 与余额回退、卡用完置状态、过期拒绝。
-  - 模型 / 分组校验：卡与请求模型不匹配、分组不匹配、非本人卡均拒绝。
+  - 权益叠加：同范围叠加（额度相加、到期取更晚、merge_count+1）；不同模型集合不合并；已耗尽/已过期不叠加。
+  - 订阅抵扣：范围内模型可扣、范围外模型跳过该订阅、`plan_id = 0` 不因缺 plan 报错、额度用尽回退钱包。
+  - 回归：普通购买订阅（`plan_id > 0`）的预扣 / 重置 / 结算 / 退款行为完全不变；钱包计费不受影响。
 - API 测试：用户 / 管理端全部接口的 happy path 与错误码。
-- 回归：未带 `New-Api-Card` 头的调用行为与利润口径不变；钱包 / 订阅计费不受影响。
-- 前端：组件渲染、动画 / 音效开关、quota→法币换算展示正确。
+- 前端：条目模型多选、抽中动画与徽标展示、权益列表"已合并 N 次"。
+- 数据库：`user_subscriptions` 新增列与 `gacha_card_entries.models` 的迁移需在 SQLite / MySQL / PostgreSQL 三引擎上分别验证（含从旧结构升级）。
 
-## 12. 实施阶段
+## 12. 实施阶段（2026-10-04 修订）
 
-- **阶段 1：模型分级**。Model 加字段 + DeepSWE 同步任务 + 管理端分级页 + `/api/pricing` 与模型广场角标。
-- **阶段 2：抽卡核心**。四个新实体 + 抽卡 API（事务 / 保底 / 幂等）+ 钱包扣费 + LogTypeGacha + 用户抽卡页（动画 / 音效）+ 卡库页。
-- **阶段 3：卡使用与会计**。GachaCardFunding 接入 BillingSession + `New-Api-Card` 协议 + 模型 / 分组校验 + 利润聚合口径调整 + 管理端卡池 / 条目 / 经济测算页。
-- **阶段 4：打磨**。概率公示合规文案、抽卡统计 / 成就、动画音效细节、管理端体验。
+- **阶段 1：订阅的模型范围维度**。`SubscriptionPlan` / `UserSubscription` 新增 `usable_models`，`merge_count`；`SubscriptionUsableModelsAllow` 与抵扣链路的模型过滤；`plan_id = 0` 跳过额度重置；订阅查询接口与列表展示。
+- **阶段 2：抽卡发放改为订阅**。条目 `model_name` → `models`（含校验与多选保存）；`PullGachaCards` 内发放 / 叠加事务；删除 `user_gacha_cards`、`gacha_card_tokens`、`GachaCardFunding`、`New-Api-Card` 头与其中间件、卡库接口、过期清理任务。
+- **阶段 3：前端**。抽中结果改为权益展示（含叠加徽标）、我的权益页、订阅页模型范围标签、管理端条目模型多选。
+- **阶段 4：验证与打磨**。三数据库迁移验证、订阅抵扣回归、利润聚合口径（抽卡来源消耗不计收入）、概率公示文案。
 
-每阶段独立可交付，阶段 2 后即具备完整抽卡闭环（抽到卡可查询），阶段 3 打通真实调用。
+阶段 1 独立可交付（订阅支持模型范围），阶段 2 后抽卡闭环打通（抽到即用普通令牌消费），阶段 3 完成易用性收口。
 
 ## 13. 非目标（本期不做）
 
-- 多卡叠加使用（一个请求用多张卡）。
-- 卡交易 / 转赠 / 出售。
+- 权益交易 / 转赠 / 出售。
 - 独立"抽卡代币"体系（本期直接用钱包 quota）。
 - 保底计数的精确马尔可夫求解（用保守近似即可）。
+- 抽卡专属令牌与 `New-Api-Card` 请求头（已随卡片方案一并废弃删除，不是保留兼容）。
+- 抽卡权益的额度重置周期（抽卡订阅无套餐计划，额度一次性发放、到期即止）。

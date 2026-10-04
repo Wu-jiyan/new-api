@@ -54,10 +54,9 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo, task *model
 		other.SetPublic("task_sync", true)
 	}
 	other.SetPublic("model_price", info.PriceData.ModelPrice)
-	if info.GachaCardId > 0 {
-		other.SetPublic("gacha_card_id", info.GachaCardId)
-		other.SetPublic("gacha_model", info.OriginModelName)
-		other.SetPublic("gacha_group", info.UsingGroup)
+	// 抽卡权益消费的额度在买卡时已计收入，标记出来供利润聚合排除。
+	if info.SubscriptionSource == model.GachaSubscriptionSource {
+		other.SetPublic("gacha_source", true)
 	}
 	if info.PriceData.ModelRatio > 0 {
 		other.SetPublic("model_ratio", info.PriceData.ModelRatio)
@@ -118,21 +117,10 @@ func taskIsSubscription(task *model.Task) bool {
 	return task.PrivateData.BillingSource == BillingSourceSubscription && task.PrivateData.SubscriptionId > 0
 }
 
-// taskIsGachaCard 判断任务是否通过抽卡卡计费。
-func taskIsGachaCard(task *model.Task) bool {
-	return task.PrivateData.BillingSource == BillingSourceGachaCard && task.PrivateData.GachaCardId > 0
-}
-
-// taskAdjustFunding 调整任务的资金来源（钱包/订阅/抽卡卡），delta > 0 表示扣费，delta < 0 表示退还。
+// taskAdjustFunding 调整任务的资金来源（钱包/订阅），delta > 0 表示扣费，delta < 0 表示退还。
 func taskAdjustFunding(task *model.Task, delta int) error {
 	if taskIsSubscription(task) {
 		return model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, int64(delta))
-	}
-	if taskIsGachaCard(task) {
-		if delta > 0 {
-			return model.ConsumeGachaCardQuota(task.PrivateData.GachaCardId, int64(delta))
-		}
-		return model.RefundGachaCardPreConsume(task.TaskID, task.PrivateData.GachaCardId, int64(-delta))
 	}
 	if delta > 0 {
 		return model.DecreaseUserQuota(task.UserId, delta, false)

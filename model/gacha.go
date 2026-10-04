@@ -3,13 +3,15 @@ package model
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/rand"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // ---------------------------------------------------------------------------
@@ -35,12 +37,13 @@ type GachaPool struct {
 	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
-// GachaCardEntry 卡池条目（模型 + 分组 + 权重 + 额度 + 过期天数）。
-// Quota 为基准额度；QuotaMax > QuotaMin 时抽卡额度在 [QuotaMin, QuotaMax] 内随机。
+// GachaCardEntry 卡池条目（模型范围 + 分组 + 权重 + 额度 + 有效期）。
+// Models 为逗号分隔的模型列表，发放后成为订阅的模型范围；Quota 为基准额度，
+// QuotaMax > QuotaMin 时抽卡额度在 [QuotaMin, QuotaMax] 内随机。
 type GachaCardEntry struct {
 	Id         int    `json:"id" gorm:"primaryKey"`
 	PoolId     int    `json:"pool_id" gorm:"index;not null"`
-	ModelName  string `json:"model_name" gorm:"size:128;not null"`
+	Models     string `json:"models" gorm:"type:text"`
 	Group      string `json:"group" gorm:"size:64;not null"`
 	Weight     int    `json:"weight" gorm:"not null"`
 	Quota      int64  `json:"quota" gorm:"not null"`
@@ -49,7 +52,30 @@ type GachaCardEntry struct {
 	ExpireDays int    `json:"expire_days" gorm:"default:0"`
 }
 
-// EntryDrawQuota 抽中条目的卡额度：QuotaMax > QuotaMin 时区间随机，否则固定 Quota。
+// EntryModelList 返回条目声明的模型范围，已去空白与去重。
+func EntryModelList(e GachaCardEntry) []string {
+	seen := make(map[string]struct{}, 2)
+	models := make([]string, 0, 2)
+	for _, name := range strings.Split(e.Models, ",") {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if _, dup := seen[name]; dup {
+			continue
+		}
+		seen[name] = struct{}{}
+		models = append(models, name)
+	}
+	return models
+}
+
+// EntryGroup 返回条目绑定的分组（空 = 不限制分组）。
+func EntryGroup(e GachaCardEntry) string {
+	return strings.TrimSpace(e.Group)
+}
+
+// EntryDrawQuota 抽中条目的订阅额度：QuotaMax > QuotaMin 时区间随机，否则固定 Quota。
 func EntryDrawQuota(e GachaCardEntry) int64 {
 	if e.QuotaMax > e.QuotaMin {
 		return e.QuotaMin + rand.Int63n(e.QuotaMax-e.QuotaMin+1)
@@ -57,26 +83,28 @@ func EntryDrawQuota(e GachaCardEntry) int64 {
 	return e.Quota
 }
 
-// UserGachaCard 用户卡库。Status: 0 可用 / 1 已用完 / 2 已过期 / 3 已禁用。
-// MergeCount 为抽中次数：同模型重复卡合并为一张，额度叠加，等级按抽中次数累计。
-type UserGachaCard struct {
-	Id           int    `json:"id" gorm:"primaryKey"`
-	UserId       int    `json:"user_id" gorm:"index;not null"`
-	PoolId       int    `json:"pool_id" gorm:"index"`
-	PullRecordId int    `json:"pull_record_id" gorm:"index"`
-	ModelName    string `json:"model_name" gorm:"size:128;not null;index"`
-	Group        string `json:"group" gorm:"size:64;not null"`
-	TotalQuota   int64  `json:"total_quota" gorm:"not null"`
-	RemainQuota  int64  `json:"remain_quota" gorm:"not null"`
-	Status       int    `json:"status" gorm:"default:0"`
-	MergeCount   int    `json:"merge_count" gorm:"default:1"`
-	ExpiredTime  int64  `json:"expired_time" gorm:"bigint"` // -1 永久
-	CreatedTime  int64  `json:"created_time" gorm:"bigint"`
-	UpdatedTime  int64  `json:"updated_time" gorm:"bigint"`
-	TokenMasked  string `json:"token_masked" gorm:"-"`
-	TokenStatus  int    `json:"token_status" gorm:"-"`
-	TokenExists  bool   `json:"token_exists" gorm:"-"`
+// EntryEndTime 条目发放的到期时间戳，ExpireDays <= 0 表示永不过期。
+func EntryEndTime(e GachaCardEntry, now int64) int64 {
+	if e.ExpireDays <= 0 {
+		return GachaSubscriptionNeverExpires
+	}
+	return now + int64(e.ExpireDays)*86400
 }
+
+// GachaSubscriptionNeverExpires marks a grant that never expires. Subscription
+// queries filter on end_time > now, so this only has to stay above every
+// realistic timestamp.
+const GachaSubscriptionNeverExpires = int64(1) << 40
+
+// GachaSubscriptionSource marks subscriptions granted by a gacha pull, so they
+// stay separable from purchased plans in the entitlement list and the profit
+// aggregation.
+const GachaSubscriptionSource = "gacha"
+
+// GachaConsumeLogMarker is the consume-log field written when quota was spent
+// from a gacha grant. Profit aggregation matches this LIKE pattern to keep the
+// grant out of revenue: the money was already taken when the card pack was sold.
+const GachaConsumeLogMarker = "%\"gacha_source\"%"
 
 // GachaPullRecord 抽卡流水（pull_id 唯一索引做幂等）。
 type GachaPullRecord struct {
@@ -93,34 +121,21 @@ type GachaPullRecord struct {
 	CreatedTime int64  `json:"created_time" gorm:"bigint"`
 }
 
-// GachaCardRefund 卡预扣退款幂等记录。
-type GachaCardRefund struct {
-	Id          int    `json:"id" gorm:"primaryKey"`
-	RequestId   string `json:"request_id" gorm:"size:64;uniqueIndex;not null"`
-	CardId      int    `json:"card_id" gorm:"index;not null"`
-	Amount      int64  `json:"amount" gorm:"not null"`
-	CreatedTime int64  `json:"created_time" gorm:"bigint"`
-}
-
-// PullCardResult 抽卡结果单卡（用于接口返回与流水快照）。
+// PullCardResult 抽中的一份权益（用于接口返回与流水快照）。
 type PullCardResult struct {
-	CardId           int    `json:"card_id"`
-	ModelName        string `json:"model_name"`
-	Group            string `json:"group"`
-	Rarity           string `json:"rarity"`
-	Quota            int64  `json:"quota"`
-	ExpireDays       int    `json:"expire_days"`
-	ExpiredAt        int64  `json:"expired_at"`
-	MergeCount       int    `json:"merge_count"`
-	CardToken        string `json:"card_token,omitempty"`
-	CardTokenCreated bool   `json:"card_token_created"`
+	SubscriptionId int      `json:"subscription_id"`
+	Models         []string `json:"models"`
+	Group          string   `json:"group"`
+	Rarity         string   `json:"rating"`
+	Quota          int64    `json:"quota"`
+	ExpireDays     int      `json:"expire_days"`
+	ExpiredAt      int64    `json:"expired_at"`
+	MergeCount     int      `json:"merge_count"`
+	Merged         bool     `json:"merged"`
 }
 
 // ErrInsufficientGachaBalance 钱包余额不足。
 var ErrInsufficientGachaBalance = errors.New("gacha balance insufficient")
-
-// ErrInsufficientGachaCardQuota 卡额度不足。
-var ErrInsufficientGachaCardQuota = errors.New("gacha card quota insufficient")
 
 // ---------------------------------------------------------------------------
 // 卡池 / 条目 / 卡 查询
@@ -153,16 +168,19 @@ func ListGachaPoolEntries(poolId int) ([]GachaCardEntry, error) {
 	return entries, err
 }
 
-// GetEntryRatings 批量查询条目模型的 rating 档位。
+// GetEntryRatings 批量查询条目模型的 rating 档位。条目可以声明多个模型，
+// 取其中最高档作为该条目的稀有度。
 func GetEntryRatings(entries []GachaCardEntry) (map[int]string, error) {
 	out := make(map[int]string, len(entries))
 	names := make([]string, 0, len(entries))
 	seen := map[string]bool{}
 	for _, e := range entries {
 		out[e.Id] = ""
-		if !seen[e.ModelName] {
-			seen[e.ModelName] = true
-			names = append(names, e.ModelName)
+		for _, name := range EntryModelList(e) {
+			if !seen[name] {
+				seen[name] = true
+				names = append(names, name)
+			}
 		}
 	}
 	if len(names) == 0 {
@@ -177,137 +195,123 @@ func GetEntryRatings(entries []GachaCardEntry) (map[int]string, error) {
 		ratingByName[m.ModelName] = m.Rating
 	}
 	for _, e := range entries {
-		out[e.Id] = ratingByName[e.ModelName]
+		best := ""
+		for _, name := range EntryModelList(e) {
+			if r := ratingByName[name]; EntryRatingPriority[r] > EntryRatingPriority[best] {
+				best = r
+			}
+		}
+		out[e.Id] = best
 	}
 	return out, nil
 }
 
-// GetGachaCardByUser 获取用户的卡（校验归属）。
-func GetGachaCardByUser(cardId, userId int) (*UserGachaCard, error) {
-	var card UserGachaCard
-	err := DB.Where("id = ? AND user_id = ?", cardId, userId).First(&card).Error
-	if err != nil {
-		return nil, err
-	}
-	return &card, nil
-}
-
-// LockGachaCardForUpdate 锁卡行并返回（供预扣用）。
-func LockGachaCardForUpdate(cardId int) (*UserGachaCard, error) {
-	var card UserGachaCard
-	if err := DB.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", cardId).First(&card).Error; err != nil {
-		return nil, err
-	}
-	return &card, nil
-}
-
 // ---------------------------------------------------------------------------
-// 卡额度扣减 / 退还 / 过期
+// 抽卡权益发放 / 叠加
 // ---------------------------------------------------------------------------
 
-// ConsumeGachaCardQuota 扣减卡额度，额度耗尽置为已用完。
-func ConsumeGachaCardQuota(cardId int, amount int64) error {
-	return DB.Transaction(func(tx *gorm.DB) error {
-		var card UserGachaCard
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", cardId).First(&card).Error; err != nil {
-			return err
+// grantGachaSubscriptionTx 发放或叠加一份抽卡权益，返回叠加后的订阅快照。
+//
+// 相同模型范围 + 相同分组的权益叠加到同一张订阅：额度相加、到期取更晚、
+// 合并次数累加（驱动 ⭐/🌙/☀️ 徽标）。已耗尽或已过期的订阅不再叠加，避免把
+// 已经用完的额度复活。
+func grantGachaSubscriptionTx(tx *gorm.DB, userId int, entry GachaCardEntry, now int64) (*PullCardResult, error) {
+	models := EntryModelList(entry)
+	if len(models) == 0 {
+		return nil, fmt.Errorf("gacha entry %d declares no model", entry.Id)
+	}
+	groups := []string{}
+	if group := EntryGroup(entry); group != "" {
+		groups = []string{group}
+	}
+	quota := EntryDrawQuota(entry)
+	endTime := EntryEndTime(entry, now)
+
+	var candidates []UserSubscription
+	if err := lockForUpdate(tx).
+		Where("user_id = ? AND source = ? AND status = ? AND end_time > ?",
+			userId, GachaSubscriptionSource, "active", now).
+		Find(&candidates).Error; err != nil {
+		return nil, err
+	}
+	// Ranges are stored sorted, so an equal slice means an equal entitlement.
+	for i := range candidates {
+		existing := candidates[i]
+		if !slices.Equal(existing.UsableModels, models) || !slices.Equal(existing.UsableGroups, groups) {
+			continue
 		}
-		if card.Status == 3 {
-			return errors.New("gacha card disabled")
+		if existing.AmountTotal > 0 && existing.AmountUsed >= existing.AmountTotal {
+			continue
 		}
-		if card.ExpiredTime > 0 && card.ExpiredTime < common.GetTimestamp() {
-			return errors.New("gacha card expired")
+		mergedEnd := existing.EndTime
+		if endTime > mergedEnd {
+			mergedEnd = endTime
 		}
-		if card.RemainQuota < amount {
-			return ErrInsufficientGachaCardQuota
+		mergeCount := existing.MergeCount + 1
+		if err := tx.Model(&UserSubscription{}).Where("id = ?", existing.Id).Updates(map[string]interface{}{
+			"amount_total": gorm.Expr("amount_total + ?", quota),
+			"end_time":     mergedEnd,
+			"merge_count":  mergeCount,
+			"updated_at":   now,
+		}).Error; err != nil {
+			return nil, err
 		}
-		remain := card.RemainQuota - amount
-		status := card.Status
-		if remain <= 0 {
-			remain = 0
-			status = 1
-		}
-		return tx.Model(&UserGachaCard{}).Where("id = ?", cardId).
-			Updates(map[string]interface{}{
-				"remain_quota": remain,
-				"status":       status,
-				"updated_time": common.GetTimestamp(),
-			}).Error
-	})
+		return &PullCardResult{
+			SubscriptionId: existing.Id,
+			Models:         models,
+			Group:          EntryGroup(entry),
+			Quota:          quota,
+			ExpireDays:     entry.ExpireDays,
+			ExpiredAt:      mergedEnd,
+			MergeCount:     mergeCount,
+			Merged:         true,
+		}, nil
+	}
+
+	granted := &UserSubscription{
+		UserId:              userId,
+		PlanId:              0,
+		AmountTotal:         quota,
+		StartTime:           now,
+		EndTime:             endTime,
+		Status:              "active",
+		Source:              GachaSubscriptionSource,
+		UsableModels:        models,
+		UsableGroups:        groups,
+		MergeCount:          1,
+		AllowWalletOverflow: true,
+	}
+	if err := tx.Create(granted).Error; err != nil {
+		return nil, err
+	}
+	return &PullCardResult{
+		SubscriptionId: granted.Id,
+		Models:         models,
+		Group:          EntryGroup(entry),
+		Quota:          quota,
+		ExpireDays:     entry.ExpireDays,
+		ExpiredAt:      endTime,
+		MergeCount:     1,
+	}, nil
 }
 
-// RefundGachaCardQuota 退还卡额度（已用完的卡恢复为可用）。
-func RefundGachaCardQuota(cardId int, amount int64) error {
-	return DB.Transaction(func(tx *gorm.DB) error {
-		return refundGachaCardQuotaTx(tx, cardId, amount)
-	})
-}
-
-func refundGachaCardQuotaTx(tx *gorm.DB, cardId int, amount int64) error {
-	var card UserGachaCard
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", cardId).First(&card).Error; err != nil {
-		return err
+// ListUserGachaSubscriptions 列出用户的抽卡权益（叠加后的订阅）。
+func ListUserGachaSubscriptions(userId int, status string, limit int) ([]UserSubscription, error) {
+	if userId <= 0 {
+		return nil, errors.New("invalid userId")
 	}
-	if card.Status == 3 {
-		return errors.New("gacha card disabled")
+	query := DB.Where("user_id = ? AND source = ?", userId, GachaSubscriptionSource)
+	if strings.TrimSpace(status) != "" {
+		query = query.Where("status = ?", status)
 	}
-	remain := card.RemainQuota + amount
-	if remain > card.TotalQuota {
-		remain = card.TotalQuota
+	if limit <= 0 {
+		limit = 100
 	}
-	status := card.Status
-	if status == 1 && remain > 0 {
-		status = 0
+	var subs []UserSubscription
+	if err := query.Order("end_time ASC, id ASC").Limit(limit).Find(&subs).Error; err != nil {
+		return nil, err
 	}
-	return tx.Model(&UserGachaCard{}).Where("id = ?", cardId).
-		Updates(map[string]interface{}{
-			"remain_quota": remain,
-			"status":       status,
-			"updated_time": common.GetTimestamp(),
-		}).Error
-}
-
-// RefundGachaCardPreConsume 按 requestId 幂等退还卡预扣额度。
-func RefundGachaCardPreConsume(requestId string, cardId int, amount int64) error {
-	if requestId == "" || cardId <= 0 || amount <= 0 {
-		return nil
-	}
-	var existing GachaCardRefund
-	if err := DB.Where("request_id = ?", requestId).First(&existing).Error; err == nil {
-		return nil
-	}
-	err := DB.Transaction(func(tx *gorm.DB) error {
-		record := GachaCardRefund{
-			RequestId:   requestId,
-			CardId:      cardId,
-			Amount:      amount,
-			CreatedTime: common.GetTimestamp(),
-		}
-		if err := tx.Create(&record).Error; err != nil {
-			return err
-		}
-		return refundGachaCardQuotaTx(tx, cardId, amount)
-	})
-	if err == nil {
-		return nil
-	}
-	if queryErr := DB.Where("request_id = ?", requestId).First(&existing).Error; queryErr == nil {
-		return nil
-	}
-	return err
-}
-
-// ExpireDueGachaCards 将已过期且仍可用的卡置为过期（Status=2），返回更新行数。
-func ExpireDueGachaCards(limit int) (int, error) {
-	now := common.GetTimestamp()
-	res := DB.Model(&UserGachaCard{}).
-		Where("status = 0 AND expired_time > 0 AND expired_time < ?", now).
-		Limit(limit).
-		Updates(map[string]interface{}{"status": 2, "updated_time": now})
-	if res.Error != nil {
-		return 0, res.Error
-	}
-	return int(res.RowsAffected), nil
+	return subs, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -374,7 +378,7 @@ func PullGachaCards(userId int, pool *GachaPool, entries []GachaCardEntry, count
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		// 锁用户行（保底计数 + 余额扣减串行化）
 		var user User
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", userId).First(&user).Error; err != nil {
+		if err := lockForUpdate(tx).Where("id = ?", userId).First(&user).Error; err != nil {
 			return err
 		}
 		username = user.Username
@@ -392,71 +396,15 @@ func PullGachaCards(userId int, pool *GachaPool, entries []GachaCardEntry, count
 		cards, pityAfter := DrawCards(ewr, pool, pity, count)
 
 		now := common.GetTimestamp()
-		var pullCards []PullCardResult
+		pullCards := make([]PullCardResult, 0, len(cards))
 		for _, c := range cards {
-			quota := EntryDrawQuota(c.Entry)
-			expiredAt := int64(-1)
-			if c.Entry.ExpireDays > 0 {
-				expiredAt = now + int64(c.Entry.ExpireDays)*86400
-			}
-			// 同模型 + 同分组 + 可用且未过期：合并为一张，额度叠加
-			var existing UserGachaCard
-			mergeTarget := tx.Where("user_id = ? AND model_name = ? AND "+commonGroupCol+" = ? AND status = 0 AND (expired_time = -1 OR expired_time > ?)",
-				userId, c.Entry.ModelName, c.Entry.Group, now).
-				Order("id ASC").First(&existing).Error == nil
-			if mergeTarget {
-				if err := tx.Model(&UserGachaCard{}).Where("id = ?", existing.Id).Updates(map[string]interface{}{
-					"total_quota":  gorm.Expr("total_quota + ?", quota),
-					"remain_quota": gorm.Expr("remain_quota + ?", quota),
-					"merge_count":  gorm.Expr("merge_count + 1"),
-					"updated_time": now,
-				}).Error; err != nil {
-					return err
-				}
-				pullCards = append(pullCards, PullCardResult{
-					CardId:     existing.Id,
-					ModelName:  existing.ModelName,
-					Group:      existing.Group,
-					Rarity:     c.Rating,
-					Quota:      quota,
-					ExpireDays: c.Entry.ExpireDays,
-					ExpiredAt:  expiredAt,
-					MergeCount: existing.MergeCount + 1,
-				})
-				continue
-			}
-			card := UserGachaCard{
-				UserId:      userId,
-				PoolId:      pool.Id,
-				ModelName:   c.Entry.ModelName,
-				Group:       c.Entry.Group,
-				TotalQuota:  quota,
-				RemainQuota: quota,
-				Status:      0,
-				MergeCount:  1,
-				ExpiredTime: expiredAt,
-				CreatedTime: now,
-				UpdatedTime: now,
-			}
-			if err := tx.Create(&card).Error; err != nil {
-				return err
-			}
-			_, plainToken, err := CreateGachaCardTokenTx(tx, &card)
+			// 同模型范围 + 同分组的权益叠加到同一张订阅（额度相加、到期取更晚）
+			granted, err := grantGachaSubscriptionTx(tx, userId, c.Entry, now)
 			if err != nil {
 				return err
 			}
-			pullCards = append(pullCards, PullCardResult{
-				CardId:           card.Id,
-				ModelName:        card.ModelName,
-				Group:            card.Group,
-				Rarity:           c.Rating,
-				Quota:            card.TotalQuota,
-				ExpireDays:       c.Entry.ExpireDays,
-				ExpiredAt:        expiredAt,
-				MergeCount:       1,
-				CardToken:        plainToken,
-				CardTokenCreated: true,
-			})
+			granted.Rarity = c.Rating
+			pullCards = append(pullCards, *granted)
 		}
 
 		// 更新保底计数
@@ -479,12 +427,7 @@ func PullGachaCards(userId int, pool *GachaPool, entries []GachaCardEntry, count
 			return err
 		}
 
-		persistedCards := make([]PullCardResult, len(pullCards))
-		copy(persistedCards, pullCards)
-		for i := range persistedCards {
-			persistedCards[i].CardToken = ""
-		}
-		cardsJSON, _ := json.Marshal(persistedCards)
+		cardsJSON, _ := json.Marshal(pullCards)
 		record := GachaPullRecord{
 			PullId:      pullId,
 			UserId:      userId,

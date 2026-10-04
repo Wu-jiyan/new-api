@@ -335,6 +335,12 @@ func migrateDB() error {
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
 	}
+	// Rename the pre-launch gacha entry column before AutoMigrate adds the new
+	// one: leaving model_name behind would keep a NOT NULL column that the
+	// model-range entries never write again.
+	if err := migrateGachaEntryModelsColumn(DB); err != nil {
+		return err
+	}
 	if err := migrateOptionPrimaryKey(DB); err != nil {
 		common.SysError("failed to migrate options primary key: " + err.Error())
 	}
@@ -377,10 +383,7 @@ func migrateDB() error {
 		&AuthzRole{},
 		&GachaPool{},
 		&GachaCardEntry{},
-		&UserGachaCard{},
-		&GachaCardToken{},
 		&GachaPullRecord{},
-		&GachaCardRefund{},
 		&Character{},
 		&UserCharacterProgress{},
 		&CharacterBackground{},
@@ -611,6 +614,27 @@ PRIMARY KEY (` + "`id`" + `)
 			return err
 		}
 	}
+	return nil
+}
+
+// migrateGachaEntryModelsColumn renames gacha_card_entries.model_name to
+// models. The gacha feature never shipped, so renaming carries existing pool
+// entries over untouched and avoids a NOT NULL column the new code never
+// writes. It is a no-op on databases that already have the new column.
+func migrateGachaEntryModelsColumn(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&GachaCardEntry{}) {
+		return nil
+	}
+	if !db.Migrator().HasColumn(&GachaCardEntry{}, "model_name") {
+		return nil
+	}
+	if db.Migrator().HasColumn(&GachaCardEntry{}, "models") {
+		return nil
+	}
+	if err := db.Migrator().RenameColumn(&GachaCardEntry{}, "model_name", "models"); err != nil {
+		return fmt.Errorf("rename gacha_card_entries.model_name to models: %w", err)
+	}
+	common.SysLog("migrated gacha_card_entries.model_name to models")
 	return nil
 }
 

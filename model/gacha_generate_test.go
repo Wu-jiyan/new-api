@@ -28,7 +28,7 @@ func TestEntryDrawQuota(t *testing.T) {
 }
 
 func TestPullGachaCardsMerge(t *testing.T) {
-	require.NoError(t, DB.AutoMigrate(&GachaPool{}, &GachaCardEntry{}, &UserGachaCard{}, &GachaCardToken{}, &GachaPullRecord{}, &Model{}, &User{}))
+	require.NoError(t, DB.AutoMigrate(&GachaPool{}, &GachaCardEntry{}, &UserSubscription{}, &GachaPullRecord{}, &Model{}, &User{}))
 
 	require.NoError(t, DB.Create(&Model{ModelName: "merge-model", Status: 1, Rating: "SR"}).Error)
 	t.Cleanup(func() { DB.Unscoped().Where("model_name = ?", "merge-model").Delete(&Model{}) })
@@ -40,15 +40,14 @@ func TestPullGachaCardsMerge(t *testing.T) {
 		DB.Unscoped().Delete(&pool)
 	})
 
-	entry := GachaCardEntry{PoolId: pool.Id, ModelName: "merge-model", Group: "default", Weight: 1, Quota: 100, QuotaMin: 90, QuotaMax: 110, ExpireDays: 30}
+	entry := GachaCardEntry{PoolId: pool.Id, Models: "merge-model", Group: "default", Weight: 1, Quota: 100, QuotaMin: 90, QuotaMax: 110, ExpireDays: 30}
 	require.NoError(t, DB.Create(&entry).Error)
 
 	user := User{Username: "merge-user", Quota: 100000, Status: 1, Role: 1}
 	require.NoError(t, DB.Create(&user).Error)
 	t.Cleanup(func() {
 		DB.Unscoped().Delete(&user)
-		DB.Where("user_id = ?", user.Id).Delete(&UserGachaCard{})
-		DB.Where("user_id = ?", user.Id).Delete(&GachaCardToken{})
+		DB.Where("user_id = ?", user.Id).Delete(&UserSubscription{})
 		DB.Where("user_id = ?", user.Id).Delete(&GachaPullRecord{})
 		DB.Where("user_id = ?", user.Id).Delete(&Log{})
 	})
@@ -57,28 +56,35 @@ func TestPullGachaCardsMerge(t *testing.T) {
 	res1, err := PullGachaCards(user.Id, &pool, entries, 1, 100, "merge-pull-1")
 	require.NoError(t, err)
 	require.Equal(t, 1, res1.Cards[0].MergeCount)
-	require.NotEmpty(t, res1.Cards[0].CardToken)
-	require.True(t, res1.Cards[0].CardTokenCreated)
-	issuedToken := res1.Cards[0].CardToken
-	var record GachaPullRecord
-	require.NoError(t, DB.Where("pull_id = ?", "merge-pull-1").First(&record).Error)
-	require.NotContains(t, record.Cards, issuedToken)
+	require.False(t, res1.Cards[0].Merged, "首次发放不是叠加")
+	require.Equal(t, []string{"merge-model"}, res1.Cards[0].Models)
 
 	res2, err := PullGachaCards(user.Id, &pool, entries, 1, 100, "merge-pull-2")
 	require.NoError(t, err)
 	require.Equal(t, 2, res2.Cards[0].MergeCount)
-	require.Equal(t, res1.Cards[0].CardId, res2.Cards[0].CardId, "重复卡应合并到同一张")
-	require.Empty(t, res2.Cards[0].CardToken)
-	require.False(t, res2.Cards[0].CardTokenCreated)
-	_, err = FindGachaCardToken(issuedToken)
-	require.NoError(t, err)
+	require.True(t, res2.Cards[0].Merged, "同范围权益应叠加到同一张订阅")
+	require.Equal(t, res1.Cards[0].SubscriptionId, res2.Cards[0].SubscriptionId)
+	require.GreaterOrEqual(t, res2.Cards[0].ExpiredAt, res1.Cards[0].ExpiredAt, "到期取更晚")
 
-	var cards []UserGachaCard
-	require.NoError(t, DB.Where("user_id = ?", user.Id).Find(&cards).Error)
-	require.Len(t, cards, 1, "同模型应只有一张卡")
-	require.Equal(t, 2, cards[0].MergeCount)
-	require.GreaterOrEqual(t, cards[0].TotalQuota, int64(180))
-	require.LessOrEqual(t, cards[0].TotalQuota, int64(220))
+	// 同模型范围、不同分组不合并
+	otherGroup := entry
+	otherGroup.Id = 0
+	otherGroup.Group = "vip"
+	require.NoError(t, DB.Create(&otherGroup).Error)
+	res3, err := PullGachaCards(user.Id, &pool, []GachaCardEntry{otherGroup}, 1, 100, "merge-pull-3")
+	require.NoError(t, err)
+	require.NotEqual(t, res1.Cards[0].SubscriptionId, res3.Cards[0].SubscriptionId, "不同分组应单独发放")
+	require.False(t, res3.Cards[0].Merged)
+
+	var subs []UserSubscription
+	require.NoError(t, DB.Where("user_id = ? AND source = ?", user.Id, GachaSubscriptionSource).Find(&subs).Error)
+	require.Len(t, subs, 2, "同模型同分组只有一张订阅，另一个分组一张")
+	var merged UserSubscription
+	require.NoError(t, DB.First(&merged, res2.Cards[0].SubscriptionId).Error)
+	require.Equal(t, 2, merged.MergeCount)
+	require.EqualValues(t, 0, merged.AmountUsed, "叠加只加额度，不消耗额度")
+	require.GreaterOrEqual(t, merged.AmountTotal, int64(180))
+	require.LessOrEqual(t, merged.AmountTotal, int64(220))
 }
 
 func TestGenerateGachaEntriesPreview(t *testing.T) {

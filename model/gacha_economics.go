@@ -6,24 +6,33 @@ import (
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
-// ValidateGachaEntryReason 校验条目：模型存在、分组有倍率、模型在该分组有启用渠道。
-// 校验通过返回空字符串，否则返回具体失败原因。
+// ValidateGachaEntryReason 校验条目：模型列表非空、每个模型存在、分组有倍率、
+// 每个模型在该分组都有启用渠道。校验通过返回空字符串，否则返回具体失败原因。
 func ValidateGachaEntryReason(entry *GachaCardEntry) string {
 	if entry == nil {
 		return "条目为空"
 	}
-	if err := DB.Where("model_name = ?", entry.ModelName).First(&Model{}).Error; err != nil {
-		return "模型「" + entry.ModelName + "」不在模型列表中"
+	models := EntryModelList(*entry)
+	if len(models) == 0 {
+		return "条目未配置模型"
 	}
-	if !ratio_setting.ContainsGroupRatio(entry.Group) {
-		return "分组「" + entry.Group + "」未配置分组倍率"
+	group := EntryGroup(*entry)
+	if !ratio_setting.ContainsGroupRatio(group) {
+		return "分组「" + group + "」未配置分组倍率"
 	}
-	owners, err := GetPreferredModelOwnerChannelTypes([]string{entry.ModelName}, []string{entry.Group})
+	for _, name := range models {
+		if err := DB.Where("model_name = ?", name).First(&Model{}).Error; err != nil {
+			return "模型「" + name + "」不在模型列表中"
+		}
+	}
+	owners, err := GetPreferredModelOwnerChannelTypes(models, []string{group})
 	if err != nil {
 		return "查询渠道失败：" + err.Error()
 	}
-	if len(owners) == 0 {
-		return "模型「" + entry.ModelName + "」在分组「" + entry.Group + "」下没有启用的渠道"
+	for _, name := range models {
+		if _, ok := owners[name]; !ok {
+			return "模型「" + name + "」在分组「" + group + "」下没有启用的渠道"
+		}
 	}
 	return ""
 }
@@ -121,7 +130,16 @@ func ComputePoolEconomics(pool *GachaPool, entries []GachaCardEntry) (*PoolEcono
 	totalWeight := 0
 	for _, e := range entries {
 		totalWeight += e.Weight
-		unit, known := EstimateModelUnitCost(e.ModelName, e.Group, e.Quota)
+		// An entry grants several models, so charge it the priciest one: the
+		// operator's margin must assume the most expensive model gets used.
+		unit, known := 0.0, true
+		for _, name := range EntryModelList(e) {
+			cost, costKnown := EstimateModelUnitCost(name, EntryGroup(e), e.Quota)
+			if !costKnown {
+				known = false
+			}
+			unit = max(unit, cost)
+		}
 		units[e.Id] = unit
 		if !known {
 			unknown += e.Weight

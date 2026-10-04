@@ -532,10 +532,10 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 
 	attachQuotaSaturation(ctx, relayInfo, other)
-	if relayInfo.GachaCardId > 0 {
-		other.SetPublic("gacha_card_id", relayInfo.GachaCardId)
-		other.SetPublic("gacha_model", relayInfo.OriginModelName)
-		other.SetPublic("gacha_group", relayInfo.UsingGroup)
+	// A gacha grant was already paid for when the card pack was bought, so the
+	// profit aggregation must not count its consumption as revenue again.
+	if relayInfo.SubscriptionSource == model.GachaSubscriptionSource {
+		other.SetPublic("gacha_source", true)
 	}
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{

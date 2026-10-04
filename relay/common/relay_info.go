@@ -143,8 +143,10 @@ type RelayInfo struct {
 	// BillingSource indicates whether this request is billed from wallet quota or subscription.
 	// "" or "wallet" => wallet; "subscription" => subscription
 	BillingSource string
-	// GachaCardId is the card selected by the New-Api-Card request header.
-	GachaCardId int
+	// SubscriptionSource is the user_subscriptions.source of the paying
+	// subscription (order / admin / gacha). Profit aggregation uses the gacha
+	// marker to keep pull revenue and grant consumption from double counting.
+	SubscriptionSource string
 	// SubscriptionId is the user_subscriptions.id used when BillingSource == "subscription"
 	SubscriptionId int
 	// SubscriptionPreConsumed is the amount pre-consumed on subscription item (quota units or 1)
@@ -613,7 +615,6 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		TokenKey:       common.GetContextKeyString(c, constant.ContextKeyTokenKey),
 		TokenUnlimited: common.GetContextKeyBool(c, constant.ContextKeyTokenUnlimited),
 		TokenGroup:     tokenGroup,
-		GachaCardId:    c.GetInt("gacha_card_id"),
 
 		isFirstResponse: true,
 		RelayMode:       relayconstant.Path2RelayMode(c.Request.URL.Path),

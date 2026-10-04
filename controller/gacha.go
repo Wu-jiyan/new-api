@@ -86,7 +86,8 @@ func PullGachaCards(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": result})
 }
 
-// ListGachaCards 我的卡库（分页 + 状态筛选）。
+// ListGachaCards 我的抽卡权益（叠加后的订阅，分页 + 状态筛选）。
+// 抽中的额度就是订阅，用自己的普通令牌即可消费，这里只负责展示。
 func ListGachaCards(c *gin.Context) {
 	userId := c.GetInt("id")
 	statusStr := c.DefaultQuery("status", "")
@@ -100,49 +101,32 @@ func ListGachaCards(c *gin.Context) {
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
-	tx := model.DB.Model(&model.UserGachaCard{}).Where("user_id = ?", userId)
+	tx := model.DB.Model(&model.UserSubscription{}).
+		Where("user_id = ? AND source = ?", userId, model.GachaSubscriptionSource)
 	if statusStr != "" {
-		if s, err := strconv.Atoi(statusStr); err == nil {
-			tx = tx.Where("status = ?", s)
-		}
+		tx = tx.Where("status = ?", statusStr)
 	}
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
-	var cards []model.UserGachaCard
-	if err := tx.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&cards).Error; err != nil {
+	var subs []model.UserSubscription
+	if err := tx.Order("end_time ASC, id ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&subs).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
-	if len(cards) > 0 {
-		ids := make([]int, 0, len(cards))
-		byCardID := make(map[int]*model.UserGachaCard, len(cards))
-		for i := range cards {
-			ids = append(ids, cards[i].Id)
-			byCardID[cards[i].Id] = &cards[i]
-		}
-		var tokens []model.GachaCardToken
-		if err := model.DB.Where("card_id IN ? AND status = 0", ids).Find(&tokens).Error; err == nil {
-			for _, token := range tokens {
-				if card := byCardID[token.CardId]; card != nil {
-					card.TokenMasked = token.KeyPrefix + "…"
-					card.TokenStatus = token.Status
-					card.TokenExists = true
-				}
-			}
-		}
-	}
 	// 批量补模型档位（前端卡片分级展示）
 	ratings := map[string]string{}
-	names := make([]string, 0, len(cards))
-	for _, card := range cards {
-		if _, ok := ratings[card.ModelName]; ok {
-			continue
+	names := make([]string, 0, len(subs))
+	for _, sub := range subs {
+		for _, name := range sub.UsableModels {
+			if _, ok := ratings[name]; ok {
+				continue
+			}
+			names = append(names, name)
+			ratings[name] = ""
 		}
-		names = append(names, card.ModelName)
-		ratings[card.ModelName] = ""
 	}
 	if len(names) > 0 {
 		var ms []model.Model
@@ -152,34 +136,7 @@ func ListGachaCards(c *gin.Context) {
 			}
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": cards, "total": total, "ratings": ratings})
-}
-
-func ResetGachaCardToken(c *gin.Context) {
-	cardId, err := strconv.Atoi(c.Param("id"))
-	if err != nil || cardId <= 0 {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "invalid card id"})
-		return
-	}
-	token, plainKey, err := model.ResetGachaCardToken(c.GetInt("id"), cardId)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"card_token": plainKey, "token_prefix": token.KeyPrefix}})
-}
-
-func RevokeGachaCardToken(c *gin.Context) {
-	cardId, err := strconv.Atoi(c.Param("id"))
-	if err != nil || cardId <= 0 {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "invalid card id"})
-		return
-	}
-	if err := model.RevokeGachaCardToken(c.GetInt("id"), cardId); err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"success": true})
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": subs, "total": total, "ratings": ratings})
 }
 
 // GetGachaStats 我的抽卡统计（含近 N 次抽卡回本率，基于真实数据，仅供参考）。

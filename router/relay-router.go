@@ -46,7 +46,6 @@ func SetRelayRouter(router *gin.Engine) {
 	geminiRouter := router.Group("/v1beta/models")
 	geminiRouter.Use(middleware.RouteTag("relay"))
 	geminiRouter.Use(middleware.TokenAuth())
-	geminiRouter.Use(middleware.GachaCardMiddleware())
 	{
 		geminiRouter.GET("", func(c *gin.Context) {
 			controller.ListModels(c, constant.ChannelTypeGemini)
@@ -56,7 +55,6 @@ func SetRelayRouter(router *gin.Engine) {
 	geminiCompatibleRouter := router.Group("/v1beta/openai/models")
 	geminiCompatibleRouter.Use(middleware.RouteTag("relay"))
 	geminiCompatibleRouter.Use(middleware.TokenAuth())
-	geminiCompatibleRouter.Use(middleware.GachaCardMiddleware())
 	{
 		geminiCompatibleRouter.GET("", func(c *gin.Context) {
 			controller.ListModels(c, constant.ChannelTypeOpenAI)
@@ -75,7 +73,6 @@ func SetRelayRouter(router *gin.Engine) {
 	relayV1Router.Use(middleware.RouteTag("relay"))
 	relayV1Router.Use(middleware.SystemPerformanceCheck())
 	relayV1Router.Use(middleware.TokenAuth())
-	relayV1Router.Use(middleware.GachaCardMiddleware())
 	{
 		// Responses WebSocket route. Channel selection happens after the first
 		// response.create event; each event runs the ordinary request limiter.
@@ -206,7 +203,6 @@ func SetRelayRouter(router *gin.Engine) {
 	relayGeminiRouter.Use(middleware.RouteTag("relay"))
 	relayGeminiRouter.Use(middleware.SystemPerformanceCheck())
 	relayGeminiRouter.Use(middleware.TokenAuth())
-	relayGeminiRouter.Use(middleware.GachaCardMiddleware())
 	relayGeminiRouter.Use(middleware.ModelRequestRateLimit())
 	relayGeminiRouter.Use(middleware.Distribute())
 	relayGeminiRouter.Use(middleware.ConversationArchive())

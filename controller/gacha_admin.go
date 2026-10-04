@@ -310,7 +310,7 @@ func AdminUpsertGachaEntry(c *gin.Context) {
 		return
 	}
 	entry.PoolId = poolId
-	if entry.ModelName == "" || entry.Group == "" || entry.Weight <= 0 || entry.Quota <= 0 {
+	if len(model.EntryModelList(entry)) == 0 || model.EntryGroup(entry) == "" || entry.Weight <= 0 || entry.Quota <= 0 {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "模型/分组/权重/额度必填且为正"})
 		return
 	}

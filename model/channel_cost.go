@@ -70,19 +70,19 @@ func SumChannelProfit(startTimestamp int64, endTimestamp int64, channelID int, m
 		return tx
 	}
 
-	// 普通调用收入：含成本快照，且排除抽卡卡消费（卡消费不计收入，只计成本）
+	// 普通调用收入：含成本快照，且排除抽卡权益消费（额度在买卡时已计收入）
 	profitLogs := func() *gorm.DB {
 		tx := build()
 		return tx.Where("type = ? OR (type = ? AND other LIKE ? AND other NOT LIKE ?)",
-			LogTypeTopup, LogTypeConsume, "%\"channel_cost\"%", "%\"gacha_card_id\"%")
+			LogTypeTopup, LogTypeConsume, "%\"channel_cost\"%", GachaConsumeLogMarker)
 	}
 	consumeLogs := func() *gorm.DB {
 		tx := build().Where("type = ?", LogTypeConsume)
-		return tx.Where("other LIKE ?", "%\"channel_cost\"%").Where("other NOT LIKE ?", "%\"gacha_card_id\"%")
+		return tx.Where("other LIKE ?", "%\"channel_cost\"%").Where("other NOT LIKE ?", GachaConsumeLogMarker)
 	}
-	// 抽卡卡消费：只计成本与用量，不计收入
+	// 抽卡权益消费：只计成本与用量，不计收入
 	gachaConsumeLogs := func() *gorm.DB {
-		return build().Where("type = ?", LogTypeConsume).Where("other LIKE ?", "%\"gacha_card_id\"%")
+		return build().Where("type = ?", LogTypeConsume).Where("other LIKE ?", GachaConsumeLogMarker)
 	}
 	// 抽卡收入：卡包购买（LogTypeGacha）
 	gachaRevenueLogs := func() *gorm.DB {
@@ -314,12 +314,9 @@ func CalculateModelCost(mc dto.ChannelModelCost, discount float64, promptTokens 
 
 // billingTokensFromLog 读取结算时落盘的计费 token 维度。表达式按这些维度计价，
 // 因此必须复用结算当时的实际取值，而不是重新按用量推算。
-func billingTokensFromLog(other map[string]interface{}, promptTokens, completionTokens int) billingexpr.TokenParams {
-	params := billingexpr.TokenParams{
-		P:   float64(promptTokens),
-		C:   float64(completionTokens),
-		Len: float64(promptTokens),
-	}
+// 落盘缺失时（纯文本表达式不写 billing_tokens）按日志用量明细重建归一化后的维度，
+// 规则与 service.BuildTieredTokenParams 一致，见 exprTokenParamsFromLog。
+func billingTokensFromLog(expr, exprHash string, other map[string]interface{}, promptTokens, completionTokens int) billingexpr.TokenParams {
 	values, ok := other["billing_tokens"].(map[string]float64)
 	if !ok {
 		// JSON 反序列化后可能是 map[string]any，退化读取。
@@ -335,11 +332,13 @@ func billingTokensFromLog(other map[string]interface{}, promptTokens, completion
 		}
 	}
 	if !ok {
-		return params
+		return exprTokenParamsFromLog(expr, exprHash, other, promptTokens, completionTokens)
 	}
-	params.P = values["p"]
-	params.C = values["c"]
-	params.Len = values["len"]
+	params := billingexpr.TokenParams{
+		P:   values["p"],
+		C:   values["c"],
+		Len: values["len"],
+	}
 	params.CR = values["cr"]
 	params.CC = values["cc"]
 	params.CC1h = values["cc1h"]
@@ -349,6 +348,64 @@ func billingTokensFromLog(other map[string]interface{}, promptTokens, completion
 	params.AI = values["ai"]
 	params.AO = values["ao"]
 	return params
+}
+
+// exprTokenParamsFromLog 在日志未冻结 billing_tokens 时重建计价维度：表达式引用了某个
+// 子类别变量才把它从 p/c 扣除，len 始终是完整输入上下文长度。
+//
+// 直接把 logs.prompt_tokens 当 p 会把缓存 token 按全价输入计入渠道成本——收入侧按缓存价
+// 收费、成本侧按输入价付费，同一请求成本被放大数倍，利润日志显示为负。
+// prompt 图片 token（img）在消费日志里没有落盘键，无法重建，保持留在 p 里按输入价计。
+func exprTokenParamsFromLog(expr, exprHash string, other map[string]interface{}, promptTokens, completionTokens int) billingexpr.TokenParams {
+	usedVars := billingexpr.UsedVarsByHash(expr, exprHash)
+	p := float64(promptTokens)
+	c := float64(completionTokens)
+	cr := float64(readOtherInt(other, "cache_tokens"))
+	cc := float64(readOtherInt(other, "cache_creation_tokens"))
+	if cc5m := float64(readOtherInt(other, "cache_creation_tokens_5m")); cc5m > 0 {
+		cc = cc5m
+	}
+	cc1h := float64(readOtherInt(other, "cache_creation_tokens_1h"))
+	isClaude := readOtherString(other, "usage_semantic") == "anthropic" || readOtherBool(other, "claude")
+
+	inputLen := p
+	if isClaude {
+		inputLen = p + cr + cc + cc1h
+		// Claude 的 input_tokens 不含缓存读取：表达式没给缓存定价时并回输入。
+		if !usedVars["cr"] {
+			p += cr
+		}
+	} else {
+		if usedVars["cr"] {
+			p -= cr
+		}
+		if usedVars["cc"] {
+			p -= cc
+		}
+		if usedVars["cc1h"] {
+			p -= cc1h
+		}
+		if usedVars["img_cr"] {
+			p -= float64(readOtherInt(other, "image_cache_tokens"))
+		}
+		if usedVars["ai"] {
+			p -= float64(readOtherInt(other, "audio_input"))
+		}
+		if usedVars["img_o"] {
+			c -= float64(readOtherInt(other, "image_output"))
+		}
+		if usedVars["ao"] {
+			c -= float64(readOtherInt(other, "audio_output"))
+		}
+	}
+	// OpenAI 的缓存写入回包可能报未扣减的前缀数，cr+cc 会超过 prompt，余量钳到 0。
+	if p < 0 {
+		p = 0
+	}
+	if c < 0 {
+		c = 0
+	}
+	return billingexpr.TokenParams{P: p, C: c, Len: inputLen, CR: cr, CC: cc, CC1h: cc1h}
 }
 
 // calculateExprModelCost 用上游的表达式计价公式重算一次真实成本。
@@ -381,7 +438,7 @@ func calculateExprModelCost(expr string, discount float64, promptTokens, complet
 	}
 	result, err := billingexpr.ComputeTieredQuotaWithRequest(
 		snap,
-		billingTokensFromLog(other, promptTokens, completionTokens),
+		billingTokensFromLog(expr, snap.ExprHash, other, promptTokens, completionTokens),
 		request,
 	)
 	if err != nil {

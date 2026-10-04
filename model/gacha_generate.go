@@ -10,15 +10,15 @@ import (
 
 // GenerateGachaEntryReq 批量生成条目请求。
 type GenerateGachaEntryReq struct {
-	Group      string           `json:"group"`                 // 分组
-	Models     []string         `json:"models"`                // 选中的模型名
-	ExpireDays int              `json:"expire_days"`           // 卡过期天数，0 永久
-	Weights    map[string]int   `json:"weights"`               // 档位 -> 权重（空用默认）
-	QuotaMin   map[string]int64 `json:"quota_min"`             // 档位 -> 额度下限
-	QuotaMax   map[string]int64 `json:"quota_max"`             // 档位 -> 额度上限
-	TargetRTP  float64          `json:"target_rtp"`            // 客户视角期望回本率（期望价值/售价），默认 0.7
-	AutoPrice  bool             `json:"auto_price"`            // 自动设置单抽/十连价格
-	Replace    bool             `json:"replace"`               // 替换该分组现有条目
+	Group      string           `json:"group"`       // 分组
+	Models     []string         `json:"models"`      // 选中的模型名
+	ExpireDays int              `json:"expire_days"` // 卡过期天数，0 永久
+	Weights    map[string]int   `json:"weights"`     // 档位 -> 权重（空用默认）
+	QuotaMin   map[string]int64 `json:"quota_min"`   // 档位 -> 额度下限
+	QuotaMax   map[string]int64 `json:"quota_max"`   // 档位 -> 额度上限
+	TargetRTP  float64          `json:"target_rtp"`  // 客户视角期望回本率（期望价值/售价），默认 0.7
+	AutoPrice  bool             `json:"auto_price"`  // 自动设置单抽/十连价格
+	Replace    bool             `json:"replace"`     // 替换该分组现有条目
 }
 
 // gachaDefaultWeights 默认档位权重模板（数字越大越容易抽中）。
@@ -114,7 +114,7 @@ func GenerateGachaEntries(poolId int, req *GenerateGachaEntryReq, apply bool) (*
 			qMin, qMax = qMax, qMin
 		}
 		entry := GachaCardEntry{
-			ModelName:  name,
+			Models:     name,
 			Group:      req.Group,
 			Weight:     weight,
 			Quota:      qMin,
@@ -185,8 +185,8 @@ func GenerateGachaEntries(poolId int, req *GenerateGachaEntryReq, apply bool) (*
 			ten = preview.SuggestedPrice * 9
 		}
 		if err := DB.Model(&GachaPool{}).Where("id = ?", poolId).Updates(map[string]interface{}{
-			"price":       preview.SuggestedPrice,
-			"ten_price":   ten,
+			"price":        preview.SuggestedPrice,
+			"ten_price":    ten,
 			"updated_time": common.GetTimestamp(),
 		}).Error; err != nil {
 			return nil, err

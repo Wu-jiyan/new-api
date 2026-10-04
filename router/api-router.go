@@ -255,9 +255,7 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			gachaRoute.GET("/pools", controller.ListGachaPools)
 			gachaRoute.POST("/pool/:id/pull", middleware.CriticalRateLimit(), controller.PullGachaCards)
-			gachaRoute.GET("/cards", controller.ListGachaCards)
-			gachaRoute.POST("/cards/:id/token/reset", controller.ResetGachaCardToken)
-			gachaRoute.POST("/cards/:id/token/revoke", controller.RevokeGachaCardToken)
+			gachaRoute.GET("/entitlements", controller.ListGachaCards)
 			gachaRoute.GET("/stats", controller.GetGachaStats)
 		}
 

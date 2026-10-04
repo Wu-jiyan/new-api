@@ -13,7 +13,7 @@ func insertGachaCardConsumeProfitLog(t *testing.T, createdAt int64, quota int, c
 		Quota:     quota,
 		CostQuota: costQuota,
 		ChannelId: channelID,
-		Other:     `{"gacha_card_id":1,"channel_cost":{"cost":1}}`,
+		Other:     `{"gacha_source":true,"channel_cost":{"cost":1}}`,
 	}
 	if err := LOG_DB.Create(log).Error; err != nil {
 		t.Fatalf("insert gacha card consume log: %v", err)
