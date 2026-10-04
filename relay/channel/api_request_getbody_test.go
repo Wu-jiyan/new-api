@@ -361,7 +361,7 @@ func runResetOnFirstStreamServer(ln net.Listener, expectRetry bool) <-chan h2Ser
 			res.err = err
 			return
 		}
-		defer conn.Close()
+		defer shutdownH2TestConnection(conn)
 
 	attempts:
 		for attempt := 0; ; attempt++ {
@@ -416,7 +416,7 @@ func runGoAwayAfterFirstRequestServer(ln net.Listener) <-chan h2ServerResult {
 
 			if attempt == 0 {
 				err = framer.WriteGoAway(0, http2.ErrCodeNo, nil)
-				conn.Close()
+				shutdownH2TestConnection(conn)
 				if err != nil {
 					res.err = err
 					return
@@ -425,7 +425,7 @@ func runGoAwayAfterFirstRequestServer(ln net.Listener) <-chan h2ServerResult {
 			}
 
 			err = writeH2TestResponse(framer, streamID)
-			conn.Close()
+			shutdownH2TestConnection(conn)
 			if err != nil {
 				res.err = err
 			}
@@ -451,6 +451,18 @@ func newPassThroughBody(t *testing.T, payload []byte) (common.ReplayableBody, co
 	storage, err := common.CreateBodyStorage(payload)
 	require.NoError(t, err)
 	return common.NewReplayableBodyReader(storage), storage
+}
+
+// shutdownH2TestConnection half-closes the write side, which is how a server
+// ends a connection after GOAWAY. It deliberately does not close the socket:
+// closing a socket that still holds unread inbound data answers with an RST,
+// and the client then reports an opaque wsarecv/ECONNRESET read error that the
+// HTTP/2 transport cannot classify as a retryable GOAWAY. The connection is
+// reclaimed when the test binary exits.
+func shutdownH2TestConnection(conn net.Conn) {
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		_ = tcpConn.CloseWrite()
+	}
 }
 
 // TestUpstreamGetBody_HTTP2RetryAfterUpstreamStreamReset exercises the actual
