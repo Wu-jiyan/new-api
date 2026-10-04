@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
+	"github.com/QuantumNous/new-api/relay/channel/typesafe"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -30,8 +31,11 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	if info.RelayMode == relayconstant.RelayModeAlphaSearch {
+	switch info.RelayMode {
+	case relayconstant.RelayModeAlphaSearch:
 		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/v1/alpha/search", info.ChannelType), nil
+	case relayconstant.RelayModeSystemOne:
+		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/v1/systemone", info.ChannelType), nil
 	}
 	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, info.RequestURLPath, info.ChannelType), nil
 }
@@ -107,6 +111,10 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		return a.claudeAdaptor.DoResponse(c, resp, info)
 	case types.RelayFormatGemini:
 		return a.geminiAdaptor.DoResponse(c, resp, info)
+	case types.RelayFormatSystemOne:
+		// An upstream gateway serving the same System One protocol; its
+		// response is already in the downstream shape.
+		return typesafe.SystemOneHandler(c, resp)
 	default:
 		return a.openaiAdaptor.DoResponse(c, resp, info)
 	}

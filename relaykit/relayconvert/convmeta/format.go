@@ -25,6 +25,8 @@ func GuessRelayFormatFromRequest(req any) (types.RelayFormat, bool) {
 		return types.RelayFormatOpenAIImage, true
 	case *dto.AudioRequest, dto.AudioRequest:
 		return types.RelayFormatOpenAIAudio, true
+	case *dto.SystemOneRequest, dto.SystemOneRequest:
+		return types.RelayFormatSystemOne, true
 	default:
 		return "", false
 	}

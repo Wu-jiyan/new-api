@@ -155,10 +155,22 @@ func TestMultiprotocolGatewayEndpointTypes(t *testing.T) {
 		constant.EndpointTypeAnthropic,
 		constant.EndpointTypeGemini,
 		constant.EndpointTypeOpenAIAlphaSearch,
+		constant.EndpointTypeSystemOne,
 	}
 
 	assert.Equal(t, want, common.GetEndpointTypesByChannelType(constant.ChannelTypeNewAPI, "gpt-5"))
 	assert.Equal(t, want, common.GetEndpointTypesByChannelType(constant.ChannelTypeSub2API, "gpt-5"))
+}
+
+func TestTypeSafeChannelRegistration(t *testing.T) {
+	apiType, ok := common.ChannelType2APIType(constant.ChannelTypeTypeSafe)
+
+	require.True(t, ok)
+	assert.Equal(t, constant.APITypeTypeSafe, apiType)
+	assert.Equal(t, "TypeSafe SystemOne", constant.GetChannelTypeName(constant.ChannelTypeTypeSafe))
+	assert.Equal(t, "https://api.typesafe.ai", constant.GetChannelBaseURL(constant.ChannelTypeTypeSafe))
+	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeSystemOne},
+		common.GetEndpointTypesByChannelType(constant.ChannelTypeTypeSafe, "jev-latest"))
 }
 
 func TestCopyChannelRejectsInvalidLegacyProxySettings(t *testing.T) {

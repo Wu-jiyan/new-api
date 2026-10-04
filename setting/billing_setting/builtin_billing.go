@@ -13,4 +13,10 @@ var builtinBillingExpr = map[string]string{
 	// Do not infer service-tier discounts from incoming request parameters:
 	// channels filter service_tier by default, so it may not reach the upstream.
 	"gpt-6-astra": `len <= 272000 ? tier("standard", p * 10 + c * 50 + cr * 1 + cc * 12.5) : tier("long_context", p * 20 + c * 75 + cr * 2 + cc * 25)`,
+	// https://docs.typesafe.ai/models (Jev 1.13, 2026-09-15): $42 per billion
+	// input tokens. Output tokens are free, so c is deliberately absent.
+	"jev-latest":  `tier("standard", p * 0.042)`,
+	"jev-preview": `tier("standard", p * 0.042)`,
+	"jev-1.13.0":  `tier("standard", p * 0.042)`,
+	"jev-1.13":    `tier("standard", p * 0.042)`,
 }

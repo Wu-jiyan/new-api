@@ -49,6 +49,10 @@ func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) s
 	if channel != nil && channel.Type == constant.ChannelTypeCodex {
 		return string(constant.EndpointTypeOpenAIResponse)
 	}
+	if channel != nil && channel.Type == constant.ChannelTypeTypeSafe {
+		// TypeSafe only serves the System One protocol.
+		return string(constant.EndpointTypeSystemOne)
+	}
 	return normalized
 }
 
@@ -198,6 +202,8 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			relayFormat = types.RelayFormatOpenAIImage
 		case constant.EndpointTypeEmbeddings:
 			relayFormat = types.RelayFormatEmbedding
+		case constant.EndpointTypeSystemOne:
+			relayFormat = types.RelayFormatSystemOne
 		default:
 			relayFormat = types.RelayFormatOpenAI
 		}
@@ -218,6 +224,9 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 		if c.Request.URL.Path == "/v1/rerank" || c.Request.URL.Path == "/rerank" {
 			relayFormat = types.RelayFormatRerank
+		}
+		if c.Request.URL.Path == "/v1/systemone" {
+			relayFormat = types.RelayFormatSystemOne
 		}
 		if c.Request.URL.Path == "/v1/responses" {
 			relayFormat = types.RelayFormatOpenAIResponses
@@ -339,6 +348,17 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 				context:     c,
 				localErr:    errors.New("invalid rerank request type"),
 				newAPIError: types.NewError(errors.New("invalid rerank request type"), types.ErrorCodeConvertRequestFailed),
+			}
+		}
+	case relayconstant.RelayModeSystemOne:
+		// System One request - request is already the correct type
+		if _, ok := request.(*dto.SystemOneRequest); ok {
+			convertedRequest = request
+		} else {
+			return testResult{
+				context:     c,
+				localErr:    errors.New("invalid system one request type"),
+				newAPIError: types.NewError(errors.New("invalid system one request type"), types.ErrorCodeConvertRequestFailed),
 			}
 		}
 	case relayconstant.RelayModeResponses:
@@ -738,6 +758,17 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			return &dto.OpenAIResponsesCompactionRequest{
 				Model: model,
 				Input: testResponsesInput,
+			}
+		case constant.EndpointTypeSystemOne:
+			return &dto.SystemOneRequest{
+				Model: model,
+				State: "Help! My payouts have been failing for 3 days.",
+				Questions: map[string]dto.SystemOneQuestion{
+					"is_urgent": {
+						Type:         dto.SystemOneQuestionNoul,
+						Instructions: json.RawMessage(`"Does this convey urgency?"`),
+					},
+				},
 			}
 		case constant.EndpointTypeAnthropic:
 			return &dto.ClaudeRequest{

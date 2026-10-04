@@ -91,6 +91,9 @@ export const STATIC_I18N_KEYS = [
   'Connect to self-hosted models served by vLLM',
   'vLLM server address, without /v1',
   'vLLM API key, or EMPTY if authentication is disabled',
+  'TypeSafe SystemOne',
+  'Evaluate states against typed questions with TypeSafe System One models such as Jev',
+  'TypeSafe API key',
 
   'Price per image',
   'Per image',

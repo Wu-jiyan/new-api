@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
+	"github.com/QuantumNous/new-api/relay/channel/typesafe"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -329,6 +330,8 @@ func (a *Adaptor) doNativeResponse(c *gin.Context, resp *http.Response, info *re
 		return a.claudeAdaptor.DoResponse(c, resp, info)
 	case types.RelayFormatGemini:
 		return a.geminiAdaptor.DoResponse(c, resp, info)
+	case types.RelayFormatSystemOne:
+		return typesafe.SystemOneHandler(c, resp)
 	default:
 		return a.openaiAdaptor.DoResponse(c, resp, info)
 	}

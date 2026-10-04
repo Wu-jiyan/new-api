@@ -110,6 +110,58 @@ func TestGPT6AstraBuiltinBilling(t *testing.T) {
 	}
 }
 
+func TestJevBuiltinBillingChargesInputTokensOnly(t *testing.T) {
+	settings := config.GlobalConfig.Get("billing_setting").(*billing_setting.BillingSetting)
+	saved := *settings
+	savedRatios, savedPrices := ratio_setting.ModelRatio2JSONString(), ratio_setting.ModelPrice2JSONString()
+	savedOptions := common.OptionMap
+	t.Cleanup(func() {
+		*settings, common.OptionMap = saved, savedOptions
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedRatios))
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedPrices))
+	})
+	*settings = billing_setting.BillingSetting{BillingMode: map[string]string{}, BillingExpr: map[string]string{}}
+	common.OptionMap = map[string]string{"billing_setting.billing_mode": `{}`, "billing_setting.billing_expr": `{}`}
+	require.NoError(t, config.GlobalConfig.LoadFromDB(common.OptionMap))
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+
+	for _, name := range []string{"jev-latest", "jev-preview", "jev-1.13.0", "jev-1.13"} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, billing_setting.BillingModeTieredExpr, billing_setting.GetBillingMode(name))
+			expression, ok := billing_setting.GetBillingExpr(name)
+			require.True(t, ok)
+
+			for _, tc := range []struct {
+				name           string
+				input, output  int
+				wantQuotaAfter int
+			}{
+				// $0.042 per 1M input tokens at QuotaPerUnit 500000, group ratio 1.
+				{"output tokens are free", 1000, 200, 21},
+				{"reported jev usage", 296, 20, 6},
+				{"no usage", 0, 0, 0},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					usage := &dto.Usage{PromptTokens: tc.input, CompletionTokens: tc.output}
+					params := service.BuildTieredTokenParams(usage, false, billingexpr.UsedVars(expression))
+					result, err := billingexpr.ComputeTieredQuotaWithRequest(&billingexpr.BillingSnapshot{
+						ExprString: expression, ExprHash: billingexpr.ExprHashString(expression),
+						GroupRatio: 1, QuotaPerUnit: 500000,
+					}, params, billingexpr.RequestInput{})
+					require.NoError(t, err)
+					assert.Equal(t, tc.wantQuotaAfter, result.ActualQuotaAfterGroup)
+				})
+			}
+		})
+	}
+
+	t.Run("administrator pricing takes precedence", func(t *testing.T) {
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"jev-latest":0.5}`))
+		assert.Equal(t, billing_setting.BillingModeRatio, billing_setting.GetBillingMode("jev-latest"))
+	})
+}
+
 func TestImageModelBuiltinPricesAndOverrides(t *testing.T) {
 	settings := config.GlobalConfig.Get("billing_setting").(*billing_setting.BillingSetting)
 	saved := *settings
