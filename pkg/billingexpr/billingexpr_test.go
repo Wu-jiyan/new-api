@@ -1196,3 +1196,22 @@ func TestFrontendSimulationContract(t *testing.T) {
 		})
 	}
 }
+
+// TestMissingSnapshotHashEvaluatesItsOwnExpression guards the compiled cache:
+// a snapshot without ExprHash used to be keyed by "", which handed it whichever
+// expression had been cached last and silently billed the wrong model.
+func TestMissingSnapshotHashEvaluatesItsOwnExpression(t *testing.T) {
+	const cached = `tier("standard", p * 10 + c * 50)`
+	const evaluated = `tier("standard", p * 0.042)`
+
+	_, _, err := billingexpr.RunExprByHash(cached, "", billingexpr.TokenParams{P: 1000, C: 100})
+	require.NoError(t, err)
+
+	result, err := billingexpr.ComputeTieredQuotaWithRequest(&billingexpr.BillingSnapshot{
+		ExprString: evaluated, GroupRatio: 1, QuotaPerUnit: 500000,
+	}, billingexpr.TokenParams{P: 1000, C: 100, Len: 1100}, billingexpr.RequestInput{})
+	require.NoError(t, err)
+	assert.Equal(t, 21, result.ActualQuotaAfterGroup)
+	assert.Equal(t, "standard", result.MatchedTier)
+	assert.Equal(t, map[string]bool{"p": true, "tier": true}, billingexpr.UsedVarsByHash(evaluated, ""))
+}

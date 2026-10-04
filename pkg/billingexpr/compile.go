@@ -164,6 +164,17 @@ func getCompileEnv(version int) map[string]any {
 	}
 }
 
+// resolveExprHash returns the cache key for an expression. A caller-supplied
+// digest is only a shortcut, so an empty one must fall back to the expression's
+// own digest: keying the cache by "" would make every such call share one slot
+// and silently evaluate another expression's compiled program.
+func resolveExprHash(exprStr, hash string) string {
+	if hash == "" {
+		return ExprHashString(exprStr)
+	}
+	return hash
+}
+
 // CompileFromCache compiles an expression string, using a cached program when
 // available. The cache is keyed by the SHA-256 hex digest of the expression.
 func CompileFromCache(exprStr string) (*vm.Program, error) {
@@ -185,6 +196,7 @@ func compileFromCacheByHash(exprStr, hash string) (*vm.Program, error) {
 }
 
 func compileEntryFromCacheByHash(exprStr, hash string) (*cachedEntry, error) {
+	hash = resolveExprHash(exprStr, hash)
 	cacheMu.RLock()
 	if entry, ok := cache[hash]; ok {
 		cacheMu.RUnlock()
@@ -300,6 +312,7 @@ func UsedVarsByHash(exprStr, hash string) map[string]bool {
 	if exprStr == "" {
 		return nil
 	}
+	hash = resolveExprHash(exprStr, hash)
 	cacheMu.RLock()
 	if entry, ok := cache[hash]; ok {
 		cacheMu.RUnlock()
