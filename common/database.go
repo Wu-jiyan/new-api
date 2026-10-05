@@ -1,5 +1,7 @@
 package common
 
+import "strings"
+
 type DatabaseType string
 
 const (
@@ -61,4 +63,22 @@ func UsingLogDatabase(databaseType DatabaseType) bool {
 //     front, so writers serialize through the busy timeout instead of dying on
 //     a stale snapshot. Autocommit SELECTs stay concurrent because WAL keeps
 //     readers unlocked.
-var SQLitePath = "one-api.db?_pragma=busy_timeout(30000)&_pragma=journal_mode(WAL)&_txlock=immediate"
+const SQLiteConcurrencyParams = "_pragma=busy_timeout(30000)&_pragma=journal_mode(WAL)&_txlock=immediate"
+
+// SQLiteDSN applies the concurrency pragmas above to a SQLite path or DSN.
+// Anything that opens its own SQLite database — a deployment or a test — must
+// go through it, otherwise the database silently runs with the 5s default
+// timeout, a rollback journal and deferred transactions, and concurrent
+// writers fail with SQLITE_BUSY_SNAPSHOT instead of queueing.
+func SQLiteDSN(path string) string {
+	if path == "" || strings.Contains(path, "_pragma=") {
+		return path
+	}
+	separator := "?"
+	if strings.Contains(path, "?") {
+		separator = "&"
+	}
+	return path + separator + SQLiteConcurrencyParams
+}
+
+var SQLitePath = SQLiteDSN("one-api.db")

@@ -857,7 +857,11 @@ func newAuditTestDatabase(t *testing.T, kind, dsn string) (*gorm.DB, string) {
 	t.Helper()
 	if kind == "sqlite" {
 		path := t.TempDir() + "/audit.db"
-		db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
+		// The concurrency pragmas are part of the contract, not a tuning knob:
+		// without BEGIN IMMEDIATE two concurrent writers fail with
+		// SQLITE_BUSY_SNAPSHOT instead of queueing, which the security tests
+		// would read as a product failure.
+		db, err := gorm.Open(sqlite.Open(common.SQLiteDSN(path)), &gorm.Config{})
 		require.NoError(t, err)
 		// Close before t.TempDir removes the directory; on Windows an open
 		// handle makes the removal fail with "being used by another process".

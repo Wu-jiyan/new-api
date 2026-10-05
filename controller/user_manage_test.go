@@ -524,15 +524,23 @@ func TestManageUserQuotaConcurrentSnapshots(t *testing.T) {
 	db := setupManageUserTestDB(t)
 	user := model.User{Username: "concurrent-quota", Quota: 1000}
 	require.NoError(t, db.Create(&user).Error)
+	// The read barrier below only means something on row-locking dialects, where
+	// two transactions can hold a users snapshot at the same time. SQLite runs
+	// with BEGIN IMMEDIATE (see common.SQLiteDSN), which serializes writers when
+	// the transaction starts, so the second adjustment never reaches the query —
+	// waiting for two arrivals there would deadlock instead of testing anything.
+	barrier := !common.UsingMainDatabase(common.DatabaseTypeSQLite)
 	var ready sync.WaitGroup
-	ready.Add(2)
 	release := make(chan struct{})
-	require.NoError(t, db.Callback().Query().Before("gorm:query").Register("test:concurrent_quota_start", func(tx *gorm.DB) {
-		if tx.Statement.Table == "users" {
-			ready.Done()
-			<-release
-		}
-	}))
+	if barrier {
+		ready.Add(2)
+		require.NoError(t, db.Callback().Query().Before("gorm:query").Register("test:concurrent_quota_start", func(tx *gorm.DB) {
+			if tx.Statement.Table == "users" {
+				ready.Done()
+				<-release
+			}
+		}))
+	}
 	type result struct {
 		adjustment *model.UserQuotaAdjustment
 		err        error
@@ -545,7 +553,9 @@ func TestManageUserQuotaConcurrentSnapshots(t *testing.T) {
 			results <- result{adjustment, err, value}
 		}(value)
 	}
-	ready.Wait()
+	if barrier {
+		ready.Wait()
+	}
 	close(release)
 	var committed []model.UserQuotaAdjustment
 	for range 2 {
@@ -560,7 +570,9 @@ func TestManageUserQuotaConcurrentSnapshots(t *testing.T) {
 		assert.Equal(t, result.value, result.adjustment.After-result.adjustment.Before)
 		committed = append(committed, *result.adjustment)
 	}
-	require.NoError(t, db.Callback().Query().Remove("test:concurrent_quota_start"))
+	if barrier {
+		require.NoError(t, db.Callback().Query().Remove("test:concurrent_quota_start"))
+	}
 	require.NotEmpty(t, committed)
 	sort.Slice(committed, func(i, j int) bool { return committed[i].Before < committed[j].Before })
 	balance := 1000
