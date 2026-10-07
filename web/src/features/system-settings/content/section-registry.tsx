@@ -59,7 +59,6 @@ const CONTENT_SECTIONS = [
     build: (settings: ContentSettings) => (
       <AnnouncementsSection
         enabled={settings['console_setting.announcements_enabled']}
-        popupEnabled={settings['console_setting.announcement_popup_enabled']}
         data={settings['console_setting.announcements']}
       />
     ),

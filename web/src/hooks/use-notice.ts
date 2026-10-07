@@ -16,27 +16,27 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { AnnouncementPopup } from '@/features/auth/types'
+import { useQuery } from '@tanstack/react-query'
+
+import { getNotice } from '@/lib/api'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 /**
- * Revision identity of the popup announcement.
+ * The site's system notice (站点与品牌 -> 系统公告).
  *
- * A visitor who chose "do not show again" is muted for this exact revision, so
- * editing the announcement's content pops it up again for everyone, while
- * re-dating the same announcement keeps it muted.
- *
- * Returns an empty string when there is nothing to show.
+ * Single owner of the notice request: the notification center and the notice
+ * popup share one cache entry, so the public payload is fetched once.
  */
-export function getAnnouncementPopupRevision(
-  announcement: AnnouncementPopup | null | undefined
-): string {
-  const content = announcement?.content?.trim()
-  if (!content) return ''
+export function useNotice() {
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['notice'],
+    queryFn: async () => requireServerSuccess(await getNotice()),
+    staleTime: 1000 * 60 * 5,
+  })
 
-  return JSON.stringify([
-    announcement?.id ?? null,
-    content,
-    announcement?.extra?.trim() ?? '',
-    announcement?.type ?? '',
-  ])
+  return {
+    notice: (data?.data ?? '').trim(),
+    loading: isLoading,
+    refetchNotice: refetch,
+  }
 }

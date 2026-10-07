@@ -60,7 +60,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
 import dayjs from '@/lib/dayjs'
 import { handleServerError } from '@/lib/handle-server-error'
 
@@ -74,23 +73,11 @@ type Announcement = {
   publishDate: string
   type: 'default' | 'ongoing' | 'success' | 'warning' | 'error'
   extra?: string
-  popup?: boolean
 }
 
 type AnnouncementsSectionProps = {
   enabled: boolean
-  popupEnabled: boolean
   data: string
-}
-
-/** Announcement items may carry the popup marker as a boolean or its string form. */
-function isPopupFlagged(value: unknown): boolean {
-  if (typeof value === 'boolean') return value
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase()
-    return normalized === 'true' || normalized === '1'
-  }
-  return false
 }
 
 const announcementSchema = z.object({
@@ -104,7 +91,6 @@ const announcementSchema = z.object({
     .string()
     .max(100, 'Extra must be less than 100 characters')
     .optional(),
-  popup: z.boolean(),
 })
 
 type AnnouncementFormValues = z.infer<typeof announcementSchema>
@@ -146,7 +132,6 @@ const typeOptions = [
 
 export function AnnouncementsSection({
   enabled,
-  popupEnabled,
   data,
 }: AnnouncementsSectionProps) {
   const { t } = useTranslation()
@@ -168,7 +153,6 @@ export function AnnouncementsSection({
       publishDate: new Date().toISOString(),
       type: 'default',
       extra: '',
-      popup: false,
     },
   })
 
@@ -180,7 +164,6 @@ export function AnnouncementsSection({
           parsed.map((item, idx) => ({
             ...item,
             id: item.id || idx + 1,
-            popup: isPopupFlagged(item.popup),
           }))
         )
       }
@@ -206,18 +189,6 @@ export function AnnouncementsSection({
     }
   }
 
-  const handleTogglePopupEnabled = async (checked: boolean) => {
-    try {
-      await updateOption.mutateAsync({
-        key: 'console_setting.announcement_popup_enabled',
-        value: checked,
-      })
-      toast.success(t('Setting saved'))
-    } catch (error) {
-      handleServerError(error, t('Failed to update setting'))
-    }
-  }
-
   const handleAdd = () => {
     setEditingAnnouncement(null)
     form.reset({
@@ -225,7 +196,6 @@ export function AnnouncementsSection({
       publishDate: new Date().toISOString(),
       type: 'default',
       extra: '',
-      popup: false,
     })
     setShowDialog(true)
   }
@@ -237,7 +207,6 @@ export function AnnouncementsSection({
       publishDate: announcement.publishDate,
       type: announcement.type,
       extra: announcement.extra || '',
-      popup: isPopupFlagged(announcement.popup),
     })
     setShowDialog(true)
   }
@@ -283,21 +252,14 @@ export function AnnouncementsSection({
   const handleSubmitForm = (values: AnnouncementFormValues) => {
     if (editingAnnouncement) {
       setAnnouncements((prev) =>
-        prev.map((item) => {
-          if (item.id === editingAnnouncement.id) return { ...item, ...values }
-          // 同时只保留一条弹窗公告，标记新的会取消旧的
-          return values.popup ? { ...item, popup: false } : item
-        })
+        prev.map((item) =>
+          item.id === editingAnnouncement.id ? { ...item, ...values } : item
+        )
       )
       toast.success(t('Announcement updated. Click "Save Settings" to apply.'))
     } else {
       const newId = Math.max(...announcements.map((item) => item.id), 0) + 1
-      setAnnouncements((prev) => [
-        ...(values.popup
-          ? prev.map((item) => ({ ...item, popup: false }))
-          : prev),
-        { id: newId, ...values },
-      ])
+      setAnnouncements((prev) => [...prev, { id: newId, ...values }])
       toast.success(t('Announcement added. Click "Save Settings" to apply.'))
     }
     setHasChanges(true)
@@ -377,22 +339,12 @@ export function AnnouncementsSection({
               {updateOption.isPending ? t('Saving...') : t('Save Settings')}
             </Button>
           </div>
-          <div className='flex flex-wrap items-center gap-4'>
-            <SettingsSwitchField
-              controlId='announcements-enabled'
-              checked={isEnabled}
-              onCheckedChange={handleToggleEnabled}
-              label={t('Enabled')}
-              className='py-0'
-            />
-            <SettingsSwitchField
-              controlId='announcement-popup-enabled'
-              checked={popupEnabled}
-              onCheckedChange={handleTogglePopupEnabled}
-              label={t('Announcement popup')}
-              className='py-0'
-            />
-          </div>
+          <SettingsSwitchField
+            checked={isEnabled}
+            onCheckedChange={handleToggleEnabled}
+            label={t('Enabled')}
+            className='py-0'
+          />
         </div>
 
         <StaticDataTable
@@ -461,20 +413,6 @@ export function AnnouncementsSection({
                   copyable={false}
                 />
               ),
-            },
-            {
-              id: 'popup',
-              header: t('Popup'),
-              cell: (announcement) =>
-                announcement.popup ? (
-                  <StatusBadge
-                    label={t('Popup')}
-                    variant='info'
-                    copyable={false}
-                  />
-                ) : (
-                  '-'
-                ),
             },
             {
               id: 'extra',
@@ -642,29 +580,6 @@ export function AnnouncementsSection({
                       'Optional supplementary information (max 100 characters)'
                     )}
                   </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name='popup'
-              render={({ field }) => (
-                <FormItem className='flex flex-row items-center justify-between gap-3 rounded-lg border p-3'>
-                  <div className='space-y-0.5'>
-                    <FormLabel>{t('Display as popup')}</FormLabel>
-                    <FormDescription>
-                      {t(
-                        'Only one announcement opens as a popup; marking another one replaces it.'
-                      )}
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

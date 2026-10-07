@@ -23,49 +23,42 @@ import { Dialog } from '@/components/dialog'
 import { RichContent } from '@/components/rich-content'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useNotice } from '@/hooks/use-notice'
 import { useStatus } from '@/hooks/use-status'
-import { getAnnouncementPopupRevision } from '@/lib/announcement-popup'
-import { formatDateTimeObject } from '@/lib/time'
 import { useNotificationStore } from '@/stores/notification-store'
 
 /**
- * Site-wide popup for the system announcement the administrator marked.
+ * Site-wide popup for the notice configured under 站点与品牌 -> 系统公告.
  *
- * Two ways out, matching the announcement contract:
+ * Two ways out, matching the notice contract:
  * - closing dismisses it for this page session only, so a reload shows it again;
- * - "do not show again" mutes the current announcement revision until its
- *   content is updated, which opens the popup again for every visitor.
+ * - "do not show again" mutes the current notice text until the notice is
+ *   edited, which opens the popup again for every visitor.
  */
-export function AnnouncementPopup() {
+export function NoticePopup() {
   const { t } = useTranslation()
   const { status } = useStatus()
-  const mutedRevision = useNotificationStore(
-    (state) => state.mutedAnnouncementRevision
-  )
-  const muteAnnouncementPopup = useNotificationStore(
-    (state) => state.muteAnnouncementPopup
-  )
-  const [dismissedRevision, setDismissedRevision] = useState('')
+  const { notice } = useNotice()
+  const mutedNotice = useNotificationStore((state) => state.mutedNotice)
+  const muteNotice = useNotificationStore((state) => state.muteNotice)
+  const [dismissedNotice, setDismissedNotice] = useState('')
 
-  const announcement = status?.announcement_popup ?? null
-  const revision = getAnnouncementPopupRevision(announcement)
-
-  // Derived, so an updated announcement opens the popup again on its own while a
-  // closed or muted revision stays closed.
+  // Derived, so an edited notice opens the popup again on its own while a
+  // closed or muted notice stays closed.
   const open =
-    status?.announcement_popup_enabled === true &&
-    revision !== '' &&
-    revision !== mutedRevision &&
-    revision !== dismissedRevision
+    status?.notice_popup_enabled === true &&
+    notice !== '' &&
+    notice !== mutedNotice &&
+    notice !== dismissedNotice
 
-  if (!announcement) return null
+  if (notice === '') return null
 
   const dismissForNow = () => {
-    setDismissedRevision(revision)
+    setDismissedNotice(notice)
   }
 
-  const muteRevision = () => {
-    muteAnnouncementPopup(revision)
+  const muteCurrentNotice = () => {
+    muteNotice(notice)
   }
 
   return (
@@ -74,18 +67,13 @@ export function AnnouncementPopup() {
       onOpenChange={(next) => {
         if (!next) dismissForNow()
       }}
-      title={t('System Announcement')}
-      description={
-        announcement.publishDate
-          ? `${t('Published:')} ${formatDateTimeObject(new Date(announcement.publishDate))}`
-          : undefined
-      }
+      title={t('System Notice')}
       contentClassName='sm:max-w-lg'
       contentHeight='auto'
       bodyClassName='space-y-4'
       footer={
         <>
-          <Button type='button' variant='outline' onClick={muteRevision}>
+          <Button type='button' variant='outline' onClick={muteCurrentNotice}>
             {t('Do not show again')}
           </Button>
           <Button type='button' onClick={dismissForNow}>
@@ -95,20 +83,11 @@ export function AnnouncementPopup() {
       }
     >
       <ScrollArea className='max-h-[min(58vh,520px)] pr-4'>
-        <div className='space-y-4'>
-          <RichContent breaks content={announcement.content} />
-          {announcement.extra ? (
-            <RichContent
-              breaks
-              content={announcement.extra}
-              className='text-muted-foreground'
-            />
-          ) : null}
-        </div>
+        <RichContent breaks content={notice} />
       </ScrollArea>
       <p className='text-muted-foreground text-xs'>
         {t(
-          'Choose "Do not show again" to hide this announcement until it is updated.'
+          'Choose "Do not show again" to hide this notice until it is updated.'
         )}
       </p>
     </Dialog>

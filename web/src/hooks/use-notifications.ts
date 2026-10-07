@@ -16,12 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
 import { useState, useMemo } from 'react'
 
+import { useNotice } from '@/hooks/use-notice'
 import { useStatus } from '@/hooks/use-status'
-import { getNotice } from '@/lib/api'
-import { requireServerSuccess } from '@/lib/server-error-message'
 import { useNotificationStore } from '@/stores/notification-store'
 
 function hashString(input: string): string {
@@ -71,14 +69,10 @@ export function useNotifications() {
 
   // Fetch Notice from API
   const {
-    data: noticeResponse,
-    isLoading: noticeLoading,
-    refetch: refetchNotice,
-  } = useQuery({
-    queryKey: ['notice'],
-    queryFn: async () => requireServerSuccess(await getNotice()),
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  })
+    notice: noticeText,
+    loading: noticeLoading,
+    refetchNotice,
+  } = useNotice()
 
   // Fetch Announcements from status
   const { status, loading: statusLoading } = useStatus()
@@ -100,9 +94,7 @@ export function useNotifications() {
   } = useNotificationStore()
 
   // Extract notice content
-  const noticeContent = noticeResponse?.success
-    ? (noticeResponse.data || '').trim()
-    : ''
+  const noticeContent = noticeText
 
   // Calculate unread counts
   const unreadCounts = useMemo(() => {

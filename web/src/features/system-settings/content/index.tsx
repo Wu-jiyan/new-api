@@ -31,7 +31,6 @@ const defaultContentSettings: ContentSettings = {
   'console_setting.uptime_kuma_groups': '[]',
   'console_setting.api_info_enabled': true,
   'console_setting.announcements_enabled': true,
-  'console_setting.announcement_popup_enabled': false,
   'console_setting.faq_enabled': true,
   'console_setting.uptime_kuma_enabled': false,
   DataExportEnabled: false,

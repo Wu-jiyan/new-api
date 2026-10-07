@@ -32,7 +32,10 @@ import {
 } from '@/components/ui/form'
 import { Textarea } from '@/components/ui/textarea'
 
-import { SettingsForm } from '../components/settings-form-layout'
+import {
+  SettingsForm,
+  SettingsSwitchField,
+} from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -45,9 +48,13 @@ type NoticeFormValues = z.infer<typeof noticeSchema>
 
 type NoticeSectionProps = {
   defaultValue: string
+  popupEnabled: boolean
 }
 
-export function NoticeSection({ defaultValue }: NoticeSectionProps) {
+export function NoticeSection({
+  defaultValue,
+  popupEnabled,
+}: NoticeSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const form = useForm<NoticeFormValues>({
@@ -70,6 +77,13 @@ export function NoticeSection({ defaultValue }: NoticeSectionProps) {
       key: 'Notice',
       value: normalized,
     })
+  }
+
+  const handleTogglePopup = async (checked: boolean) => {
+    // The shared option mutation already reports success and failure.
+    await updateOption
+      .mutateAsync({ key: 'NoticePopupEnabled', value: checked })
+      .catch(() => undefined)
   }
 
   return (
@@ -98,6 +112,15 @@ export function NoticeSection({ defaultValue }: NoticeSectionProps) {
                 </FormControl>
                 <FormMessage />
               </FormItem>
+            )}
+          />
+          <SettingsSwitchField
+            controlId='notice-popup-enabled'
+            checked={popupEnabled}
+            onCheckedChange={handleTogglePopup}
+            label={t('Announcement popup')}
+            description={t(
+              'Visitors see this notice in a popup until they choose not to show it again.'
             )}
           />
         </SettingsForm>
