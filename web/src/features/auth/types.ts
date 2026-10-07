@@ -198,7 +198,20 @@ export interface SystemStatus {
   password_login_encryption_enabled?: boolean
   password_register_enabled?: boolean
   custom_oauth_providers?: CustomOAuthProviderInfo[]
+  /** Whether the marked system announcement pops up for visitors. */
+  announcement_popup_enabled?: boolean
+  /** The newest announcement marked for the popup; absent when none is marked. */
+  announcement_popup?: AnnouncementPopup | null
   [key: string]: unknown
+}
+
+/** Announcement payload shown in the site-wide popup. */
+export interface AnnouncementPopup {
+  id?: number
+  content: string
+  publishDate?: string
+  type?: 'default' | 'ongoing' | 'success' | 'warning' | 'error'
+  extra?: string
 }
 
 // ============================================================================

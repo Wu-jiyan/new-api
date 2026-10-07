@@ -10,19 +10,22 @@ type ConsoleSetting struct {
 	ApiInfoEnabled       bool   `json:"api_info_enabled"`      // 是否启用 API 信息面板
 	UptimeKumaEnabled    bool   `json:"uptime_kuma_enabled"`   // 是否启用 Uptime Kuma 面板
 	AnnouncementsEnabled bool   `json:"announcements_enabled"` // 是否启用系统公告面板
-	FAQEnabled           bool   `json:"faq_enabled"`           // 是否启用常见问答面板
+	// 是否启用系统公告弹窗：启用后，被标记为弹窗的最新一条公告会在全站弹出
+	AnnouncementPopupEnabled bool `json:"announcement_popup_enabled"`
+	FAQEnabled               bool `json:"faq_enabled"` // 是否启用常见问答面板
 }
 
 // 默认配置
 var defaultConsoleSetting = ConsoleSetting{
-	ApiInfo:              "",
-	UptimeKumaGroups:     "",
-	Announcements:        "",
-	FAQ:                  "",
-	ApiInfoEnabled:       true,
-	UptimeKumaEnabled:    true,
-	AnnouncementsEnabled: true,
-	FAQEnabled:           true,
+	ApiInfo:                  "",
+	UptimeKumaGroups:         "",
+	Announcements:            "",
+	FAQ:                      "",
+	ApiInfoEnabled:           true,
+	UptimeKumaEnabled:        true,
+	AnnouncementsEnabled:     true,
+	AnnouncementPopupEnabled: false,
+	FAQEnabled:               true,
 }
 
 // 全局实例

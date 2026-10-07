@@ -186,8 +186,58 @@ func validateAnnouncements(announcementsStr string) error {
 				return fmt.Errorf("第%d个公告的说明长度不能超过100字符", i+1)
 			}
 		}
+		if popup, exists := ann["popup"]; exists {
+			switch value := popup.(type) {
+			case bool:
+			case string:
+				normalized := strings.ToLower(strings.TrimSpace(value))
+				if normalized != "true" && normalized != "false" && normalized != "1" && normalized != "0" {
+					return fmt.Errorf("第%d个公告的弹窗标记只能是布尔值", i+1)
+				}
+			default:
+				return fmt.Errorf("第%d个公告的弹窗标记只能是布尔值", i+1)
+			}
+		}
 	}
 	return nil
+}
+
+// announcementWantsPopup 判断公告项是否被标记为弹窗公告。
+// 兼容手写/旧数据中布尔值的字符串写法，其它取值一律视为未标记。
+func announcementWantsPopup(item map[string]interface{}) bool {
+	value, exists := item["popup"]
+	if !exists {
+		return false
+	}
+	switch v := value.(type) {
+	case bool:
+		return v
+	case string:
+		normalized := strings.ToLower(strings.TrimSpace(v))
+		return normalized == "true" || normalized == "1"
+	default:
+		return false
+	}
+}
+
+// GetAnnouncementPopup 返回需要弹窗展示的最新一条公告；弹窗开关关闭或没有标记的公告时返回 nil。
+func GetAnnouncementPopup() map[string]interface{} {
+	if !GetConsoleSetting().AnnouncementPopupEnabled {
+		return nil
+	}
+
+	var popup map[string]interface{}
+	var popupTime time.Time
+	for _, item := range getJSONList(GetConsoleSetting().Announcements) {
+		if !announcementWantsPopup(item) {
+			continue
+		}
+		published := getPublishTime(item)
+		if popup == nil || published.After(popupTime) {
+			popup, popupTime = item, published
+		}
+	}
+	return popup
 }
 
 func validateFAQ(faqStr string) error {
