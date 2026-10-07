@@ -25,6 +25,7 @@ export async function getPerfMetricsSummary(
 ): Promise<PerfSummaryAllData> {
   const res = await api.get<PerfSummaryAllData>('/api/perf-metrics/summary', {
     params: { hours },
+    optionalAuth: true,
   })
   return res.data
 }
@@ -38,6 +39,7 @@ export async function getPerfMetrics(
       model: modelName,
       hours,
     },
+    optionalAuth: true,
   })
   return res.data
 }

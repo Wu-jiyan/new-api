@@ -23,6 +23,7 @@ import {
   AxiosHeaders,
   CanceledError,
   type AxiosAdapter,
+  type AxiosHeaderValue,
 } from 'axios'
 import { createElement, type ReactNode } from 'react'
 import { toast } from 'sonner'
@@ -41,11 +42,76 @@ import {
 import { useAuthStore, type AuthBundle } from '@/stores/auth-store'
 
 const originalAdapter = api.defaults.adapter
+const originalWindowLocation = window.location
+
+/** Replace `window.location` so a forced sign-in is observable and not navigated. */
+function stubWindowLocation(pathname: string) {
+  const replace = vi.fn()
+  Object.defineProperty(window, 'location', {
+    configurable: true,
+    writable: true,
+    value: {
+      href: `http://localhost${pathname}`,
+      origin: 'http://localhost',
+      pathname,
+      replace,
+      assign: vi.fn(),
+      reload: vi.fn(),
+    },
+  })
+  return { replace }
+}
+
+/** Answer the refresh endpoint with a fixed HTTP status and no session. */
+function stubRefreshResponse(status: number) {
+  vi.spyOn(XMLHttpRequest.prototype, 'open')
+  vi.spyOn(XMLHttpRequest.prototype, 'send').mockImplementation(
+    function (this: XMLHttpRequest) {
+      Object.defineProperties(this, {
+        status: { value: status, configurable: true },
+        statusText: { value: 'Refresh response', configurable: true },
+        responseText: {
+          value: JSON.stringify({ success: false }),
+          configurable: true,
+        },
+        readyState: { value: 4, configurable: true },
+      })
+      this.onloadend?.(new ProgressEvent('loadend'))
+    }
+  )
+}
+
+function sessionBundle(
+  accessToken: string,
+  accessExpiresAt: number
+): AuthBundle {
+  return {
+    access_token: accessToken,
+    token_type: 'Bearer',
+    access_expires_at: accessExpiresAt,
+    user: { id: 1, username: 'test-user', role: 1 },
+    session: {
+      sid: 'test-session',
+      current: true,
+      login_method: 'password',
+      ip: '',
+      user_agent: '',
+      created_at: 1,
+      last_active_at: 1,
+      expires_at: 2_000_000_000,
+    },
+  }
+}
 
 afterEach(() => {
   api.defaults.adapter = originalAdapter
   vi.restoreAllMocks()
   useAuthStore.getState().auth.reset()
+  Object.defineProperty(window, 'location', {
+    configurable: true,
+    writable: true,
+    value: originalWindowLocation,
+  })
   window.history.replaceState({}, '', '/')
 })
 
@@ -413,6 +479,127 @@ it('never refreshes or replays a failed single-use authorization request', async
   expect(notify.mock.calls.map(([message]) => message)).toEqual([
     'Proof rejected',
   ])
+})
+
+it('drops a rejected credential and retries an optional-auth request anonymously', async () => {
+  const location = stubWindowLocation('/pricing')
+  stubRefreshResponse(401)
+  useAuthStore
+    .getState()
+    .auth.setBundle(
+      sessionBundle('stale-access', Math.floor(Date.now() / 1000) - 60)
+    )
+
+  const authorizationHeaders: Array<AxiosHeaderValue> = []
+  api.defaults.adapter = async (config) => {
+    authorizationHeaders.push(config.headers.get('Authorization'))
+    if (authorizationHeaders.length === 1) {
+      throw new AxiosError('HTTP 401', 'ERR_BAD_REQUEST', config, undefined, {
+        data: { message: 'Token expired' },
+        status: 401,
+        statusText: 'Unauthorized',
+        headers: {},
+        config,
+      })
+    }
+    return {
+      data: { success: true, data: [] },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+    }
+  }
+  const notify = vi.spyOn(toast, 'error').mockReturnValue('error')
+
+  const response = await api.get('/api/pricing', { optionalAuth: true })
+
+  expect(response.status).toBe(200)
+  expect(authorizationHeaders).toEqual(['Bearer stale-access', undefined])
+  expect(location.replace).not.toHaveBeenCalled()
+  expect(notify).not.toHaveBeenCalled()
+})
+
+it('keeps an anonymous visitor on a public page when an optional-auth request is rejected', async () => {
+  const location = stubWindowLocation('/rankings')
+  stubRefreshResponse(401)
+
+  let attempts = 0
+  api.defaults.adapter = async (config) => {
+    attempts += 1
+    throw new AxiosError('HTTP 401', 'ERR_BAD_REQUEST', config, undefined, {
+      data: { message: 'Unauthorized' },
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: {},
+      config,
+    })
+  }
+  const notify = vi.spyOn(toast, 'error').mockReturnValue('error')
+
+  await expect(
+    api.get('/api/rankings', { optionalAuth: true })
+  ).rejects.toMatchObject({ response: { status: 401 } })
+
+  expect(attempts).toBe(2)
+  expect(location.replace).not.toHaveBeenCalled()
+  expect(notify).not.toHaveBeenCalled()
+})
+
+it('treats a 401 as an ordinary failure for a caller that never signed in', async () => {
+  const location = stubWindowLocation('/pricing')
+  stubRefreshResponse(401)
+
+  let attempts = 0
+  api.defaults.adapter = async (config) => {
+    attempts += 1
+    throw new AxiosError('HTTP 401', 'ERR_BAD_REQUEST', config, undefined, {
+      data: { message: 'Unauthorized' },
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: {},
+      config,
+    })
+  }
+  const notify = vi.spyOn(toast, 'error').mockReturnValue('error')
+
+  await expect(api.get('/api/character/characters')).rejects.toMatchObject({
+    response: { status: 401 },
+  })
+
+  expect(attempts).toBe(1)
+  expect(notify).not.toHaveBeenCalled()
+  expect(location.replace).not.toHaveBeenCalled()
+})
+
+it('still forces a sign-in when an authenticated request is rejected', async () => {
+  const location = stubWindowLocation('/dashboard')
+  stubRefreshResponse(401)
+  useAuthStore
+    .getState()
+    .auth.setBundle(
+      sessionBundle('stale-access', Math.floor(Date.now() / 1000) - 60)
+    )
+
+  api.defaults.adapter = async (config) => {
+    throw new AxiosError('HTTP 401', 'ERR_BAD_REQUEST', config, undefined, {
+      data: { message: 'Token expired' },
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: {},
+      config,
+    })
+  }
+  const notify = vi.spyOn(toast, 'error').mockReturnValue('error')
+
+  await expect(api.get('/api/user/self')).rejects.toMatchObject({
+    response: { status: 401 },
+  })
+
+  expect(notify.mock.calls.map(([message]) => message)).toEqual([
+    'Session expired!',
+  ])
+  expect(location.replace).toHaveBeenCalledWith('/sign-in')
 })
 
 it('rejects an unsuccessful setting update so callers cannot proceed as if it saved, with one useful notification', async () => {

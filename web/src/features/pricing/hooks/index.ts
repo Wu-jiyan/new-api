@@ -16,5 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+export { useCharacterMap } from './use-character-map'
 export { useFilters } from './use-filters'
 export { usePricingData } from './use-pricing-data'

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import axios, { type AxiosRequestConfig } from 'axios'
+import axios, { AxiosHeaders, type AxiosRequestConfig } from 'axios'
 import { t } from 'i18next'
 
 import {
@@ -41,6 +41,12 @@ declare module 'axios' {
     authRetry?: boolean
     acceptAuthRotation?: boolean
     singleUseAuthorization?: boolean
+    /**
+     * The endpoint also serves anonymous callers (public pricing, rankings,
+     * performance metrics). A rejected credential must not force a sign-in:
+     * the request is retried without it and a final 401 is an ordinary failure.
+     */
+    optionalAuth?: boolean
   }
 }
 
@@ -95,6 +101,12 @@ api.interceptors.response.use(
     const config = error?.config as ApiRequestConfig | undefined
     const skipErrorHandler = config?.skipErrorHandler
     const status = error?.response?.status
+    const optionalAuth = config?.optionalAuth === true
+    // Read before the refresh: a caller that never held a session has nothing
+    // that can expire, and route guards own login enforcement, so a 401 must
+    // stay an ordinary failure instead of replacing a public page with the
+    // sign-in screen.
+    const hadSession = Boolean(useAuthStore.getState().auth.session)
 
     if (status === 401) {
       if (config && !config.skipAuthRefresh && !config.authRetry) {
@@ -112,6 +124,29 @@ api.interceptors.response.use(
         }
 
         if (outcome.kind === 'anonymous' || outcome.kind === 'out_of_sync') {
+          if (optionalAuth) {
+            // A failed refresh has already dropped the rejected credential, so
+            // the endpoint can answer the anonymous caller it also serves.
+            const headers = AxiosHeaders.from(
+              config.headers as AxiosHeaders | undefined
+            )
+            headers.delete('Authorization')
+            return api.request({ ...config, headers })
+          }
+          if (hadSession) {
+            if (!skipErrorHandler) {
+              handleServerError({
+                message: t('Session expired!'),
+                [safeServerErrorMessage]: true,
+                cause: error,
+              })
+            }
+            redirectToSignIn()
+          }
+        }
+      } else if (config?.authRetry) {
+        clearAuthentication(false)
+        if (hadSession && !optionalAuth) {
           if (!skipErrorHandler) {
             handleServerError({
               message: t('Session expired!'),
@@ -121,16 +156,6 @@ api.interceptors.response.use(
           }
           redirectToSignIn()
         }
-      } else if (config?.authRetry) {
-        clearAuthentication(false)
-        if (!skipErrorHandler) {
-          handleServerError({
-            message: t('Session expired!'),
-            [safeServerErrorMessage]: true,
-            cause: error,
-          })
-        }
-        redirectToSignIn()
       } else if (!skipErrorHandler) {
         handleServerError({
           message: t('Session expired!'),

@@ -18,9 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery } from '@tanstack/react-query'
 
-import { fetchCharacters } from '@/features/character/api'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
 
@@ -35,8 +33,7 @@ import {
   ModelDetailsDrawer,
 } from './components'
 import { EXCLUDED_GROUPS, VIEW_MODES } from './constants'
-import { useFilters } from './hooks/use-filters'
-import { usePricingData } from './hooks/use-pricing-data'
+import { useCharacterMap, useFilters, usePricingData } from './hooks'
 
 export function Pricing() {
   const { t } = useTranslation()
@@ -87,39 +84,8 @@ export function Pricing() {
     clearSearch,
   } = useFilters(models || [])
 
-  // 拉取启用角色列表（登录用户视角：含解锁阶段）。Pricing 为公共页，游客/未登录请求会 401，失败时静默降级为空。
-  const { data: characters } = useQuery({
-    queryKey: ['characters'],
-    queryFn: fetchCharacters,
-    retry: false,
-    staleTime: 60 * 1000,
-  })
-
   // 角色 model_name 为前缀（如 deepseek），匹配该前缀下所有模型；多个角色覆盖同一模型时取最长前缀。
-  const characterMap = useMemo(() => {
-    type CharacterRow = NonNullable<typeof characters>[number]
-    const map = new Map<string, CharacterRow>()
-    for (const m of models ?? []) {
-      let best: CharacterRow | null = null
-      let bestLen = -1
-      for (const c of characters ?? []) {
-        const prefix = c.model_name
-        if (
-          m.model_name === prefix ||
-          m.model_name.startsWith(prefix + '-') ||
-          m.model_name.startsWith(prefix + '/') ||
-          m.model_name.startsWith(prefix + '.')
-        ) {
-          if (prefix.length > bestLen) {
-            bestLen = prefix.length
-            best = c
-          }
-        }
-      }
-      if (best) map.set(m.model_name, best)
-    }
-    return map
-  }, [characters, models])
+  const characterMap = useCharacterMap(models ?? [])
 
   const handleModelClick = useCallback((modelName: string) => {
     setSelectedModelName(modelName)

@@ -29,6 +29,9 @@ type RankingsResponse = {
 export async function getRankings(
   period: RankingPeriod
 ): Promise<RankingsResponse> {
-  const res = await api.get('/api/rankings', { params: { period } })
+  const res = await api.get('/api/rankings', {
+    params: { period },
+    optionalAuth: true,
+  })
   return res.data
 }

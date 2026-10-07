@@ -436,6 +436,7 @@ describe('model cards', () => {
     )
     expect(request).toHaveBeenCalledWith('/api/perf-metrics/summary', {
       params: { hours: 24 },
+      optionalAuth: true,
     })
     expect(
       within(
