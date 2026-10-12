@@ -83,14 +83,24 @@ import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import type { LogCleanupTask } from '../types'
 
+const MAX_RETENTION_DAYS = 3650
+
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
+  logCleanupEnabled: z.boolean(),
+  retentionDays: z
+    .number()
+    .int('Retention must be a whole number of days.')
+    .min(0, 'Retention cannot be negative.')
+    .max(3650, 'Retention cannot exceed 3650 days.'),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
 
 type LogSettingsSectionProps = {
   defaultEnabled: boolean
+  defaultAutoCleanupEnabled: boolean
+  defaultRetentionDays: number
 }
 
 type ServerLogInfo = {
@@ -146,6 +156,8 @@ function isActiveLogCleanupTask(task: LogCleanupTask | null) {
 
 export function LogSettingsSection({
   defaultEnabled,
+  defaultAutoCleanupEnabled,
+  defaultRetentionDays,
 }: LogSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -153,12 +165,15 @@ export function LogSettingsSection({
     resolver: zodResolver(logSettingsSchema),
     defaultValues: {
       LogConsumeEnabled: defaultEnabled,
+      logCleanupEnabled: defaultAutoCleanupEnabled,
+      retentionDays: defaultRetentionDays,
     },
   })
 
   const [purgeDate, setPurgeDate] = useState<Date | undefined>(() =>
     getDateDaysAgo(30)
   )
+  const autoCleanupEnabled = form.watch('logCleanupEnabled')
   const [isStartingLogCleanup, setIsStartingLogCleanup] = useState(false)
   const [logCleanupTask, setLogCleanupTask] = useState<LogCleanupTask | null>(
     null
@@ -180,8 +195,12 @@ export function LogSettingsSection({
   }, [])
 
   useEffect(() => {
-    form.reset({ LogConsumeEnabled: defaultEnabled })
-  }, [defaultEnabled, form])
+    form.reset({
+      LogConsumeEnabled: defaultEnabled,
+      logCleanupEnabled: defaultAutoCleanupEnabled,
+      retentionDays: defaultRetentionDays,
+    })
+  }, [defaultEnabled, defaultAutoCleanupEnabled, defaultRetentionDays, form])
 
   useEffect(() => {
     fetchServerLogInfo()
@@ -263,11 +282,37 @@ export function LogSettingsSection({
   }, [logCleanupActive, logCleanupTaskId, t])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
-    if (values.LogConsumeEnabled === defaultEnabled) return
-    await updateOption.mutateAsync({
-      key: 'LogConsumeEnabled',
-      value: values.LogConsumeEnabled,
-    })
+    const updates: Array<{ key: string; value: string | boolean }> = []
+
+    if (values.LogConsumeEnabled !== defaultEnabled) {
+      updates.push({
+        key: 'LogConsumeEnabled',
+        value: values.LogConsumeEnabled,
+      })
+    }
+    if (values.logCleanupEnabled !== defaultAutoCleanupEnabled) {
+      updates.push({
+        key: 'log_cleanup_setting.enabled',
+        value: values.logCleanupEnabled,
+      })
+    }
+    if (values.retentionDays !== defaultRetentionDays) {
+      updates.push({
+        key: 'log_cleanup_setting.retention_days',
+        value: String(values.retentionDays),
+      })
+    }
+
+    if (updates.length === 0) {
+      toast.info(t('No changes to save'))
+      return
+    }
+
+    for (const update of updates) {
+      await updateOption.mutateAsync(update)
+    }
+
+    form.reset(values)
   }
 
   const handleRequestCleanLogs = () => {
@@ -372,6 +417,68 @@ export function LogSettingsSection({
               </SettingsSwitchItem>
             )}
           />
+
+          <SettingsControlGroup className='space-y-3'>
+            <div>
+              <h4 className='text-sm font-medium'>
+                {t('Automatic log cleanup')}
+              </h4>
+              <p className='text-muted-foreground text-sm'>
+                {t(
+                  'Delete usage logs older than the retention period once a day. Audit logs are never affected.'
+                )}
+              </p>
+            </div>
+            <FormField
+              control={form.control}
+              name='logCleanupEnabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Enable automatic cleanup')}</FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Requires a retention period of at least one day; a retention of 0 keeps automatic cleanup off.'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </SettingsSwitchItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='retentionDays'
+              render={({ field }) => (
+                <div className='grid gap-1.5'>
+                  <FormLabel className='text-xs'>
+                    {t('Retention days')}
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      max={MAX_RETENTION_DAYS}
+                      disabled={!autoCleanupEnabled}
+                      value={field.value}
+                      onChange={(event) =>
+                        field.onChange(Number(event.target.value))
+                      }
+                      onBlur={field.onBlur}
+                      className='w-[160px]'
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </div>
+              )}
+            />
+          </SettingsControlGroup>
 
           <SettingsControlGroup className='space-y-3'>
             <div>

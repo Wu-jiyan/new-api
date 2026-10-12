@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -231,4 +232,64 @@ func TestEnqueueSystemTaskReportsCreatedAndExistingActive(t *testing.T) {
 	require.True(t, created)
 	require.NotNil(t, second)
 	assert.NotEqual(t, first.TaskID, second.TaskID)
+}
+
+func withLogCleanupSetting(t *testing.T, enabled bool, retentionDays int) {
+	t.Helper()
+	setting := operation_setting.GetLogCleanupSetting()
+	saved := *setting
+	t.Cleanup(func() { *setting = saved })
+	setting.Enabled = enabled
+	setting.RetentionDays = retentionDays
+}
+
+func TestLogCleanupHandlerEnabledRequiresPositiveRetention(t *testing.T) {
+	tests := []struct {
+		name          string
+		enabled       bool
+		retentionDays int
+		want          bool
+	}{
+		{name: "disabled by default", enabled: false, retentionDays: 30, want: false},
+		{name: "enabled with retention", enabled: true, retentionDays: 30, want: true},
+		// The switch can be turned on before a retention is chosen, and a
+		// half-saved value must never schedule a pass that deletes every row.
+		{name: "enabled without retention", enabled: true, retentionDays: 0, want: false},
+		{name: "enabled with negative retention", enabled: true, retentionDays: -1, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			withLogCleanupSetting(t, tt.enabled, tt.retentionDays)
+			assert.Equal(t, tt.want, logCleanupHandler{}.Enabled())
+		})
+	}
+}
+
+func TestLogCleanupHandlerNewPayloadTargetsRetentionCutoff(t *testing.T) {
+	withLogCleanupSetting(t, true, 7)
+
+	payload := logCleanupHandler{}.NewPayload()
+	cleanup, ok := payload.(LogCleanupPayload)
+	require.True(t, ok)
+	assert.Equal(t, logCleanupBatchSize, cleanup.BatchSize)
+	assert.InDelta(t, common.GetTimestamp()-7*24*60*60, cleanup.TargetTimestamp, 5)
+}
+
+func TestSystemTaskSchedulerCreatesLogRetentionPassOnlyWhenEnabled(t *testing.T) {
+	truncate(t)
+
+	withLogCleanupSetting(t, false, 0)
+	runSystemTaskScheduler()
+	assert.Equal(t, int64(0), countSystemTasks(t, model.SystemTaskTypeLogCleanup))
+
+	withLogCleanupSetting(t, true, 30)
+	runSystemTaskScheduler()
+	require.Equal(t, int64(1), countSystemTasks(t, model.SystemTaskTypeLogCleanup))
+
+	task, err := model.GetLatestSystemTask(model.SystemTaskTypeLogCleanup)
+	require.NoError(t, err)
+	require.NotNil(t, task)
+	payload := LogCleanupPayload{}
+	require.NoError(t, task.DecodePayload(&payload))
+	assert.InDelta(t, common.GetTimestamp()-30*24*60*60, payload.TargetTimestamp, 5)
 }

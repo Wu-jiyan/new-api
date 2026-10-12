@@ -23,9 +23,9 @@ import { WorkerSettingsSection } from '../integrations/worker-settings-section'
 import { LogSettingsSection } from '../maintenance/log-settings-section'
 import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
-import { ConversationArchiveSection } from './conversation-archive-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { ConversationArchiveSection } from './conversation-archive-section'
 
 const OPERATIONS_SECTIONS = [
   {
@@ -99,6 +99,12 @@ const OPERATIONS_SECTIONS = [
     build: (settings: OperationsSettings) => (
       <LogSettingsSection
         defaultEnabled={Boolean(settings.LogConsumeEnabled)}
+        defaultAutoCleanupEnabled={
+          settings['log_cleanup_setting.enabled'] ?? false
+        }
+        defaultRetentionDays={
+          settings['log_cleanup_setting.retention_days'] ?? 0
+        }
       />
     ),
   },

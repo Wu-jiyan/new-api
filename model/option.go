@@ -258,6 +258,9 @@ func validateOptionValue(key string, value string) error {
 	if key == "conversation_archive_setting.retention_hours" {
 		return operation_setting.ValidateConversationArchiveRetentionHours(value)
 	}
+	if key == "log_cleanup_setting.retention_days" {
+		return operation_setting.ValidateLogCleanupRetentionDays(value)
+	}
 	return nil
 }
 

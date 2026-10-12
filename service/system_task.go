@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
 )
@@ -25,6 +26,11 @@ const (
 	// pass runs, independent of how often the runner wakes to claim tasks.
 	systemTaskSchedulerInterval = 15 * time.Second
 	systemTaskStaleLockInterval = 30 * time.Second
+
+	// IntervalLogCleanup is how often the scheduler creates a log retention
+	// pass when the operator enabled automatic cleanup.
+	IntervalLogCleanup      = 24 * time.Hour
+	logCleanupSecondsPerDay = int64(24 * time.Hour / time.Second)
 )
 
 // SystemTaskHandler executes a claimed task of a specific type. Run owns the
@@ -73,14 +79,40 @@ func registeredSystemTaskHandlers() []SystemTaskHandler {
 	return handlers
 }
 
-// logCleanupHandler wraps the existing on-demand log cleanup task as a
-// registered (non-scheduled) handler. It is created via StartLogCleanupTask.
+// logCleanupHandler serves both the manual "Clean logs" action and the
+// scheduler-driven retention pass. The manual entry point supplies an explicit
+// target timestamp; the scheduler supplies one derived from the configured
+// retention. Both run through the same batched, resumable handler.
 type logCleanupHandler struct{}
 
 func (logCleanupHandler) Type() string { return model.SystemTaskTypeLogCleanup }
 
 func (logCleanupHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
 	runLogCleanupTask(ctx, task, runnerID)
+}
+
+// Enabled reports whether the retention pass should be scheduled. A non-positive
+// retention disables it even when the switch is on, so an unconfigured or
+// half-saved value can never schedule a pass that would delete every log row.
+func (logCleanupHandler) Enabled() bool {
+	setting := operation_setting.GetLogCleanupSetting()
+	return setting.Enabled && setting.RetentionDays > 0
+}
+
+// Interval is how often the retention pass runs. Deletion is idempotent and the
+// pass exits immediately when nothing is older than the target, so a daily
+// cadence costs one cheap count query per day.
+func (logCleanupHandler) Interval() time.Duration { return IntervalLogCleanup }
+
+// NewPayload derives the cutoff from the current time at task-creation time, so
+// a pass always targets "older than now minus retention" rather than a cutoff
+// frozen when the setting was saved.
+func (logCleanupHandler) NewPayload() any {
+	retentionDays := operation_setting.GetLogCleanupSetting().RetentionDays
+	return LogCleanupPayload{
+		TargetTimestamp: common.GetTimestamp() - int64(retentionDays)*logCleanupSecondsPerDay,
+		BatchSize:       logCleanupBatchSize,
+	}
 }
 
 func init() {
