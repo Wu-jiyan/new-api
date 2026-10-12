@@ -166,6 +166,10 @@ export function SidebarModulesSection({
         title: t('Subscription Management'),
         description: t('Manage subscription plans and pricing.'),
       },
+      model_rating: {
+        title: t('Model Rating'),
+        description: t('Score models across DeepSWE and Artificial Analysis dimensions.'),
+      },
       gacha_admin: {
         title: t('Gacha Admin'),
         description: t('Manage card pools, entries and economics.'),

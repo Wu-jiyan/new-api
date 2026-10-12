@@ -40,6 +40,7 @@ import {
 } from '../constants'
 import { hasTaskUsageSchema } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
+import { tierForDimension, type ScoreDimension } from '../lib/scores'
 import type { PricingModel, PricingVendor } from '../types'
 
 type FilterOption = {
@@ -64,6 +65,8 @@ export interface PricingSidebarProps {
   groupFilter: string
   tagFilter: string
   ratingFilter: string
+  /** Rating tiers shown here follow the selected score dimension */
+  dimension: ScoreDimension
   onQuotaTypeChange: (value: string) => void
   onEndpointTypeChange: (value: string) => void
   onVendorChange: (value: string) => void
@@ -162,8 +165,9 @@ export const PricingSidebar = memo(function PricingSidebar(
     const ratings = new Map<string, number>()
     const quotas = { token: 0, request: 0, task: 0 }
     for (const model of props.models) {
-      if (model.rating) {
-        ratings.set(model.rating, (ratings.get(model.rating) ?? 0) + 1)
+      const tier = tierForDimension(model, props.dimension)
+      if (tier) {
+        ratings.set(tier, (ratings.get(tier) ?? 0) + 1)
       }
       if (model.vendor_name) {
         vendors.set(
@@ -188,7 +192,7 @@ export const PricingSidebar = memo(function PricingSidebar(
       }
     }
     return { vendors, tags, endpoints, ratings, quotas }
-  }, [props.models])
+  }, [props.models, props.dimension])
   const quotaTypeLabels = getQuotaTypeLabels(t)
   const endpointTypeLabels = getEndpointTypeLabels(t)
 

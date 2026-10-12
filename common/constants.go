@@ -293,5 +293,11 @@ const (
 )
 
 const (
+	// OptionKeyGachaRatingThresholds 是模型分级阈值的旧键，仅在迁移时一次性读取，
+	// 为新的 ModelRatingThresholds 提供 DeepSWE 维度的初值。
 	OptionKeyGachaRatingThresholds = "GachaRatingThresholds"
+	// OptionKeyModelRatingThresholds 保存全部评分维度的档位阈值。
+	OptionKeyModelRatingThresholds = "ModelRatingThresholds"
+	// OptionKeyAAApiKey 保存 Artificial Analysis API Key，为空时跳过 AA 同步。
+	OptionKeyAAApiKey = "ArtificialAnalysisApiKey"
 )

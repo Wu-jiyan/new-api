@@ -32,6 +32,8 @@ function toolbarProps(): PricingToolbarProps {
     filteredCount: 2,
     totalCount: 2,
     sortBy: 'name',
+    dimension: 'deepswe',
+    onDimensionChange: vi.fn(),
     tokenUnit: 'M',
     showRechargePrice: false,
     viewMode: 'card',

@@ -62,6 +62,7 @@ export function Pricing() {
     endpointTypeFilter,
     tagFilter,
     ratingFilter,
+    scoreDimension,
     tokenUnit,
     viewMode,
     showRechargePrice,
@@ -73,6 +74,7 @@ export function Pricing() {
     setEndpointTypeFilter,
     setTagFilter,
     setRatingFilter,
+    setScoreDimension,
     setTokenUnit,
     setViewMode,
     setShowRechargePrice,
@@ -136,6 +138,7 @@ export function Pricing() {
           showRechargePrice={showRechargePrice}
           selectedGroup={groupFilter}
           characterMap={characterMap}
+          dimension={scoreDimension}
         />
       )
     }
@@ -215,6 +218,7 @@ export function Pricing() {
               groupFilter={groupFilter}
               tagFilter={tagFilter}
               ratingFilter={ratingFilter}
+              dimension={scoreDimension}
               onQuotaTypeChange={setQuotaTypeFilter}
               onEndpointTypeChange={setEndpointTypeFilter}
               onVendorChange={setVendorFilter}
@@ -237,6 +241,8 @@ export function Pricing() {
                 totalCount={models?.length}
                 sortBy={sortBy}
                 onSortChange={setSortBy}
+                dimension={scoreDimension}
+                onDimensionChange={setScoreDimension}
                 tokenUnit={tokenUnit}
                 onTokenUnitChange={setTokenUnit}
                 showRechargePrice={showRechargePrice}

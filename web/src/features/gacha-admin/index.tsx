@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Pencil, Plus, RefreshCw, Search, Trash2, TrendingUp, Wand2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Pencil, Plus, Search, Trash2, TrendingUp, Wand2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -19,38 +19,31 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+// 模型分级已独立成页，卡池条目仍需要读取 DeepSWE 档位用于模型选择提示与展示。
+import { listModelRatings } from '@/features/model-rating/api'
+import type { ModelRatingItem } from '@/features/model-rating/types'
 import { RatingBadge } from '@/features/pricing/components/rating-badge'
 import { formatQuotaWithCurrency } from '@/lib/currency'
 
 import {
   createPool,
-  batchResetRatings,
   deleteEntry,
   deletePool,
   fetchEconomics,
   generateEntries,
   generatePreview,
   listPools,
-  listRatings,
-  setRating,
-  syncRatings,
   updatePool,
-  updateThresholds,
   upsertEntry,
-  type GachaRatingSyncResult,
 } from './api'
 import type {
   GachaCardEntry,
   GachaPool,
   GenerateGachaPreview,
-  ModelRatingItem,
   PoolEconomics,
-  RatingThresholds,
 } from './types'
 
 const RARITIES = ['N', 'R', 'SR', 'SSR', 'UR']
-const RATINGS_PAGE_SIZE = 20
 
 const DEFAULT_WEIGHTS: Record<string, number> = { N: 100, R: 40, SR: 15, SSR: 5, UR: 1 }
 const DEFAULT_QUOTA_MIN: Record<string, number> = { N: 500, R: 800, SR: 1500, SSR: 3000, UR: 8000 }
@@ -221,7 +214,7 @@ function EntryEditor(props: { poolId: number; entry?: GachaCardEntry; onClose: (
   )
 
   useEffect(() => {
-    void listRatings(undefined, undefined, 1, 100)
+    void listModelRatings({ page: 1, pageSize: 100 })
       .then((result) =>
         setModelOptions(
           result.data.map((model) => ({
@@ -348,7 +341,7 @@ function GenerateEntriesDialog(props: { pool: GachaPool; onClose: () => void; on
     if (reset) setLoading(true)
     else setLoadingMore(true)
     try {
-      const r = await listRatings(undefined, undefined, next, MODEL_PAGE_SIZE)
+      const r = await listModelRatings({ page: next, pageSize: MODEL_PAGE_SIZE })
       setModelTotal(r.total)
       setModels((prev) => (reset ? r.data : [...prev, ...r.data]))
       setPage(next)
@@ -798,329 +791,16 @@ function PoolsTab() {
   )
 }
 
-// ratingForScore 与后端 MapScoreToRating 保持一致：档位只由分数与阈值决定。
-function ratingForScore(score: number, thresholds: RatingThresholds): string {
-  if (score <= 0) return ''
-  if (score >= thresholds.ur) return 'UR'
-  if (score >= thresholds.ssr) return 'SSR'
-  if (score >= thresholds.sr) return 'SR'
-  if (score >= thresholds.r) return 'R'
-  return 'N'
-}
-
-function RatingRow({
-  item,
-  thresholds,
-  onSave,
-}: {
-  item: ModelRatingItem
-  thresholds: RatingThresholds
-  onSave: (id: number, score: number) => Promise<void>
-}) {
-  // Edited value wins until it is saved, so an incoming prop update never has to
-  // be copied into state inside an effect.
-  const [editedScore, setEditedScore] = useState<number | null>(null)
-  const [saving, setSaving] = useState(false)
-
-  const storedScore = item.rating_score ?? 0
-  const score = editedScore ?? storedScore
-  const dirty = score !== storedScore
-  // 档位由分数推导，不接受直接编辑；无分数时展示已存档位（历史手动数据）。
-  const displayRating = score > 0 ? ratingForScore(score, thresholds) : (item.rating ?? '')
-
-  async function saveScore(nextScore: number) {
-    setSaving(true)
-    try {
-      await onSave(item.id, nextScore)
-      setEditedScore(null)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '保存失败')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className='flex items-center justify-between rounded-lg border px-3 py-2 text-sm'>
-      <div className='flex min-w-0 items-center gap-2'>
-        <span className='truncate font-mono'>{item.model_name}</span>
-        <RatingBadge rating={displayRating} />
-        {score <= 0 && item.rating && (
-          <span className='text-xs text-muted-foreground'>无分数，保留原档位</span>
-        )}
-        {item.rating_source === 'manual' && <Badge variant='secondary'>手动</Badge>}
-      </div>
-      <div className='flex shrink-0 items-center gap-2'>
-        <div className='relative'>
-          <Input
-            className='h-7 w-20 pr-7 text-right'
-            type='number'
-            step='0.1'
-            min='0'
-            max='100'
-            value={score || ''}
-            placeholder='分数'
-            onChange={(e) => setEditedScore(Number(e.target.value))}
-          />
-          <span className='absolute top-1/2 right-2 -translate-y-1/2 text-[10px] text-muted-foreground'>%</span>
-        </div>
-        <Button
-          size='sm'
-          variant='outline'
-          className='h-7'
-          disabled={saving || !dirty}
-          onClick={() => void saveScore(score)}
-        >
-          保存
-        </Button>
-        {item.rating && (
-          <Button
-            size='sm'
-            variant='ghost'
-            className='h-7 px-2 text-muted-foreground hover:text-destructive'
-            disabled={saving}
-            onClick={() => {
-              setEditedScore(0)
-              void saveScore(0)
-            }}
-          >
-            <Trash2 className='size-3.5' /> 重置为空
-          </Button>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function RatingsTab() {
-  const [models, setModels] = useState<ModelRatingItem[]>([])
-  const [keyword, setKeyword] = useState('')
-  const [page, setPage] = useState(1)
-  const [total, setTotal] = useState(0)
-  const [thresholds, setThresholds] = useState<RatingThresholds>({ ur: 65, ssr: 55, sr: 45, r: 30 })
-  const [lastSyncAt, setLastSyncAt] = useState(0)
-  const [lastSyncNum, setLastSyncNum] = useState(0)
-  const [syncResult, setSyncResult] = useState<GachaRatingSyncResult | null>(null)
-  const [syncing, setSyncing] = useState(false)
-  const [resetting, setResetting] = useState(false)
-  const totalPages = Math.max(1, Math.ceil(total / RATINGS_PAGE_SIZE))
-
-  const fetchRatings = useCallback(
-    () => listRatings(keyword, undefined, page, RATINGS_PAGE_SIZE),
-    [keyword, page]
-  )
-
-  const applyRatings = useCallback(
-    (res: Awaited<ReturnType<typeof fetchRatings>>) => {
-      setModels(res.data)
-      setTotal(res.total)
-      setThresholds(res.thresholds)
-      setLastSyncAt(res.lastSyncAt)
-      setLastSyncNum(res.lastSyncNum)
-    },
-    []
-  )
-
-  const load = useCallback(async () => {
-    try {
-      applyRatings(await fetchRatings())
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '加载失败')
-    }
-  }, [applyRatings, fetchRatings])
-
-  // Changing the keyword restarts paging instead of syncing state in an effect.
-  const changeKeyword = useCallback((value: string) => {
-    setKeyword(value)
-    setPage(1)
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    void fetchRatings()
-      .then((res) => {
-        if (!cancelled) applyRatings(res)
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) toast.error(error instanceof Error ? error.message : '加载失败')
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [applyRatings, fetchRatings])
-
-  async function changeRating(id: number, score: number) {
-    await setRating(id, score)
-    toast.success(score > 0 ? '分数已保存，档位已按阈值更新' : '已重置为空')
-    void load()
-  }
-
-  async function resetCurrentPage() {
-    if (models.length === 0) return
-    setResetting(true)
-    try {
-      const n = await batchResetRatings(models.map((m) => m.id))
-      toast.success(`已清空 ${n} 个模型的分级`)
-      void load()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '清空失败')
-    } finally {
-      setResetting(false)
-    }
-  }
-
-  async function doSync() {
-    setSyncing(true)
-    try {
-      const res = await syncRatings()
-      setSyncResult(res)
-      setLastSyncAt(Math.floor(Date.now() / 1000))
-      setLastSyncNum(res.updated)
-      toast.success(`同步完成，更新 ${res.updated} 个模型`)
-      void load()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '同步失败')
-    } finally {
-      setSyncing(false)
-    }
-  }
-
-  async function saveThresholds() {
-    try {
-      const retiered = await updateThresholds(thresholds)
-      toast.success(retiered > 0 ? `阈值已更新，已重算 ${retiered} 个模型的分级` : '阈值已更新')
-      void load()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '更新失败')
-    }
-  }
-
-  const ratedCount = models.filter((m) => m.rating).length
-
-  return (
-    <div className='space-y-4'>
-      <div className='flex flex-wrap items-center justify-between gap-3'>
-        <Input
-          className='max-w-xs'
-          placeholder='搜索模型名'
-          value={keyword}
-          onChange={(e) => changeKeyword(e.target.value)}
-        />
-        <div className='flex items-center gap-2'>
-          <Button size='sm' variant='outline' disabled={models.length === 0 || resetting} onClick={() => void resetCurrentPage()}>
-            <Trash2 className='mr-1.5 size-4' /> 清空当前页分级
-          </Button>
-          <Button size='sm' variant='outline' disabled={syncing} onClick={() => void doSync()}>
-            <RefreshCw className={`mr-1.5 size-4 ${syncing ? 'animate-spin' : ''}`} /> 同步 DeepSWE
-          </Button>
-        </div>
-      </div>
-      <Card className='p-4'>
-        <div className='flex flex-wrap items-center gap-x-4 gap-y-2 text-xs'>
-          <span className='font-semibold'>档位阈值：</span>
-          {(['ur', 'ssr', 'sr', 'r'] as const).map((key) => (
-            <label key={key} className='flex items-center gap-1'>
-              <span className='uppercase'>{key} ≥</span>
-              <Input
-                className='h-7 w-16'
-                type='number'
-                value={thresholds[key]}
-                onChange={(e) => setThresholds({ ...thresholds, [key]: Number(e.target.value) })}
-              />
-            </label>
-          ))}
-          <Button size='sm' variant='outline' onClick={() => void saveThresholds()}>
-            保存阈值
-          </Button>
-          <span className='text-muted-foreground'>档位由分数推导，保存后自动重算全部分级</span>
-          <span className='ml-auto text-muted-foreground'>
-            {lastSyncAt > 0 ? (
-              <>
-                上次同步：{new Date(lastSyncAt * 1000).toLocaleString()} · 更新 {lastSyncNum} 个
-              </>
-            ) : (
-              '尚未同步'
-            )}
-          </span>
-        </div>
-      </Card>
-      {syncResult && (
-        <Card className='border-primary/30 bg-primary/5 p-4'>
-          <div className='flex items-center justify-between gap-2 text-sm'>
-            <span className='font-semibold'>同步结果</span>
-            <Button size='sm' variant='ghost' className='h-6 px-2' onClick={() => setSyncResult(null)}>
-              关闭
-            </Button>
-          </div>
-          <div className='mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground'>
-            <span className='text-green-600'>更新 {syncResult.updated}</span>
-            <span>无变化 {syncResult.unchanged}</span>
-            <span>未匹配 {syncResult.unmatched}</span>
-            <span>手动跳过 {syncResult.skipped_manual}</span>
-          </div>
-          {syncResult.updated_models.length > 0 && (
-            <div className='mt-2 max-h-32 space-y-1 overflow-y-auto'>
-              {syncResult.updated_models.map((m) => (
-                <div key={m.model_name} className='flex items-center gap-2 text-xs'>
-                  <span className='min-w-0 flex-1 truncate font-mono'>{m.model_name}</span>
-                  <RatingBadge rating={m.rating} />
-                  <span className='shrink-0 text-muted-foreground'>{m.rating_score.toFixed(1)}%</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
-      <div className='space-y-1.5'>
-        <div className='flex items-center justify-between px-1 text-xs text-muted-foreground'>
-          <span>共 {total} 个模型 · 当前页已分级 {ratedCount}</span>
-          <span>档位不可直接编辑，由分数按阈值自动计算；手动填写的分数会被固定，自动同步跳过</span>
-        </div>
-        {models.map((item) => (
-          <RatingRow key={item.id} item={item} thresholds={thresholds} onSave={changeRating} />
-        ))}
-        {models.length === 0 && <p className='py-10 text-center text-sm text-muted-foreground'>暂无模型</p>}
-        {total > RATINGS_PAGE_SIZE && (
-          <div className='flex items-center justify-between pt-3 text-xs text-muted-foreground'>
-            <span>共 {total} 个模型</span>
-            <div className='flex items-center gap-1.5'>
-              <Button size='sm' variant='outline' disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                上一页
-              </Button>
-              <span className='px-1'>
-                {page} / {totalPages}
-              </span>
-              <Button size='sm' variant='outline' disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-                下一页
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 export default function GachaAdminPage() {
+  const { t } = useTranslation()
   return (
     <main className='min-h-0 flex-1 overflow-y-auto'>
       <div className='container mx-auto max-w-6xl space-y-6 py-8'>
-      <div>
-        <h1 className='text-2xl font-bold'>抽卡管理</h1>
-        <p className='text-sm text-muted-foreground'>卡池配置、条目与经济测算、模型分级</p>
-      </div>
-      <Tabs defaultValue='pools'>
-        <TabsList>
-          <TabsTrigger value='pools'>卡池管理</TabsTrigger>
-          <TabsTrigger value='ratings'>模型分级</TabsTrigger>
-        </TabsList>
-        <TabsContent value='pools' className='mt-4'>
-          <PoolsTab />
-        </TabsContent>
-        <TabsContent value='ratings' className='mt-4'>
-          <RatingsTab />
-        </TabsContent>
-      </Tabs>
+        <div>
+          <h1 className='text-2xl font-bold'>{t('Gacha Admin')}</h1>
+          <p className='text-sm text-muted-foreground'>{t('Card pools, entries and economics')}</p>
+        </div>
+        <PoolsTab />
       </div>
     </main>
   )

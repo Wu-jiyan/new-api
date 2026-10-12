@@ -42,11 +42,13 @@ import {
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
+import { DEFAULT_SCORE_DIMENSION, tierForDimension, type ScoreDimension } from '../lib/scores'
 import { taskPriceLabel, taskUsageUnitLabel } from '../lib/task-price-display'
 import type { PricingModel, PriceType, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
 import { RatingBadge } from './rating-badge'
+import { ModelScores } from './model-scores'
 
 export interface ModelCardProps {
   model: PricingModel
@@ -58,6 +60,8 @@ export interface ModelCardProps {
   selectedGroup?: string
   perf?: ModelPerfBadgeData
   character?: CharacterView
+  /** Selected score dimension: drives the tier badge and highlights one score */
+  dimension?: ScoreDimension
 }
 
 export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
@@ -68,6 +72,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const priceRate = props.priceRate ?? 1
   const usdExchangeRate = props.usdExchangeRate ?? 1
   const showRechargePrice = props.showRechargePrice ?? false
+  const dimension = props.dimension ?? DEFAULT_SCORE_DIMENSION
   const isTokenBased = isTokenBasedModel(props.model)
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
   const tags = parseTags(props.model.tags)
@@ -370,7 +375,10 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             >
               {props.model.model_name}
             </h3>
-            <RatingBadge rating={props.model.rating} className='shrink-0' />
+            <RatingBadge
+              rating={tierForDimension(props.model, dimension)}
+              className='shrink-0'
+            />
           </div>
           {props.model.vendor_name && (
             <p
@@ -389,6 +397,11 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         />
       </CardHeader>
       <CardContent className='relative flex flex-1 flex-col gap-3'>
+        <ModelScores
+          model={props.model}
+          dimension={dimension}
+          className='border-border/60 rounded-md border px-2 py-1.5'
+        />
         <div className='flex min-w-0 flex-col gap-1.5'>
           <p className='text-muted-foreground line-clamp-2 text-[13px] leading-5 break-words'>
             {props.model.description || t('No description available.')}

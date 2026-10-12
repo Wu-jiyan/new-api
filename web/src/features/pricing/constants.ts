@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { type TFunction } from 'i18next'
 
+import type { ScoreDimension } from './lib/scores'
 import type { TokenUnit } from './types'
 
 // ----------------------------------------------------------------------------
@@ -39,7 +40,20 @@ export function getSortLabels(t: TFunction): Record<SortOption, string> {
     [SORT_OPTIONS.NAME]: t('Name'),
     [SORT_OPTIONS.PRICE_LOW]: t('Price: Low to High'),
     [SORT_OPTIONS.PRICE_HIGH]: t('Price: High to Low'),
-    [SORT_OPTIONS.SCORE_HIGH]: t('DeepSWE Score: High to Low'),
+    // 排序用的分数来自当前选中的评分维度，因此这里不写死维度名。
+    [SORT_OPTIONS.SCORE_HIGH]: t('Score: High to Low'),
+  }
+}
+
+/** 评分维度选择器的文案 */
+export function getScoreDimensionLabels(
+  t: TFunction
+): Record<ScoreDimension, string> {
+  return {
+    deepswe: t('DeepSWE'),
+    aa_intelligence: t('AA Intelligence'),
+    aa_coding: t('AA Coding'),
+    aa_agentic: t('AA Agentic'),
   }
 }
 

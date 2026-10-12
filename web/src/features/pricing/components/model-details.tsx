@@ -82,6 +82,11 @@ import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
 import { withPluginPricing } from '../lib/plugin-pricing'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
 import {
+  DEFAULT_SCORE_DIMENSION,
+  tierForDimension,
+  type ScoreDimension,
+} from '../lib/scores'
+import {
   evaluateTaskUsageExamples,
   getTaskEnumFields,
   getTaskNumberFields,
@@ -95,6 +100,7 @@ import {
   pricingDisplayFallbackKey,
 } from '../lib/task-price-display'
 import { RatingBadge } from './rating-badge'
+import { ModelScores } from './model-scores'
 import type {
   ModelCapability,
   PriceType,
@@ -595,7 +601,7 @@ function ModelBackendDetailsSection(props: { model: PricingModel }) {
 // Model header (always visible above the detail sections)
 // ----------------------------------------------------------------------------
 
-function ModelHeader(props: { model: PricingModel }) {
+function ModelHeader(props: { model: PricingModel; dimension: ScoreDimension }) {
   const { t } = useTranslation()
   const model = props.model
   const modelIconKey = model.icon || model.vendor_icon
@@ -609,7 +615,7 @@ function ModelHeader(props: { model: PricingModel }) {
         <h1 className='font-mono text-xl font-bold tracking-tight sm:text-2xl'>
           {model.model_name}
         </h1>
-        <RatingBadge rating={model.rating} />
+        <RatingBadge rating={tierForDimension(model, props.dimension)} />
         <CopyButton
           value={model.model_name || ''}
           className='size-6'
@@ -625,15 +631,8 @@ function ModelHeader(props: { model: PricingModel }) {
         )}
         <span className='text-muted-foreground/30'>·</span>
         <ModelBillingModeBadge model={model} />
-        {model.rating_score != null && (
-          <>
-            <span className='text-muted-foreground/30'>·</span>
-            <span className='text-muted-foreground'>
-              {t('DeepSWE Score')}: {model.rating_score.toFixed(1)}%
-            </span>
-          </>
-        )}
-      </div>
+        </div>
+      <ModelScores model={model} dimension={props.dimension} className='mt-1.5' />
       {description && (
         <p className='text-muted-foreground mt-2 text-sm leading-relaxed'>
           {description}
@@ -1476,11 +1475,14 @@ export interface ModelDetailsContentProps {
   usdExchangeRate: number
   tokenUnit: TokenUnit
   showRechargePrice?: boolean
+  /** Selected score dimension: drives the tier badge and the highlighted score */
+  dimension?: ScoreDimension
 }
 
 export function ModelDetailsContent(props: ModelDetailsContentProps) {
   const { t } = useTranslation()
   const showRechargePrice = props.showRechargePrice ?? false
+  const scoreDimension = props.dimension ?? DEFAULT_SCORE_DIMENSION
 
   const isDynamic =
     props.model.billing_mode === 'tiered_expr' &&
@@ -1498,7 +1500,7 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
 
   return (
     <div className='@container/details space-y-4'>
-      <ModelHeader model={props.model} />
+      <ModelHeader model={props.model} dimension={scoreDimension} />
 
       <Tabs defaultValue='overview' className='gap-4'>
         <TabsList className='bg-muted/60 grid w-full grid-cols-3 gap-1 rounded-lg p-1 group-data-horizontal/tabs:h-auto'>

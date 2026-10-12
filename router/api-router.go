@@ -214,11 +214,6 @@ func SetApiRouter(router *gin.Engine) {
 		gachaAdminRoute := apiRouter.Group("/gacha/admin")
 		gachaAdminRoute.Use(middleware.AdminAuth())
 		{
-			gachaAdminRoute.GET("/ratings", controller.AdminListGachaRatings)
-			gachaAdminRoute.POST("/sync-rating", controller.AdminSyncGachaRatings)
-			gachaAdminRoute.PUT("/ratings/:id", controller.AdminSetGachaRating)
-			gachaAdminRoute.POST("/ratings/reset", controller.AdminBatchResetGachaRatings)
-			gachaAdminRoute.PUT("/settings", controller.AdminUpdateGachaRatingThresholds)
 			gachaAdminRoute.GET("/pools", controller.AdminListGachaPools)
 			gachaAdminRoute.POST("/pools", controller.AdminCreateGachaPool)
 			gachaAdminRoute.PUT("/pools/:id", controller.AdminUpdateGachaPool)
@@ -229,6 +224,20 @@ func SetApiRouter(router *gin.Engine) {
 			gachaAdminRoute.DELETE("/entries/:id", controller.AdminDeleteGachaEntry)
 			gachaAdminRoute.POST("/pools/:id/generate-preview", controller.AdminGenerateGachaEntriesPreview)
 			gachaAdminRoute.POST("/pools/:id/generate", controller.AdminGenerateGachaEntries)
+		}
+
+		// Model rating admin management (DeepSWE + Artificial Analysis dimensions)
+		modelRatingAdminRoute := apiRouter.Group("/admin/model-rating")
+		modelRatingAdminRoute.Use(middleware.AdminAuth())
+		{
+			modelRatingAdminRoute.GET("", controller.AdminListModelRatings)
+			modelRatingAdminRoute.PUT("/:id", controller.AdminSetModelRating)
+			modelRatingAdminRoute.PUT("/:id/aa", controller.AdminSetModelAAScores)
+			modelRatingAdminRoute.POST("/reset", controller.AdminBatchResetModelRatings)
+			modelRatingAdminRoute.POST("/sync/deepswe", controller.AdminSyncModelRatings)
+			modelRatingAdminRoute.POST("/sync/aa", controller.AdminSyncAARatings)
+			modelRatingAdminRoute.PUT("/thresholds", controller.AdminUpdateModelRatingThresholds)
+			modelRatingAdminRoute.PUT("/aa-settings", controller.AdminUpdateAASettings)
 		}
 
 		// AI Character (character system) admin management

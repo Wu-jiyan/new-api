@@ -23,12 +23,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { api } from '@/lib/api'
 
-import GachaAdminPage from '../index'
-import type { ModelRatingItem } from '../types'
+import ModelRatingPage from '../index'
+import type { ModelRatingItem, RatingThresholds } from '../types'
 
-const thresholds = { ur: 65, ssr: 55, sr: 45, r: 30 }
+const deepsweThresholds: RatingThresholds = { ur: 65, ssr: 55, sr: 45, r: 30 }
+const aaThresholds: RatingThresholds = { ur: 60, ssr: 50, sr: 40, r: 30 }
 
-function tierFor(score: number): string {
+function tierFor(score: number, thresholds: RatingThresholds): string {
   if (score >= thresholds.ur) return 'UR'
   if (score >= thresholds.ssr) return 'SSR'
   if (score >= thresholds.sr) return 'SR'
@@ -40,28 +41,30 @@ let ratings: ModelRatingItem[] = []
 let ratingReads = 0
 
 function mockGet() {
-  return vi.spyOn(api, 'get').mockImplementation(async (url) => {
-    if (url === '/api/gacha/admin/pools') {
-      return { data: { success: true, data: [] } }
-    }
+  return vi.spyOn(api, 'get').mockImplementation(async () => {
     ratingReads++
     return {
       data: {
         success: true,
         data: ratings,
         total: ratings.length,
-        thresholds,
-        last_sync_at: 0,
-        last_sync_num: 0,
+        thresholds: {
+          deepswe: deepsweThresholds,
+          aa_intelligence: aaThresholds,
+          aa_coding: aaThresholds,
+          aa_agentic: aaThresholds,
+        },
+        deepswe: { last_sync_at: 0, last_sync_num: 0 },
+        aa: { last_sync_at: 0, last_sync_num: 0, api_key_set: false, last_error: '' },
       },
     }
   })
 }
 
-// mockPut 模拟后端：写入分数后档位由分数按阈值推导。
+// mockPut 模拟后端：写入分数后档位由分数按该维度阈值推导。
 function mockPut() {
   return vi.spyOn(api, 'put').mockImplementation(async (url, body) => {
-    if (url === '/api/gacha/admin/settings') {
+    if (url === '/api/admin/model-rating/thresholds') {
       return { data: { success: true, data: { retiered: 1 } } }
     }
     const score = (body as { rating_score: number }).rating_score
@@ -70,7 +73,7 @@ function mockPut() {
         ? {
             ...item,
             rating_score: score,
-            rating: score > 0 ? tierFor(score) : '',
+            rating: score > 0 ? tierFor(score, deepsweThresholds) : '',
             rating_source: 'manual',
           }
         : item
@@ -79,10 +82,9 @@ function mockPut() {
   })
 }
 
-async function openRatingsTab() {
+async function openPage() {
   const user = userEvent.setup()
-  render(<GachaAdminPage />)
-  await user.click(await screen.findByRole('tab', { name: '模型分级' }))
+  render(<ModelRatingPage />)
   return user
 }
 
@@ -91,27 +93,26 @@ afterEach(() => {
   ratingReads = 0
 })
 
-describe('gacha model ratings', () => {
+describe('model rating dimensions', () => {
   it('derives the tier from the score instead of offering a tier editor', async () => {
     ratings = [
       {
         id: 1,
-        model_name: 'gacha-model-a',
+        model_name: 'rating-model-a',
         rating: 'N',
         rating_score: 60,
         rating_source: 'deepswe',
       },
     ]
     mockGet()
-    await openRatingsTab()
+    await openPage()
 
     // 分数 60 落在默认阈值的 SSR 区间，即使库里存的是旧档位也按分数展示
     expect(await screen.findByText('SSR')).toBeVisible()
-    expect(screen.getByPlaceholderText('分数')).toHaveValue(60)
-    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(screen.getByPlaceholderText('Score')).toHaveValue(60)
     expect(
       screen.getByText(
-        '档位不可直接编辑，由分数按阈值自动计算；手动填写的分数会被固定，自动同步跳过'
+        'Tier cannot be edited directly; it is computed from score and thresholds'
       )
     ).toBeVisible()
   })
@@ -120,7 +121,7 @@ describe('gacha model ratings', () => {
     ratings = [
       {
         id: 1,
-        model_name: 'gacha-model-a',
+        model_name: 'rating-model-a',
         rating: 'SSR',
         rating_score: 60,
         rating_source: 'deepswe',
@@ -129,28 +130,28 @@ describe('gacha model ratings', () => {
     mockGet()
     const put = mockPut()
     const success = vi.spyOn(toast, 'success')
-    const user = await openRatingsTab()
+    const user = await openPage()
 
-    const input = await screen.findByPlaceholderText('分数')
+    const input = await screen.findByPlaceholderText('Score')
     await user.clear(input)
     await user.type(input, '72')
-    await user.click(screen.getByRole('button', { name: '保存' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
-      expect(put).toHaveBeenCalledWith('/api/gacha/admin/ratings/1', {
+      expect(put).toHaveBeenCalledWith('/api/admin/model-rating/1', {
         rating_score: 72,
       })
     )
     await waitFor(() => expect(screen.getByText('UR')).toBeVisible())
     expect(screen.queryByText('SSR')).toBeNull()
-    expect(success).toHaveBeenCalledWith('分数已保存，档位已按阈值更新')
+    expect(success).toHaveBeenCalledWith('Score saved')
   })
 
   it('keeps the draft and reports the server rejection when a score is refused', async () => {
     ratings = [
       {
         id: 1,
-        model_name: 'gacha-model-a',
+        model_name: 'rating-model-a',
         rating: 'SSR',
         rating_score: 60,
         rating_source: 'deepswe',
@@ -162,12 +163,12 @@ describe('gacha model ratings', () => {
     })
     const success = vi.spyOn(toast, 'success')
     const error = vi.spyOn(toast, 'error')
-    const user = await openRatingsTab()
+    const user = await openPage()
 
-    const input = await screen.findByPlaceholderText('分数')
+    const input = await screen.findByPlaceholderText('Score')
     await user.clear(input)
     await user.type(input, '150')
-    await user.click(screen.getByRole('button', { name: '保存' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
       expect(error).toHaveBeenCalledWith('分数必须在 0-100 之间')
@@ -180,7 +181,7 @@ describe('gacha model ratings', () => {
     ratings = [
       {
         id: 1,
-        model_name: 'gacha-model-a',
+        model_name: 'rating-model-a',
         rating: 'SSR',
         rating_score: 60,
         rating_source: 'deepswe',
@@ -189,18 +190,46 @@ describe('gacha model ratings', () => {
     mockGet()
     const put = mockPut()
     const success = vi.spyOn(toast, 'success')
-    await openRatingsTab()
+    await openPage()
 
-    await userEvent.click(
-      await screen.findByRole('button', { name: '保存阈值' })
-    )
+    await userEvent.click(await screen.findByRole('button', { name: 'Save thresholds' }))
 
     await waitFor(() =>
-      expect(put).toHaveBeenCalledWith('/api/gacha/admin/settings', thresholds)
+      expect(put).toHaveBeenCalledWith('/api/admin/model-rating/thresholds', {
+        dimension: 'deepswe',
+        ...deepsweThresholds,
+      })
     )
     await waitFor(() =>
-      expect(success).toHaveBeenCalledWith('阈值已更新，已重算 1 个模型的分级')
+      expect(success).toHaveBeenCalledWith(
+        'Thresholds updated, retiered 1 models'
+      )
     )
     await waitFor(() => expect(ratingReads).toBeGreaterThanOrEqual(2))
+  })
+
+  it('scores an AA dimension with its own thresholds and shows the other two read-only', async () => {
+    ratings = [
+      {
+        id: 1,
+        model_name: 'rating-model-a',
+        aa_intelligence_score: 55,
+        aa_coding_score: 41,
+        aa_agentic_score: 20,
+        aa_source: 'artificialanalysis',
+      },
+    ]
+    mockGet()
+    const user = await openPage()
+
+    await user.click(await screen.findByRole('tab', { name: 'AA Intelligence' }))
+
+    // 55 落在 AA 综合阈值 [50,60) -> SSR；同一分数若用 DeepSWE 阈值会是 UR
+    expect(await screen.findByText('SSR')).toBeVisible()
+    expect(screen.getByPlaceholderText('Score')).toHaveValue(55)
+    // 另外两个 AA 维度只读展示，不提供输入框
+    expect(screen.getByText(/AA Coding:/)).toBeVisible()
+    expect(screen.getByText(/AA Agentic:/)).toBeVisible()
+    expect(screen.getAllByPlaceholderText('Score')).toHaveLength(1)
   })
 })

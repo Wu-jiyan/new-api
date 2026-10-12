@@ -47,9 +47,16 @@ type Model struct {
 	UpdatedTime        int64          `json:"updated_time" gorm:"bigint"`
 	DeletedAt          gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_model_name_delete_at,priority:2"`
 
-	Rating       string  `json:"rating,omitempty" gorm:"size:16;default:''"`        // 稀有度档位 N / R / SR / SSR / UR，空 = 未分级
+	Rating       string  `json:"rating,omitempty" gorm:"size:16;default:''"`        // 稀有度档位 N / R / SR / SSR / UR，空 = 未分级（DeepSWE 维度）
 	RatingScore  float64 `json:"rating_score,omitempty" gorm:"default:0"`           // DeepSWE Pass@1 分数
 	RatingSource string  `json:"rating_source,omitempty" gorm:"size:32;default:''"` // 来源：deepswe / manual
+
+	// Artificial Analysis 三个维度的分数。档位不在此存储，由 pricing 按各维度
+	// 阈值实时推导，阈值变化立即生效且无需重算全表。
+	AAIntelligenceScore float64 `json:"aa_intelligence_score,omitempty" gorm:"default:0"`
+	AACodingScore       float64 `json:"aa_coding_score,omitempty" gorm:"default:0"`
+	AAAgenticScore      float64 `json:"aa_agentic_score,omitempty" gorm:"default:0"`
+	AASource            string  `json:"aa_source,omitempty" gorm:"size:32;default:''"` // 来源：artificialanalysis / manual
 
 	BoundChannels []BoundChannel `json:"bound_channels,omitempty" gorm:"-"`
 	EnableGroups  []string       `json:"enable_groups,omitempty" gorm:"-"`
@@ -271,7 +278,9 @@ func (mi *Model) Update() error {
 		// 使用 Select 强制更新所有字段，包括零值
 		return tx.Model(&Model{}).Where("id = ?", mi.Id).
 			Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule",
-				"rating", "rating_score", "rating_source", "updated_time").
+				"rating", "rating_score", "rating_source",
+				"aa_intelligence_score", "aa_coding_score", "aa_agentic_score", "aa_source",
+				"updated_time").
 			Updates(mi).Error
 	})
 }

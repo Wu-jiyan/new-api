@@ -93,6 +93,16 @@ export type PricingModel = {
   rating?: string
   /** DeepSWE pass@1 score */
   rating_score?: number
+  /** Artificial Analysis Intelligence / Coding / Agentic indices */
+  aa_intelligence_score?: number
+  aa_coding_score?: number
+  aa_agentic_score?: number
+  /** Per-dimension tiers, derived server-side from each dimension's thresholds */
+  aa_intelligence_rating?: string
+  aa_coding_rating?: string
+  aa_agentic_rating?: string
+  /** Score origin: artificialanalysis / manual */
+  aa_source?: string
   /**
    * Optional model metadata fields reserved for backend-provided catalog data.
    * Keep them data-driven; do not synthesize display values on the client.

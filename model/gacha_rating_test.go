@@ -87,8 +87,8 @@ func TestMatchDeepSweScorePreferLongestPrefix(t *testing.T) {
 // 阈值变化后按分数重算档位：只有记录过分数的模型参与，评分来源保持不变。
 func TestRetierGachaRatingsByScore(t *testing.T) {
 	require.NoError(t, DB.AutoMigrate(&Model{}))
-	original := DeepSweRatingThresholds
-	t.Cleanup(func() { DeepSweRatingThresholds = original })
+	original := modelRatingThresholds
+	t.Cleanup(func() { modelRatingThresholds = original })
 
 	names := []string{"retier-a", "retier-b", "retier-none"}
 	for _, name := range names {
@@ -103,7 +103,7 @@ func TestRetierGachaRatingsByScore(t *testing.T) {
 	require.NoError(t, DB.Create(unscored).Error)
 
 	// 默认阈值（UR65/SSR55/SR45/R30）：60 -> SSR，30 -> R
-	DeepSweRatingThresholds = gachaRatingThresholdsDefault
+	modelRatingThresholds = cloneRatingThresholds(ratingThresholdsDefault)
 	changed, err := RetierGachaRatingsByScore()
 	require.NoError(t, err)
 	require.EqualValues(t, 2, changed)
@@ -125,7 +125,7 @@ func TestRetierGachaRatingsByScore(t *testing.T) {
 	require.EqualValues(t, 0, changed)
 
 	// 提高阈值后同一分数降档
-	DeepSweRatingThresholds = GachaRatingThresholds{UR: 70, SSR: 65, SR: 50, R: 40}
+	modelRatingThresholds[RatingDimensionDeepSwe] = RatingThresholds{UR: 70, SSR: 65, SR: 50, R: 40}
 	changed, err = RetierGachaRatingsByScore()
 	require.NoError(t, err)
 	require.EqualValues(t, 2, changed)

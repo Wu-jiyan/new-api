@@ -341,8 +341,8 @@ func InitResources() error {
 	}
 	model.InitOptionMap()
 
-	// 加载抽卡模型分级阈值（依赖 OptionMap）
-	model.ReloadGachaRatingThresholds()
+	// 加载模型分级阈值（依赖 OptionMap）
+	model.ReloadModelRatingThresholds()
 
 	// 加载角色系统阶段阈值（依赖 OptionMap）
 	model.ReloadCharacterStageThresholds()

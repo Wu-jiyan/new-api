@@ -1,14 +1,11 @@
 import { api } from '@/lib/api'
-import { requireServerSuccess } from '@/lib/server-error-message'
 
 import type {
   GachaCardEntry,
   GachaPool,
   GenerateGachaEntryReq,
   GenerateGachaPreview,
-  ModelRatingItem,
   PoolEconomics,
-  RatingThresholds,
 } from './types'
 
 export async function listPools(): Promise<GachaPool[]> {
@@ -64,78 +61,3 @@ export async function fetchEconomics(poolId: number): Promise<PoolEconomics> {
   return res.data?.data
 }
 
-export interface GachaRatingSyncItem {
-  model_name: string
-  rating: string
-  rating_score: number
-}
-
-export interface GachaRatingSyncResult {
-  updated: number
-  unchanged: number
-  skipped_manual: number
-  unmatched: number
-  updated_models: GachaRatingSyncItem[]
-}
-
-export async function listRatings(
-  keyword?: string,
-  rating?: string,
-  page = 1,
-  pageSize = 20
-): Promise<{
-  data: ModelRatingItem[]
-  total: number
-  thresholds: RatingThresholds
-  lastSyncAt: number
-  lastSyncNum: number
-}> {
-  const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
-  if (keyword) params.set('keyword', keyword)
-  if (rating) params.set('rating', rating)
-  const res = await api.get<{
-    success: boolean
-    data: ModelRatingItem[]
-    total: number
-    thresholds: RatingThresholds
-    last_sync_at: number
-    last_sync_num: number
-  }>(`/api/gacha/admin/ratings?${params.toString()}`)
-  return {
-    data: res.data?.data ?? [],
-    total: res.data?.total ?? 0,
-    thresholds: res.data?.thresholds,
-    lastSyncAt: res.data?.last_sync_at ?? 0,
-    lastSyncNum: res.data?.last_sync_num ?? 0,
-  }
-}
-
-// setRating 只提交分数：档位由后端按当前阈值自动推导，重置传 0。
-export async function setRating(id: number, ratingScore: number): Promise<void> {
-  const res = await api.put<{ success: boolean; message?: string }>(
-    `/api/gacha/admin/ratings/${id}`,
-    { rating_score: ratingScore }
-  )
-  requireServerSuccess(res.data)
-}
-
-export async function batchResetRatings(ids: number[]): Promise<number> {
-  const res = await api.post<{ success: boolean; data: number }>('/api/gacha/admin/ratings/reset', { ids })
-  return res.data?.data ?? 0
-}
-
-export async function syncRatings(): Promise<GachaRatingSyncResult> {
-  const res = await api.post<{ success: boolean; data: GachaRatingSyncResult }>('/api/gacha/admin/sync-rating')
-  return res.data?.data
-}
-
-// updateThresholds 保存档位阈值，返回后端按新阈值重算档位的模型数。
-export async function updateThresholds(t: RatingThresholds): Promise<number> {
-  const res = await api.put<{
-    success: boolean
-    message?: string
-    data?: { retiered: number }
-  }>('/api/gacha/admin/settings', t)
-  requireServerSuccess(res.data)
-  return res.data?.data?.retiered ?? 0
-}

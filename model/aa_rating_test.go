@@ -1,0 +1,171 @@
+package model
+
+import (
+	"testing"
+
+	"github.com/QuantumNous/new-api/common"
+
+	"github.com/stretchr/testify/require"
+)
+
+// AA 名字带推理档位后缀，必须剥掉后与系统模型名匹配；同名多档取最高分；
+// null 表示未测量，不能当成 0 分。
+func TestParseAAPages(t *testing.T) {
+	page1 := []byte(`{
+	  "pagination": {"page": 1, "has_more": true},
+	  "data": [
+	    {"name": "gpt-5-6-sol (high)", "slug": "gpt-5-6-sol",
+	     "evaluations": {"artificial_analysis_intelligence_index": 55.1,
+	                     "artificial_analysis_coding_index": 41.0,
+	                     "artificial_analysis_agentic_index": null}}
+	  ]
+	}`)
+	page2 := []byte(`{
+	  "pagination": {"page": 2, "has_more": false},
+	  "data": [
+	    {"name": "gpt-5-6-sol (low)", "slug": "gpt-5-6-sol",
+	     "evaluations": {"artificial_analysis_intelligence_index": 50.0,
+	                     "artificial_analysis_coding_index": 39.0}},
+	    {"name": "deepseek v4 pro", "slug": "deepseek-v4-pro",
+	     "evaluations": {"artificial_analysis_intelligence_index": 48.0}}
+	  ]
+	}`)
+
+	scores, err := ParseAAPages([][]byte{page1, page2})
+	require.NoError(t, err)
+
+	// 同模型多档取最高
+	require.Equal(t, 55.1, scores.Intelligence["gpt-5-6-sol"])
+	require.Equal(t, 41.0, scores.Coding["gpt-5-6-sol"])
+	// 第一页 agentic 为 null，第二页没有该字段：不应产生任何 agentic 条目
+	require.NotContains(t, scores.Agentic, "gpt-5-6-sol")
+	// 归一化后 system 模型名可命中 AA 的 slug
+	require.Equal(t, 48.0, scores.Intelligence["deepseek-v4-pro"])
+}
+
+// 各维度量纲不同（DeepSWE 是 pass@1 百分比，AA 是指数），阈值必须相互独立。
+func TestMapScoreToRatingPerDimension(t *testing.T) {
+	// DeepSWE: 60 落在 [55,65) -> SSR
+	require.Equal(t, "SSR", MapScoreToRatingWith(60, ratingThresholdsDefault[RatingDimensionDeepSwe]))
+	// AA 综合: 55 落在 [50,60) -> SSR；同一分数在 AA 编码档位里是 UR
+	require.Equal(t, "SSR", MapScoreToRatingWith(55, ratingThresholdsDefault[RatingDimensionAAIntelligence]))
+	require.Equal(t, "UR", MapScoreToRatingWith(55, ratingThresholdsDefault[RatingDimensionAACoding]))
+	require.Equal(t, "SSR", MapScoreToRatingWith(45, ratingThresholdsDefault[RatingDimensionAAAgentic]))
+}
+
+// 阈值写入后按维度生效，且非法阈值被拒绝。
+func TestSetModelRatingThresholds(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	original := modelRatingThresholds
+	t.Cleanup(func() { modelRatingThresholds = original })
+
+	prev := common.OptionMap
+	common.OptionMap = map[string]string{}
+	t.Cleanup(func() { common.OptionMap = prev })
+
+	next := RatingThresholds{UR: 90, SSR: 80, SR: 70, R: 60}
+	require.NoError(t, SetModelRatingThresholds(map[RatingDimension]RatingThresholds{
+		RatingDimensionAAIntelligence: next,
+	}))
+	require.Equal(t, next, RatingThresholdsFor(RatingDimensionAAIntelligence))
+	// 未指定维度保持原值
+	require.Equal(t, ratingThresholdsDefault[RatingDimensionAACoding], RatingThresholdsFor(RatingDimensionAACoding))
+
+	// UR<=SSR 非法，应被忽略而不是写入
+	invalid := RatingThresholds{UR: 10, SSR: 80, SR: 70, R: 60}
+	require.NoError(t, SetModelRatingThresholds(map[RatingDimension]RatingThresholds{
+		RatingDimensionAAIntelligence: invalid,
+	}))
+	require.Equal(t, next, RatingThresholdsFor(RatingDimensionAAIntelligence))
+
+	// 重新加载后能读回已保存的维度
+	ReloadModelRatingThresholds()
+	require.Equal(t, next, RatingThresholdsFor(RatingDimensionAAIntelligence))
+}
+
+// 新键缺失时，旧 GachaRatingThresholds 作为 DeepSWE 维度初值读取一次。
+func TestReloadModelRatingThresholdsLegacyFallback(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	original := modelRatingThresholds
+	t.Cleanup(func() { modelRatingThresholds = original })
+
+	prev := common.OptionMap
+	common.OptionMap = map[string]string{
+		common.OptionKeyGachaRatingThresholds: `{"ur":70,"ssr":60,"sr":50,"r":40}`,
+	}
+	t.Cleanup(func() { common.OptionMap = prev })
+
+	ReloadModelRatingThresholds()
+	require.Equal(t, RatingThresholds{UR: 70, SSR: 60, SR: 50, R: 40},
+		RatingThresholdsFor(RatingDimensionDeepSwe))
+	// AA 维度不受旧键影响
+	require.Equal(t, ratingThresholdsDefault[RatingDimensionAACoding], RatingThresholdsFor(RatingDimensionAACoding))
+}
+
+// AA 同步写入三个维度；手动填写过的模型整体跳过；重复同步幂等。
+func TestApplyAAScores(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&Model{}, &Option{}))
+	// 后缀模型名靠最长前缀匹配命中榜单基础名；unknown-model 没有任何前缀可命中。
+	names := []string{"gpt-5.6-sol-aa", "deepseek-v4-pro-aa", "claude-opus-4-6-aa", "unknown-model-aa"}
+	for _, name := range names {
+		require.NoError(t, DB.Where("model_name = ?", name).Unscoped().Delete(&Model{}).Error)
+		require.NoError(t, DB.Create(&Model{ModelName: name, Status: 1}).Error)
+		t.Cleanup(func() { require.NoError(t, DB.Where("model_name = ?", name).Unscoped().Delete(&Model{}).Error) })
+	}
+	// 人工填写过 AA 分数的模型不应被同步覆盖
+	require.NoError(t, DB.Model(&Model{}).Where("model_name = ?", "claude-opus-4-6-aa").
+		Updates(map[string]any{"aa_coding_score": 12.0, "aa_source": "manual"}).Error)
+
+	scores := &AAScores{
+		Intelligence: map[string]float64{"gpt-5-6-sol": 55.1, "deepseek-v4-pro": 48.0, "claude-opus-4-6": 61.0},
+		Coding:       map[string]float64{"gpt-5-6-sol": 41.0, "deepseek-v4-pro": 33.0, "claude-opus-4-6": 44.0},
+		Agentic:      map[string]float64{"gpt-5-6-sol": 52.0, "deepseek-v4-pro": 30.0, "claude-opus-4-6": 50.0},
+	}
+	res, err := ApplyAAScores(scores)
+	require.NoError(t, err)
+	require.Equal(t, 2, res.Updated)
+	require.Equal(t, 1, res.SkippedManual)
+	require.Equal(t, 1, res.Unmatched)
+	// 手动模型在匹配前就被跳过，因此不计入各维度命中数
+	require.Equal(t, 2, res.MatchedCount[string(RatingDimensionAAIntelligence)])
+	require.Equal(t, 2, res.MatchedCount[string(RatingDimensionAACoding)])
+	require.Equal(t, 2, res.MatchedCount[string(RatingDimensionAAAgentic)])
+
+	var got Model
+	require.NoError(t, DB.Where("model_name = ?", "gpt-5.6-sol-aa").First(&got).Error)
+	require.Equal(t, 55.1, got.AAIntelligenceScore)
+	require.Equal(t, 41.0, got.AACodingScore)
+	require.Equal(t, 52.0, got.AAAgenticScore)
+	require.Equal(t, aaSourceRating, got.AASource)
+
+	// DeepSWE 维度不受 AA 同步影响
+	require.Empty(t, got.Rating)
+	require.Zero(t, got.RatingScore)
+
+	var manual Model
+	require.NoError(t, DB.Where("model_name = ?", "claude-opus-4-6-aa").First(&manual).Error)
+	require.Equal(t, 12.0, manual.AACodingScore)
+	require.Equal(t, "manual", manual.AASource)
+
+	// 幂等：再次同步全部无变化
+	res, err = ApplyAAScores(scores)
+	require.NoError(t, err)
+	require.Equal(t, 0, res.Updated)
+	require.Equal(t, 2, res.Unchanged)
+
+	// 清空后可被同步重新覆盖
+	var ids []int
+	require.NoError(t, DB.Model(&Model{}).
+		Where("model_name IN ?", []string{"gpt-5.6-sol-aa", "deepseek-v4-pro-aa"}).
+		Pluck("id", &ids).Error)
+	n, err := ResetModelAAScores(ids)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), n)
+	require.NoError(t, DB.Where("model_name = ?", "gpt-5.6-sol-aa").First(&got).Error)
+	require.Zero(t, got.AAIntelligenceScore)
+	require.Empty(t, got.AASource)
+
+	res, err = ApplyAAScores(scores)
+	require.NoError(t, err)
+	require.Equal(t, 2, res.Updated)
+}

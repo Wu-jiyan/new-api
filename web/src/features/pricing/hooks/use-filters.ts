@@ -31,6 +31,11 @@ import {
   type ViewMode,
 } from '../constants'
 import { filterAndSortModels, extractAllTags } from '../lib/filters'
+import {
+  DEFAULT_SCORE_DIMENSION,
+  isScoreDimension,
+  type ScoreDimension,
+} from '../lib/scores'
 import type { PricingModel, TokenUnit } from '../types'
 
 type FilterState = {
@@ -42,6 +47,7 @@ type FilterState = {
   endpointType?: string
   tag?: string
   rating?: string
+  dimension?: string
   tokenUnit?: TokenUnit
   view?: ViewMode
   rechargePrice?: boolean
@@ -65,6 +71,7 @@ export function useFilters(models: PricingModel[]) {
     endpointType: search.endpointType,
     tag: search.tag,
     rating: search.rating,
+    dimension: search.dimension,
     tokenUnit: search.tokenUnit,
     view: search.view,
     rechargePrice: search.rechargePrice,
@@ -79,6 +86,9 @@ export function useFilters(models: PricingModel[]) {
   const endpointTypeFilter = filterState.endpointType || ENDPOINT_TYPES.ALL
   const tagFilter = filterState.tag || FILTER_ALL
   const ratingFilter = filterState.rating || FILTER_ALL
+  const scoreDimension: ScoreDimension = isScoreDimension(filterState.dimension)
+    ? filterState.dimension
+    : DEFAULT_SCORE_DIMENSION
   const tokenUnit: TokenUnit =
     filterState.tokenUnit === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
   const viewMode = normalizeViewMode(filterState.view)
@@ -134,6 +144,15 @@ export function useFilters(models: PricingModel[]) {
       updateFilters({ rating: v === FILTER_ALL ? undefined : v }),
     [updateFilters]
   )
+  const setScoreDimension = useCallback(
+    (v: ScoreDimension) =>
+      updateFilters({
+        dimension: v === DEFAULT_SCORE_DIMENSION ? undefined : v,
+        // 档位筛选按维度生效，换维度后旧的档位选择不再适用。
+        rating: undefined,
+      }),
+    [updateFilters]
+  )
   const setTokenUnit = useCallback(
     (v: TokenUnit) =>
       updateFilters({ tokenUnit: v === DEFAULT_TOKEN_UNIT ? undefined : v }),
@@ -166,6 +185,7 @@ export function useFilters(models: PricingModel[]) {
       tag: tagFilter,
       rating: ratingFilter,
       sortBy,
+      dimension: scoreDimension,
     })
   }, [
     models,
@@ -177,6 +197,7 @@ export function useFilters(models: PricingModel[]) {
     tagFilter,
     ratingFilter,
     sortBy,
+    scoreDimension,
   ])
 
   const hasActiveFilters = useMemo(
@@ -239,6 +260,7 @@ export function useFilters(models: PricingModel[]) {
     endpointTypeFilter,
     tagFilter,
     ratingFilter,
+    scoreDimension,
     tokenUnit,
     viewMode,
     showRechargePrice,
@@ -250,6 +272,7 @@ export function useFilters(models: PricingModel[]) {
     setEndpointTypeFilter,
     setTagFilter,
     setRatingFilter,
+    setScoreDimension,
     setTokenUnit,
     setViewMode,
     setShowRechargePrice,

@@ -48,8 +48,15 @@ type Pricing struct {
 	BillingUsageSchema     map[string]jsplugin.UsageFieldSchema `json:"billing_usage_schema,omitempty"`
 	BillingUsageExamples   []jsplugin.UsageExample              `json:"billing_usage_examples,omitempty"`
 	PricingVersion         string                               `json:"pricing_version,omitempty"`
-	Rating                 string                               `json:"rating,omitempty"`       // 稀有度档位 N / R / SR / SSR / UR
+	Rating                 string                               `json:"rating,omitempty"`       // 稀有度档位 N / R / SR / SSR / UR（DeepSWE 维度）
 	RatingScore            float64                              `json:"rating_score,omitempty"` // DeepSWE 分数
+	AAIntelligenceScore    float64                              `json:"aa_intelligence_score,omitempty"`
+	AACodingScore          float64                              `json:"aa_coding_score,omitempty"`
+	AAAgenticScore         float64                              `json:"aa_agentic_score,omitempty"`
+	AAIntelligenceRating   string                               `json:"aa_intelligence_rating,omitempty"`
+	AACodingRating         string                               `json:"aa_coding_rating,omitempty"`
+	AAAgenticRating        string                               `json:"aa_agentic_rating,omitempty"`
+	AASource               string                               `json:"aa_source,omitempty"`
 }
 
 type PricingVendor struct {
@@ -346,6 +353,20 @@ func updatePricing() {
 			pricing.VendorID = meta.VendorID
 			pricing.Rating = meta.Rating
 			pricing.RatingScore = meta.RatingScore
+			pricing.AAIntelligenceScore = meta.AAIntelligenceScore
+			pricing.AACodingScore = meta.AACodingScore
+			pricing.AAAgenticScore = meta.AAAgenticScore
+			pricing.AASource = meta.AASource
+			// AA 档位不入库，按各维度当前阈值实时推导，阈值改动即时生效。
+			if meta.AAIntelligenceScore > 0 {
+				pricing.AAIntelligenceRating = MapScoreToRatingWith(meta.AAIntelligenceScore, RatingThresholdsFor(RatingDimensionAAIntelligence))
+			}
+			if meta.AACodingScore > 0 {
+				pricing.AACodingRating = MapScoreToRatingWith(meta.AACodingScore, RatingThresholdsFor(RatingDimensionAACoding))
+			}
+			if meta.AAAgenticScore > 0 {
+				pricing.AAAgenticRating = MapScoreToRatingWith(meta.AAAgenticScore, RatingThresholdsFor(RatingDimensionAAAgentic))
+			}
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
 		if findPrice {

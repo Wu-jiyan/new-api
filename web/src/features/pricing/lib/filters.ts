@@ -25,6 +25,12 @@ import {
 } from '../constants'
 import type { PricingModel } from '../types'
 import { hasTaskUsageSchema } from './dynamic-price'
+import {
+  DEFAULT_SCORE_DIMENSION,
+  scoreForDimension,
+  tierForDimension,
+  type ScoreDimension,
+} from './scores'
 
 // ----------------------------------------------------------------------------
 // Filter Utilities
@@ -106,14 +112,15 @@ export function filterByEndpointType(
 }
 
 /**
- * Filter models by rating tier (N / R / SR / SSR / UR)
+ * Filter models by rating tier (N / R / SR / SSR / UR) on the selected dimension
  */
 export function filterByRating(
   models: PricingModel[],
-  rating: string
+  rating: string,
+  dimension: ScoreDimension = DEFAULT_SCORE_DIMENSION
 ): PricingModel[] {
   if (rating === FILTER_ALL) return models
-  return models.filter((m) => m.rating === rating)
+  return models.filter((m) => tierForDimension(m, dimension) === rating)
 }
 
 /**
@@ -124,11 +131,13 @@ function getModelPrice(model: PricingModel): number {
 }
 
 /**
- * Sort models by specified option
+ * Sort models by specified option. Score sorting uses the selected dimension,
+ * and unrated models are placed last.
  */
 export function sortModels(
   models: PricingModel[],
-  sortBy: string
+  sortBy: string,
+  dimension: ScoreDimension = DEFAULT_SCORE_DIMENSION
 ): PricingModel[] {
   const sorted = [...models]
 
@@ -145,12 +154,13 @@ export function sortModels(
       sorted.sort((a, b) => getModelPrice(b) - getModelPrice(a))
       break
     case SORT_OPTIONS.SCORE_HIGH:
-      // DeepSWE 分数从高到低，未评级模型排在最后
       sorted.sort((a, b) => {
-        const hasA = a.rating_score != null && a.rating_score > 0
-        const hasB = b.rating_score != null && b.rating_score > 0
+        const scoreA = scoreForDimension(a, dimension)
+        const scoreB = scoreForDimension(b, dimension)
+        const hasA = scoreA > 0
+        const hasB = scoreB > 0
         if (hasA !== hasB) return hasA ? -1 : 1
-        return (b.rating_score ?? 0) - (a.rating_score ?? 0)
+        return scoreB - scoreA
       })
       break
   }
@@ -172,16 +182,18 @@ export function filterAndSortModels(
     tag: string
     rating: string
     sortBy: string
+    dimension?: ScoreDimension
   }
 ): PricingModel[] {
+  const dimension = filters.dimension ?? DEFAULT_SCORE_DIMENSION
   let result = filterBySearch(models, filters.search)
   result = filterByVendor(result, filters.vendor)
   result = filterByGroup(result, filters.group)
   result = filterByQuotaType(result, filters.quotaType)
   result = filterByEndpointType(result, filters.endpointType)
   result = filterByTag(result, filters.tag)
-  result = filterByRating(result, filters.rating)
-  result = sortModels(result, filters.sortBy)
+  result = filterByRating(result, filters.rating, dimension)
+  result = sortModels(result, filters.sortBy, dimension)
 
   return result
 }

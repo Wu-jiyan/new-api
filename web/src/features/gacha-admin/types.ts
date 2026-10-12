@@ -40,21 +40,6 @@ export interface PoolEconomics {
   unknown_cost_weight: number
 }
 
-export interface RatingThresholds {
-  ur: number
-  ssr: number
-  sr: number
-  r: number
-}
-
-export interface ModelRatingItem {
-  id: number
-  model_name: string
-  rating?: string
-  rating_score?: number
-  rating_source?: string
-}
-
 export interface GenerateGachaEntryReq {
   group: string
   models: string[]

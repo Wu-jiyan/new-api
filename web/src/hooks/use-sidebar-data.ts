@@ -35,6 +35,7 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  Star,
   Ticket,
   User,
   UserRound,
@@ -175,6 +176,12 @@ export function useSidebarData(): SidebarData {
             title: t('Subscriptions'),
             url: '/subscriptions',
             icon: CreditCard,
+          },
+          {
+            title: t('Model Rating'),
+            url: '/model-rating',
+            icon: Star,
+            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('Gacha Admin'),

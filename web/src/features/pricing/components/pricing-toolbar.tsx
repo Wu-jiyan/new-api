@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ArrowUpDown, Check, Filter } from 'lucide-react'
+import { ArrowUpDown, Check, Filter, Gauge } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -45,7 +45,13 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 
-import { getSortLabels, type SortOption, type ViewMode } from '../constants'
+import {
+  getScoreDimensionLabels,
+  getSortLabels,
+  type SortOption,
+  type ViewMode,
+} from '../constants'
+import type { ScoreDimension } from '../lib/scores'
 import type { PricingModel, PricingVendor, TokenUnit } from '../types'
 import { PricingSidebar } from './pricing-sidebar'
 
@@ -54,6 +60,9 @@ export interface PricingToolbarProps {
   totalCount?: number
   sortBy: string
   onSortChange: (value: string) => void
+  /** Score dimension driving score sorting, tier badges and the tier filter */
+  dimension: ScoreDimension
+  onDimensionChange: (value: ScoreDimension) => void
   tokenUnit: TokenUnit
   onTokenUnitChange: (value: TokenUnit) => void
   showRechargePrice: boolean
@@ -86,6 +95,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
   const { t } = useTranslation()
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const sortLabels = getSortLabels(t)
+  const dimensionLabels = getScoreDimensionLabels(t)
 
   return (
     <div className='bg-card rounded-xl border p-3'>
@@ -162,6 +172,43 @@ export function PricingToolbar(props: PricingToolbarProps) {
                 />
               }
             >
+              <Gauge className='size-3.5' />
+              <span>{dimensionLabels[props.dimension]}</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='end' className='w-52'>
+              <DropdownMenuGroup>
+                {Object.entries(dimensionLabels).map(([value, label]) => (
+                  <DropdownMenuItem
+                    key={value}
+                    onClick={() =>
+                      props.onDimensionChange(value as ScoreDimension)
+                    }
+                    className='gap-2'
+                  >
+                    <Check
+                      className={cn(
+                        'size-4 shrink-0',
+                        props.dimension === value ? 'opacity-100' : 'opacity-0'
+                      )}
+                    />
+                    {label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  className='h-8 gap-1.5 px-3 text-xs'
+                />
+              }
+            >
               <ArrowUpDown className='size-3.5' />
               <span>{sortLabels[props.sortBy as SortOption] || t('Sort')}</span>
             </DropdownMenuTrigger>
@@ -212,6 +259,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
               groupFilter={props.groupFilter}
               tagFilter={props.tagFilter}
               ratingFilter={props.ratingFilter}
+              dimension={props.dimension}
               onQuotaTypeChange={props.onQuotaTypeChange}
               onEndpointTypeChange={props.onEndpointTypeChange}
               onVendorChange={props.onVendorChange}
