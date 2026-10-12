@@ -28,10 +28,10 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { getLobeIcon } from '@/lib/lobe-icon'
-import { resolveModelProvider } from '@/lib/model-provider'
 import { cn } from '@/lib/utils'
 
 import { isResponseModelMismatch } from '../lib/response-model'
+import { useModelIcon } from '../lib/use-model-icon'
 import type { LogOtherData } from '../types'
 import { DetailRow } from './dialogs/log-detail-layout'
 
@@ -45,18 +45,19 @@ interface ModelBadgeProps {
 }
 
 function ModelBadgeContent(props: ModelBadgeProps & { copyable: boolean }) {
-  const provider = resolveModelProvider(props.modelName)
+  const modelIcon = useModelIcon(props.modelName)
+  const iconLabel = modelIcon?.label ?? props.modelName
 
   return (
     <StatusBadge
       copyText={props.modelName}
       copyable={props.copyable}
       size='sm'
-      showDot={!provider?.icon}
-      autoColor={provider?.icon ? undefined : props.modelName}
+      showDot={!modelIcon}
+      autoColor={modelIcon ? undefined : props.modelName}
       className={cn(
         'border-border/60 bg-muted/30 h-6 max-w-none gap-1.5 rounded-md border px-2 [font-family:var(--font-body)]',
-        provider?.icon && 'text-foreground',
+        modelIcon && 'text-foreground',
         props.wrapText && 'h-auto min-h-6 max-w-full py-px whitespace-normal',
         props.className
       )}
@@ -67,13 +68,13 @@ function ModelBadgeContent(props: ModelBadgeProps & { copyable: boolean }) {
           props.wrapText ? 'max-w-full min-w-0' : 'max-w-none'
         )}
       >
-        {provider?.icon && (
+        {modelIcon && (
           <span
             className='flex h-[18px] w-[18px] shrink-0 items-center justify-center'
-            title={provider.label ?? provider.name}
-            aria-label={provider.label ?? provider.name}
+            title={iconLabel}
+            aria-label={iconLabel}
           >
-            {getLobeIcon(provider.icon, 18)}
+            {getLobeIcon(modelIcon.icon, 18)}
           </span>
         )}
         <span

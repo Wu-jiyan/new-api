@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -18,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expect, it, vi } from 'vitest'
+import { beforeEach, expect, it, vi } from 'vitest'
 
 import {
   categorizeModels,
@@ -27,6 +28,30 @@ import {
 import { getLobeIconNames } from '@/lib/lobe-icon'
 
 import { ModelBadge } from '../model-badge'
+
+const catalogModels: { model_name: string; icon?: string }[] = []
+
+beforeEach(() => {
+  catalogModels.length = 0
+})
+
+vi.mock('@/features/pricing/hooks/use-pricing-data', () => ({
+  usePricingData: () => ({ models: catalogModels }),
+}))
+
+function renderBadge(ui: React.ReactElement) {
+  return render(
+    <QueryClientProvider
+      client={
+        new QueryClient({
+          defaultOptions: { queries: { retry: false } },
+        })
+      }
+    >
+      {ui}
+    </QueryClientProvider>
+  )
+}
 
 const providers = [
   {
@@ -263,7 +288,7 @@ it.each(
   'groups $model under $category and displays its provider icon',
   async ({ model, category, label }) => {
     expect(getModelCategory(model)).toBe(category)
-    render(<ModelBadge modelName={model} />)
+    renderBadge(<ModelBadge modelName={model} />)
     expect(screen.getByText(model.trim())).toBeVisible()
     const icon = screen.getByLabelText(label)
     expect(icon).toBeVisible()
@@ -283,9 +308,32 @@ it.each([
   't2v-02',
 ])('keeps unknown model %s in Other with the dot fallback', (model) => {
   expect(getModelCategory(model)).toBe('Other')
-  const { container } = render(<ModelBadge modelName={model} />)
+  const { container } = renderBadge(<ModelBadge modelName={model} />)
   expect(container.querySelector('svg, img')).toBeNull()
   expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull()
+})
+
+it('prefers the configured catalog icon over the name-matched provider', async () => {
+  catalogModels.push({ model_name: 'muse-spark-1.3', icon: 'Meta.Color' })
+
+  renderBadge(<ModelBadge modelName='muse-spark-1.3' />)
+
+  await waitFor(() =>
+    expect(
+      screen.getByLabelText('muse-spark-1.3').querySelector('svg, img')
+    ).not.toBeNull()
+  )
+  expect(screen.queryByLabelText('Meta')).not.toBeInTheDocument()
+})
+
+it('keeps the name-matched provider icon when the catalog has no entry', async () => {
+  renderBadge(<ModelBadge modelName='codex-auto-review' />)
+
+  await waitFor(() =>
+    expect(
+      screen.getByLabelText('OpenAI').querySelector('svg, img')
+    ).not.toBeNull()
+  )
 })
 
 it('preserves model names and input order when grouping models', () => {
@@ -305,7 +353,7 @@ it('preserves model names and input order when grouping models', () => {
 })
 
 it('shows the OpenAI icon in the mobile model button', () => {
-  render(
+  renderBadge(
     <ModelBadge modelName='codex-auto-review' wrapText onInspect={vi.fn()} />
   )
   expect(
@@ -321,7 +369,7 @@ it('opens the mismatch evidence with the keyboard and shows all three models', a
   const user = userEvent.setup()
   const returned =
     'unexpected-provider-model-with-a-long-dated-version-2026-09-17'
-  render(
+  renderBadge(
     <ModelBadge
       modelName='requested-model'
       responseModel={{
@@ -354,7 +402,7 @@ it.each([false, true])(
   async (observed) => {
     const user = userEvent.setup()
     const copy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
-    render(
+    renderBadge(
       <ModelBadge
         modelName='requested-model'
         responseModel={
@@ -378,7 +426,7 @@ it.each([false, true])(
 
 it('keeps mapped model details available when the response matches the upstream model', async () => {
   const user = userEvent.setup()
-  render(
+  renderBadge(
     <ModelBadge
       modelName='requested-model'
       responseModel={{
@@ -406,7 +454,7 @@ it.each([
   'keeps the compatible response %s in the popover without a list annotation',
   async (returned) => {
     const user = userEvent.setup()
-    render(
+    renderBadge(
       <ModelBadge
         modelName='requested-model'
         responseModel={{
