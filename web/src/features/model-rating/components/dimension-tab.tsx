@@ -137,7 +137,8 @@ function ScoreRow(props: {
   }
 
   return (
-    <div className='flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm'>
+    // 手机上控件堆叠到名称下方：输入框 + 两个按钮固定宽度，横排会撑破视口。
+    <div className='flex flex-col gap-2 rounded-lg border px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between'>
       <div className='flex min-w-0 flex-wrap items-center gap-2'>
         <span className='truncate font-mono'>{props.item.model_name}</span>
         <RatingBadge rating={displayRating} />
@@ -151,7 +152,7 @@ function ScoreRow(props: {
             </span>
           ))}
       </div>
-      <div className='flex shrink-0 items-center gap-2'>
+      <div className='flex flex-wrap items-center gap-2 sm:shrink-0'>
         <div className='relative'>
           <Input
             aria-label={`${props.item.model_name} ${meta.label}`}

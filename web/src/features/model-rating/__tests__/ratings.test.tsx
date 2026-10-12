@@ -233,3 +233,34 @@ describe('model rating dimensions', () => {
     expect(screen.getAllByPlaceholderText('Score')).toHaveLength(1)
   })
 })
+
+// 手机端曾完全无法下滑：页面没套 SectionPageLayout，而布局的 Main 会
+// overflow-hidden，内容超出视口后既滚不动也够不着。
+describe('model rating page layout', () => {
+  it('scrolls inside the shared page layout instead of relying on the window', async () => {
+    ratings = [
+      { id: 1, model_name: 'rating-model-a', rating: 'SSR', rating_score: 60 },
+    ]
+    mockGet()
+    await openPage()
+
+    const main = screen.getByRole('main')
+    // Main 自身裁剪溢出，因此内部必须存在可滚动区域承载内容
+    expect(main.className).toContain('overflow-hidden')
+    const scroller = main.querySelector('.overflow-auto')
+    expect(scroller).not.toBeNull()
+    expect(scroller).toContainElement(await screen.findByRole('tablist'))
+  })
+
+  it('wraps the dimension tabs so narrow screens do not scroll sideways', async () => {
+    ratings = [
+      { id: 1, model_name: 'rating-model-a', rating: 'SSR', rating_score: 60 },
+    ]
+    mockGet()
+    await openPage()
+
+    const tablist = await screen.findByRole('tablist')
+    expect(tablist.className).toContain('flex-wrap')
+    expect(tablist.className).toContain('max-w-full')
+  })
+})

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import { SectionPageLayout } from '@/components/layout'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { listModelRatings } from './api'
@@ -62,43 +64,50 @@ export default function ModelRatingPage() {
   }, [])
 
   return (
-    <div className='space-y-4'>
-      <h1 className='text-2xl font-bold'>{t('Model Rating')}</h1>
-      <p className='text-sm text-muted-foreground'>
-        {t(
-          'Score models across four independent dimensions. Each dimension syncs from its own source, keeps its own thresholds, and manual entries are never overwritten.'
-        )}
-      </p>
-      <Tabs value={dimension} onValueChange={(value) => setDimension(value as RatingDimension)}>
-        <TabsList>
-          {RATING_DIMENSIONS.map((dim) => (
-            <TabsTrigger key={dim} value={dim}>
-              {DIMENSION_META[dim].label}
-            </TabsTrigger>
-          ))}
-          <TabsTrigger value='settings'>{t('Settings')}</TabsTrigger>
-        </TabsList>
-        {RATING_DIMENSIONS.map((dim) => (
-          <TabsContent key={dim} value={dim} className='mt-4'>
-            <DimensionTab
-              dimension={dim}
-              items={items}
-              total={total}
-              page={page}
-              keyword={keyword}
-              thresholds={thresholds[dim] ?? EMPTY_THRESHOLDS}
-              deepsweSync={deepsweSync}
-              aaKeySet={aaStatus.api_key_set}
-              onKeywordChange={changeKeyword}
-              onPageChange={setPage}
-              onReload={reload}
-            />
-          </TabsContent>
-        ))}
-        <TabsContent value='settings' className='mt-4'>
-          <SettingsTab aa={aaStatus} onReload={reload} />
-        </TabsContent>
-      </Tabs>
-    </div>
+    <SectionPageLayout>
+      <SectionPageLayout.Title>{t('Model Rating')}</SectionPageLayout.Title>
+      <SectionPageLayout.Content>
+        <div className='space-y-4'>
+          <p className='text-sm text-muted-foreground'>
+            {t(
+              'Score models across four independent dimensions. Each dimension syncs from its own source, keeps its own thresholds, and manual entries are never overwritten.'
+            )}
+          </p>
+          <Tabs
+            value={dimension}
+            onValueChange={(value) => setDimension(value as RatingDimension)}
+          >
+            <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
+              {RATING_DIMENSIONS.map((dim) => (
+                <TabsTrigger key={dim} value={dim}>
+                  {DIMENSION_META[dim].label}
+                </TabsTrigger>
+              ))}
+              <TabsTrigger value='settings'>{t('Settings')}</TabsTrigger>
+            </TabsList>
+            {RATING_DIMENSIONS.map((dim) => (
+              <TabsContent key={dim} value={dim} className='mt-4'>
+                <DimensionTab
+                  dimension={dim}
+                  items={items}
+                  total={total}
+                  page={page}
+                  keyword={keyword}
+                  thresholds={thresholds[dim] ?? EMPTY_THRESHOLDS}
+                  deepsweSync={deepsweSync}
+                  aaKeySet={aaStatus.api_key_set}
+                  onKeywordChange={changeKeyword}
+                  onPageChange={setPage}
+                  onReload={reload}
+                />
+              </TabsContent>
+            ))}
+            <TabsContent value='settings' className='mt-4'>
+              <SettingsTab aa={aaStatus} onReload={reload} />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </SectionPageLayout.Content>
+    </SectionPageLayout>
   )
 }
