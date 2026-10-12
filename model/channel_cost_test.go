@@ -148,6 +148,28 @@ func TestGlobalModelCostFromOtherUsesCacheCreationRatio(t *testing.T) {
 	}
 }
 
+// 纯文本表达式不会落盘 billing_tokens（只有引用 img_cr 时才写），此时成本必须按
+// BuildTieredTokenParams 的规则把缓存从 p 扣除后按 cr 计价。否则收入侧按缓存价收、
+// 成本侧按全价输入付，同一请求成本翻数倍，利润日志显示为负。
+func TestCalculateModelCostExpressionNormalizesCacheFromLog(t *testing.T) {
+	const expr = `tier("base", p * 1 + c * 4 + cr * 0.02)`
+	mc := dto.ChannelModelCost{BillingExpr: expr}
+	other := map[string]interface{}{"cache_tokens": 84_864}
+
+	// p = 86030-84864 = 1166, c = 273 → 1166 + 1092 + 1697.28 = 3955.28（$/1M 刻度）
+	got := CalculateModelCost(mc, 0.1, 86_030, 273, other, nil)
+	assert.InDelta(t, 3955.28/1_000_000*common.QuotaPerUnit*0.1, got, 1e-6)
+
+	// 整段 prompt 按输入价计的结果必须远高于拆分后的成本，否则说明缓存没被扣除。
+	rawPrompt := CalculateModelCost(mc, 0.1, 86_030, 273, nil, nil)
+	assert.Greater(t, rawPrompt, got*10)
+
+	// 表达式没有引用 cr 时缓存留在 p 里按输入价计，两侧口径保持一致。
+	noCacheVar := CalculateModelCost(
+		dto.ChannelModelCost{BillingExpr: `tier("base", p * 1 + c * 4)`}, 0.1, 86_030, 273, other, nil)
+	assert.InDelta(t, (86_030+273*4)/1_000_000.0*common.QuotaPerUnit*0.1, noCacheVar, 1e-6)
+}
+
 func TestAttachChannelCostWritesAdminScope(t *testing.T) {
 	settings := &dto.ChannelCostSettings{Enabled: true, Mode: dto.ChannelCostModeDiscount, Discount: 0.5}
 	other := NewLogOther()
