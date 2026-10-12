@@ -415,7 +415,7 @@ export function UserAuthForm({
             <Button
               type='submit'
               className='mt-2 w-full justify-center gap-2'
-              disabled={
+disabled={
                 isLoading ||
                 (requiresLegalConsent && !agreedToLegal) ||
                 !captchaReady

@@ -56,7 +56,10 @@ import {
 import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { ROLE } from '@/lib/roles'
-import { createServerError } from '@/lib/server-error-message'
+import {
+  createServerError,
+  translateServerText,
+} from '@/lib/server-error-message'
 import { truncateText } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -1119,7 +1122,8 @@ export function useChannelsColumns(
                       <div className='space-y-1 text-xs'>
                         {statusReason && (
                           <div className='wrap-anywhere'>
-                            {t('Reason:')} {statusReason}
+                            {t('Reason:')}{' '}
+                            {translateServerText(t, statusReason)}
                           </div>
                         )}
                         {statusTime && (
