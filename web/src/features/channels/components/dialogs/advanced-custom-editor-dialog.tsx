@@ -753,6 +753,10 @@ export function AdvancedCustomEditorDialog({
                 placeholder={t('Add route')}
               />
               <Select
+                items={ADVANCED_CUSTOM_TEMPLATE_OPTIONS.map((template) => ({
+                  value: template.value,
+                  label: t(template.label),
+                }))}
                 value={null}
                 onValueChange={(value) => {
                   if (typeof value === 'string') selectTemplate(value)

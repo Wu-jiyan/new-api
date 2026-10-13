@@ -37,21 +37,54 @@ import {
 // ----------------------------------------------------------------------------
 
 /**
- * Filter models by search query
+ * 可被搜索命中的字段范围。默认只搜索模型名：描述、标签与供应商名常包含与用户
+ * 预期无关的文本，一次命中全部字段会让搜索结果产生误导。
+ */
+export const SEARCH_SCOPES = ['name', 'description', 'tags', 'vendor'] as const
+
+export type SearchScope = (typeof SEARCH_SCOPES)[number]
+
+export const DEFAULT_SEARCH_SCOPES: readonly SearchScope[] = ['name']
+
+type SearchableField = 'model_name' | 'description' | 'tags' | 'vendor_name'
+
+const SEARCH_SCOPE_FIELDS: Record<SearchScope, SearchableField> = {
+  name: 'model_name',
+  description: 'description',
+  tags: 'tags',
+  vendor: 'vendor_name',
+}
+
+/**
+ * 解析检索范围：忽略未知值，空值或全部无效时回落到默认（仅模型名）。
+ */
+export function parseSearchScopes(
+  value: string | readonly string[] | undefined
+): SearchScope[] {
+  const requested =
+    typeof value === 'string'
+      ? value.split(',').map((scope) => scope.trim())
+      : (value ?? [])
+  const scopes = SEARCH_SCOPES.filter((scope) => requested.includes(scope))
+  return scopes.length > 0 ? [...scopes] : [...DEFAULT_SEARCH_SCOPES]
+}
+
+/**
+ * Filter models by search query within the selected scopes
  */
 export function filterBySearch(
   models: PricingModel[],
-  query: string
+  query: string,
+  scopes?: readonly string[]
 ): PricingModel[] {
   if (!query) return models
 
   const lowerQuery = query.toLowerCase()
-  return models.filter(
-    (m) =>
-      m.model_name?.toLowerCase().includes(lowerQuery) ||
-      m.description?.toLowerCase().includes(lowerQuery) ||
-      m.tags?.toLowerCase().includes(lowerQuery) ||
-      m.vendor_name?.toLowerCase().includes(lowerQuery)
+  const fields = parseSearchScopes(scopes).map(
+    (scope) => SEARCH_SCOPE_FIELDS[scope]
+  )
+  return models.filter((m) =>
+    fields.some((field) => m[field]?.toLowerCase().includes(lowerQuery))
   )
 }
 
@@ -131,8 +164,16 @@ function getModelPrice(model: PricingModel): number {
 }
 
 /**
+ * 按展示名比较模型。分数或价格相等时，后端返回顺序不可依赖，必须有确定的次序。
+ */
+function compareModelDisplayName(a: PricingModel, b: PricingModel): number {
+  return (a.model_name || '').localeCompare(b.model_name || '')
+}
+
+/**
  * Sort models by specified option. Score sorting uses the selected dimension,
- * and unrated models are placed last.
+ * and unrated models are placed last. Ties always fall back to the model name
+ * so equal keys keep a deterministic order.
  */
 export function sortModels(
   models: PricingModel[],
@@ -143,15 +184,19 @@ export function sortModels(
 
   switch (sortBy) {
     case SORT_OPTIONS.NAME:
-      sorted.sort((a, b) =>
-        (a.model_name || '').localeCompare(b.model_name || '')
-      )
+      sorted.sort(compareModelDisplayName)
       break
     case SORT_OPTIONS.PRICE_LOW:
-      sorted.sort((a, b) => getModelPrice(a) - getModelPrice(b))
+      sorted.sort(
+        (a, b) =>
+          getModelPrice(a) - getModelPrice(b) || compareModelDisplayName(a, b)
+      )
       break
     case SORT_OPTIONS.PRICE_HIGH:
-      sorted.sort((a, b) => getModelPrice(b) - getModelPrice(a))
+      sorted.sort(
+        (a, b) =>
+          getModelPrice(b) - getModelPrice(a) || compareModelDisplayName(a, b)
+      )
       break
     case SORT_OPTIONS.SCORE_HIGH:
       sorted.sort((a, b) => {
@@ -160,7 +205,8 @@ export function sortModels(
         const hasA = scoreA > 0
         const hasB = scoreB > 0
         if (hasA !== hasB) return hasA ? -1 : 1
-        return scoreB - scoreA
+        if (scoreA !== scoreB) return scoreB - scoreA
+        return compareModelDisplayName(a, b)
       })
       break
   }
@@ -175,6 +221,7 @@ export function filterAndSortModels(
   models: PricingModel[],
   filters: {
     search: string
+    searchScopes?: readonly string[]
     vendor: string
     group: string
     quotaType: string
@@ -186,7 +233,7 @@ export function filterAndSortModels(
   }
 ): PricingModel[] {
   const dimension = filters.dimension ?? DEFAULT_SCORE_DIMENSION
-  let result = filterBySearch(models, filters.search)
+  let result = filterBySearch(models, filters.search, filters.searchScopes)
   result = filterByVendor(result, filters.vendor)
   result = filterByGroup(result, filters.group)
   result = filterByQuotaType(result, filters.quotaType)
@@ -224,7 +271,7 @@ export function extractAllTags(models: PricingModel[]): string[] {
     }
   })
 
-  return Array.from(tagSet).sort((a, b) => a.localeCompare(b))
+  return [...tagSet].sort((a, b) => a.localeCompare(b))
 }
 
 /**

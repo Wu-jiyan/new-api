@@ -5,12 +5,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { SectionPageLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-
 import { getUserGroups, getUserModels } from '@/features/playground/api'
 
 import {
@@ -50,7 +50,14 @@ const EMPTY_FORM: FormState = {
 }
 
 function emptyScriptLine() {
-  return { speaker: '', text: '', pose: '', effect: '', background: '', choices: [] }
+  return {
+    speaker: '',
+    text: '',
+    pose: '',
+    effect: '',
+    background: '',
+    choices: [],
+  }
 }
 
 function emptyStage(name: string, index: number): StageDraft {
@@ -79,23 +86,27 @@ function parseStages(item: CharacterAdminItem | null): StageDraft[] {
         imageUrl: s.image_url ?? '',
         backgroundUrl: s.background_url ?? '',
         defaultEffect: s.default_effect || 'fade',
-        poses: (s.poses ?? []).map((p: { name?: string; image_url?: string }) => ({
-          name: p.name ?? '',
-          imageUrl: p.image_url ?? '',
-        })),
+        poses: (s.poses ?? []).map(
+          (p: { name?: string; image_url?: string }) => ({
+            name: p.name ?? '',
+            imageUrl: p.image_url ?? '',
+          })
+        ),
         script: (s.script ?? []).map((l: Record<string, unknown>) => ({
           speaker: l.speaker ?? '',
           text: l.text ?? '',
           pose: l.pose ?? '',
           effect: l.effect ?? '',
           background: l.background ?? '',
-          choices: ((l.choices ?? []) as Record<string, unknown>[]).map((c) => ({
-            text: c.text ?? '',
-            reply: c.reply ?? '',
-            pose: c.pose ?? '',
-            effect: c.effect ?? '',
-            background: c.background ?? '',
-          })),
+          choices: ((l.choices ?? []) as Record<string, unknown>[]).map(
+            (c) => ({
+              text: c.text ?? '',
+              reply: c.reply ?? '',
+              pose: c.pose ?? '',
+              effect: c.effect ?? '',
+              background: c.background ?? '',
+            })
+          ),
         })),
       }
     })
@@ -170,7 +181,8 @@ export default function CharacterEditorPage() {
   })
 
   const item = useMemo(
-    () => (isNew ? null : (list.find((i) => i.model_name === modelName) ?? null)),
+    () =>
+      isNew ? null : (list.find((i) => i.model_name === modelName) ?? null),
     [list, isNew, modelName]
   )
 
@@ -201,7 +213,9 @@ export default function CharacterEditorPage() {
   }, [])
   const defaultModelOptions = useMemo(() => {
     const prefix = form.model_name.trim()
-    const filtered = prefix ? candidateModels.filter((m) => m.startsWith(prefix)) : []
+    const filtered = prefix
+      ? candidateModels.filter((m) => m.startsWith(prefix))
+      : []
     if (form.default_model && !filtered.includes(form.default_model)) {
       return [form.default_model, ...filtered]
     }
@@ -231,8 +245,13 @@ export default function CharacterEditorPage() {
   })
 
   const updateMut = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<CharacterAdminItem> }) =>
-      updateCharacter(id, data),
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: number
+      data: Partial<CharacterAdminItem>
+    }) => updateCharacter(id, data),
     onSuccess: () => {
       toast.success(t('common.success'))
       qc.invalidateQueries({ queryKey: ['character-admin'] })
@@ -272,7 +291,11 @@ export default function CharacterEditorPage() {
       const { image_url } = await generateCharacterImage(item.id, stage, '', {
         type: 'portrait',
       })
-      setDrafts((prev) => prev.map((d, i) => (i === stage ? { ...d, imageUrl: image_url ?? '' } : d)))
+      setDrafts((prev) =>
+        prev.map((d, i) =>
+          i === stage ? { ...d, imageUrl: image_url ?? '' } : d
+        )
+      )
       toast.success(t('character.admin.generateDone'))
     } catch {
       toast.error(t('character.admin.generateFailed'))
@@ -287,282 +310,358 @@ export default function CharacterEditorPage() {
       const { image_url } = await uploadCharacterImage(item.id, stage, file, {
         type: 'portrait',
       })
-      setDrafts((prev) => prev.map((d, i) => (i === stage ? { ...d, imageUrl: image_url ?? '' } : d)))
+      setDrafts((prev) =>
+        prev.map((d, i) =>
+          i === stage ? { ...d, imageUrl: image_url ?? '' } : d
+        )
+      )
     } catch (e) {
       toast.error(t('character.admin.generateFailed'))
     }
   }
 
   return (
-    <main className='min-h-0 flex-1 overflow-y-auto'>
-      <div className='container mx-auto max-w-6xl space-y-6 py-8'>
-        <div className='flex flex-wrap items-center justify-between gap-3'>
-          <div>
-            <h1 className='text-2xl font-bold'>
-              {item ? t('character.admin.edit') : t('character.admin.create')}
-            </h1>
-            <p className='mt-1 text-sm text-muted-foreground'>
-              {item ? item.model_name : t('character.admin.create')}
-            </p>
-          </div>
-          <Button variant='outline' onClick={() => navigate({ to: '/character/admin' })}>
-            <ArrowLeft className='h-4 w-4' />
-            {t('character.admin.backToCharacters')}
-          </Button>
-        </div>
+    <SectionPageLayout>
+      <SectionPageLayout.Title>
+        {item ? t('character.admin.edit') : t('character.admin.create')}
+      </SectionPageLayout.Title>
+      <SectionPageLayout.Actions>
+        <Button
+          variant='outline'
+          onClick={() => navigate({ to: '/character/admin' })}
+        >
+          <ArrowLeft className='h-4 w-4' />
+          {t('character.admin.backToCharacters')}
+        </Button>
+      </SectionPageLayout.Actions>
+      <SectionPageLayout.Content>
+        <div className='space-y-6'>
+          <p className='text-muted-foreground text-sm'>
+            {item ? item.model_name : t('character.admin.create')}
+          </p>
 
-        <Card>
-          <CardContent className='space-y-4 pt-4'>
-            <div className='grid gap-4 sm:grid-cols-2'>
+          <Card>
+            <CardContent className='space-y-4 pt-4'>
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <div className='space-y-1.5'>
+                  <Label>{t('character.admin.modelName')}</Label>
+                  <Input
+                    value={form.model_name}
+                    disabled={!!item}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        model_name: e.target.value.trim(),
+                      }))
+                    }
+                    placeholder={t('character.admin.modelNamePlaceholder')}
+                  />
+                  <p className='text-muted-foreground text-xs'>
+                    {t('character.admin.modelNameHint')}
+                  </p>
+                </div>
+                <div className='space-y-1.5'>
+                  <Label>{t('character.admin.displayName')}</Label>
+                  <Input
+                    value={form.display_name}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        display_name: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label>{t('character.admin.roleTitle')}</Label>
+                  <Input
+                    value={form.title}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, title: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label>{t('character.admin.tags')}</Label>
+                  <Input
+                    value={form.tags}
+                    placeholder='推理系,中文原生'
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, tags: e.target.value }))
+                    }
+                  />
+                </div>
+              </div>
               <div className='space-y-1.5'>
-                <Label>{t('character.admin.modelName')}</Label>
-                <Input
-                  value={form.model_name}
-                  disabled={!!item}
+                <Label>{t('character.admin.description')}</Label>
+                <Textarea
+                  value={form.description}
                   onChange={(e) =>
                     setForm((prev) => ({
                       ...prev,
-                      model_name: e.target.value.trim(),
+                      description: e.target.value,
                     }))
                   }
-                  placeholder={t('character.admin.modelNamePlaceholder')}
                 />
-                <p className='text-xs text-muted-foreground'>
-                  {t('character.admin.modelNameHint')}
+              </div>
+              <div className='space-y-1.5'>
+                <Label>{t('character.admin.systemPrompt')}</Label>
+                <Textarea
+                  value={form.system_prompt}
+                  rows={4}
+                  placeholder={t('character.admin.systemPromptHint')}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      system_prompt: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className='space-y-1.5'>
+                <Label>{t('character.admin.defaultModel')}</Label>
+                <select
+                  value={form.default_model}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      default_model: e.target.value,
+                    }))
+                  }
+                  className='border-input focus-visible:border-ring flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs outline-none'
+                >
+                  <option value=''>
+                    {t('character.admin.defaultModelAuto')}
+                  </option>
+                  {defaultModelOptions.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+                <p className='text-muted-foreground text-xs'>
+                  {t('character.admin.defaultModelHint')}
                 </p>
               </div>
               <div className='space-y-1.5'>
-                <Label>{t('character.admin.displayName')}</Label>
+                <Label>{t('character.admin.affinityRequired')}</Label>
                 <Input
-                  value={form.display_name}
-                  onChange={(e) => setForm((prev) => ({ ...prev, display_name: e.target.value }))}
+                  type='number'
+                  min={0}
+                  max={100}
+                  value={form.affinity_required}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      affinity_required: Number(e.target.value),
+                    }))
+                  }
                 />
               </div>
-              <div className='space-y-1.5'>
-                <Label>{t('character.admin.roleTitle')}</Label>
-                <Input
-                  value={form.title}
-                  onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
-                />
-              </div>
-              <div className='space-y-1.5'>
-                <Label>{t('character.admin.tags')}</Label>
-                <Input
-                  value={form.tags}
-                  placeholder='推理系,中文原生'
-                  onChange={(e) => setForm((prev) => ({ ...prev, tags: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div className='space-y-1.5'>
-              <Label>{t('character.admin.description')}</Label>
-              <Textarea
-                value={form.description}
-                onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-              />
-            </div>
-            <div className='space-y-1.5'>
-              <Label>{t('character.admin.systemPrompt')}</Label>
-              <Textarea
-                value={form.system_prompt}
-                rows={4}
-                placeholder={t('character.admin.systemPromptHint')}
-                onChange={(e) => setForm((prev) => ({ ...prev, system_prompt: e.target.value }))}
-              />
-            </div>
-            <div className='space-y-1.5'>
-              <Label>{t('character.admin.defaultModel')}</Label>
-              <select
-                value={form.default_model}
-                onChange={(e) => setForm((prev) => ({ ...prev, default_model: e.target.value }))}
-                className='border-input bg-transparent flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring'
-              >
-                <option value=''>{t('character.admin.defaultModelAuto')}</option>
-                {defaultModelOptions.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-              <p className='text-muted-foreground text-xs'>
-                {t('character.admin.defaultModelHint')}
-              </p>
-            </div>
-            <div className='space-y-1.5'>
-              <Label>{t('character.admin.affinityRequired')}</Label>
-              <Input
-                type='number'
-                min={0}
-                max={100}
-                value={form.affinity_required}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, affinity_required: Number(e.target.value) }))
-                }
-              />
-            </div>
 
-            {drafts.map((stage, i) => (
-              <div key={i} className='rounded-lg border p-4'>
-                <div className='mb-3 flex items-center justify-between'>
-                  <span className='font-medium'>
-                    {t('character.admin.stage')} {i + 1} · {stage.name}
-                  </span>
-                  <div className='flex items-center gap-2'>
-                    <Button
-                      variant='outline'
-                      size='sm'
-                      disabled={!item || generating === i}
-                      onClick={() => onGenerate(i)}
-                    >
-                      {generating === i ? (
-                        <Loader2 className='h-4 w-4 animate-spin' />
-                      ) : (
-                        <Sparkles className='h-4 w-4' />
-                      )}
-                      {generating === i ? t('character.admin.generating') : t('character.admin.generate')}
-                    </Button>
-                    <Button
-                      variant='outline'
-                      size='sm'
-                      disabled={!item}
-                      onClick={() => fileRefs.current[i]?.click()}
-                    >
-                      <Upload className='h-4 w-4' />
-                      {t('character.admin.upload')}
-                    </Button>
-                    <input
-                      ref={(el) => {
-                        fileRefs.current[i] = el
-                      }}
-                      type='file'
-                      accept='image/*'
-                      className='hidden'
-                      onChange={(e) => onUpload(i, e.target.files?.[0])}
-                    />
-                  </div>
-                </div>
-                <div className='grid gap-4 sm:grid-cols-[160px_1fr]'>
-                  <div className='aspect-[3/4] overflow-hidden rounded-md border bg-muted'>
-                    {stage.imageUrl ? (
-                      <img src={stage.imageUrl} alt={stage.name} className='h-full w-full object-cover' />
-                    ) : (
-                      <div className='flex h-full items-center justify-center text-xs text-muted-foreground'>
-                        {t('character.admin.noImage')}
-                      </div>
-                    )}
-                  </div>
-                  <div className='space-y-3'>
+              {drafts.map((stage, i) => (
+                <div key={i} className='rounded-lg border p-4'>
+                  <div className='mb-3 flex items-center justify-between'>
+                    <span className='font-medium'>
+                      {t('character.admin.stage')} {i + 1} · {stage.name}
+                    </span>
                     <div className='flex items-center gap-2'>
-                      <Label className='whitespace-nowrap'>{t('character.admin.unlockTokens')}</Label>
-                      <Input
-                        type='number'
-                        value={stage.unlockTokens}
-                        onChange={(e) =>
-                          setDrafts((prev) =>
-                            prev.map((d, idx) =>
-                              idx === i ? { ...d, unlockTokens: Number(e.target.value) } : d
-                            )
-                          )
-                        }
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        disabled={!item || generating === i}
+                        onClick={() => onGenerate(i)}
+                      >
+                        {generating === i ? (
+                          <Loader2 className='h-4 w-4 animate-spin' />
+                        ) : (
+                          <Sparkles className='h-4 w-4' />
+                        )}
+                        {generating === i
+                          ? t('character.admin.generating')
+                          : t('character.admin.generate')}
+                      </Button>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        disabled={!item}
+                        onClick={() => fileRefs.current[i]?.click()}
+                      >
+                        <Upload className='h-4 w-4' />
+                        {t('character.admin.upload')}
+                      </Button>
+                      <input
+                        ref={(el) => {
+                          fileRefs.current[i] = el
+                        }}
+                        type='file'
+                        accept='image/*'
+                        className='hidden'
+                        onChange={(e) => onUpload(i, e.target.files?.[0])}
                       />
                     </div>
-                    <div className='flex items-center gap-2'>
-                      <Label className='whitespace-nowrap'>{t('character.admin.affinityRequired')}</Label>
-                      <Input
-                        type='number'
-                        min={0}
-                        max={100}
-                        value={stage.affinityRequired}
-                        onChange={(e) =>
-                          setDrafts((prev) =>
-                            prev.map((d, idx) =>
-                              idx === i ? { ...d, affinityRequired: Number(e.target.value) } : d
-                            )
-                          )
-                        }
-                      />
+                  </div>
+                  <div className='grid gap-4 sm:grid-cols-[160px_1fr]'>
+                    <div className='bg-muted aspect-[3/4] overflow-hidden rounded-md border'>
+                      {stage.imageUrl ? (
+                        <img
+                          src={stage.imageUrl}
+                          alt={stage.name}
+                          className='h-full w-full object-cover'
+                        />
+                      ) : (
+                        <div className='text-muted-foreground flex h-full items-center justify-center text-xs'>
+                          {t('character.admin.noImage')}
+                        </div>
+                      )}
                     </div>
                     <div className='space-y-3'>
-                      <StoryAssetsEditor
-                        characterId={item?.id ?? 0}
-                        stageIndex={i}
-                        backgroundUrl={stage.backgroundUrl}
-                        defaultEffect={stage.defaultEffect}
-                        poses={stage.poses}
-                        generating={assetsGenerating}
-                        onGeneratingChange={setAssetsGenerating}
-                        onChange={(patch) =>
-                          setDrafts((prev) =>
-                            prev.map((d, idx) => (idx === i ? { ...d, ...patch } : d))
-                          )
-                        }
-                      />
-                      <div className='space-y-1.5'>
-                        <Label>{t('character.admin.script')}</Label>
-                        {stage.script.map((line, li) => (
-                          <ScriptLineEditor
-                            key={li}
-                            index={li}
-                            line={line}
-                            poseNames={stage.poses.map((p) => p.name.trim()).filter(Boolean)}
-                            backgroundNames={backgroundLibrary.map((b) => b.name.trim()).filter(Boolean)}
-                            onChange={(patch) =>
+                      <div className='flex items-center gap-2'>
+                        <Label className='whitespace-nowrap'>
+                          {t('character.admin.unlockTokens')}
+                        </Label>
+                        <Input
+                          type='number'
+                          value={stage.unlockTokens}
+                          onChange={(e) =>
+                            setDrafts((prev) =>
+                              prev.map((d, idx) =>
+                                idx === i
+                                  ? {
+                                      ...d,
+                                      unlockTokens: Number(e.target.value),
+                                    }
+                                  : d
+                              )
+                            )
+                          }
+                        />
+                      </div>
+                      <div className='flex items-center gap-2'>
+                        <Label className='whitespace-nowrap'>
+                          {t('character.admin.affinityRequired')}
+                        </Label>
+                        <Input
+                          type='number'
+                          min={0}
+                          max={100}
+                          value={stage.affinityRequired}
+                          onChange={(e) =>
+                            setDrafts((prev) =>
+                              prev.map((d, idx) =>
+                                idx === i
+                                  ? {
+                                      ...d,
+                                      affinityRequired: Number(e.target.value),
+                                    }
+                                  : d
+                              )
+                            )
+                          }
+                        />
+                      </div>
+                      <div className='space-y-3'>
+                        <StoryAssetsEditor
+                          characterId={item?.id ?? 0}
+                          stageIndex={i}
+                          backgroundUrl={stage.backgroundUrl}
+                          defaultEffect={stage.defaultEffect}
+                          poses={stage.poses}
+                          generating={assetsGenerating}
+                          onGeneratingChange={setAssetsGenerating}
+                          onChange={(patch) =>
+                            setDrafts((prev) =>
+                              prev.map((d, idx) =>
+                                idx === i ? { ...d, ...patch } : d
+                              )
+                            )
+                          }
+                        />
+                        <div className='space-y-1.5'>
+                          <Label>{t('character.admin.script')}</Label>
+                          {stage.script.map((line, li) => (
+                            <ScriptLineEditor
+                              key={li}
+                              index={li}
+                              line={line}
+                              poseNames={stage.poses
+                                .map((p) => p.name.trim())
+                                .filter(Boolean)}
+                              backgroundNames={backgroundLibrary
+                                .map((b) => b.name.trim())
+                                .filter(Boolean)}
+                              onChange={(patch) =>
+                                setDrafts((prev) =>
+                                  prev.map((d, idx) =>
+                                    idx === i
+                                      ? {
+                                          ...d,
+                                          script: d.script.map((s, si) =>
+                                            si === li ? { ...s, ...patch } : s
+                                          ),
+                                        }
+                                      : d
+                                  )
+                                )
+                              }
+                              onRemove={() =>
+                                setDrafts((prev) =>
+                                  prev.map((d, idx) =>
+                                    idx === i
+                                      ? {
+                                          ...d,
+                                          script: d.script.filter(
+                                            (_, si) => si !== li
+                                          ),
+                                        }
+                                      : d
+                                  )
+                                )
+                              }
+                            />
+                          ))}
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            onClick={() =>
                               setDrafts((prev) =>
                                 prev.map((d, idx) =>
                                   idx === i
                                     ? {
                                         ...d,
-                                        script: d.script.map((s, si) =>
-                                          si === li ? { ...s, ...patch } : s
-                                        ),
+                                        script: [
+                                          ...d.script,
+                                          emptyScriptLine(),
+                                        ],
                                       }
                                     : d
                                 )
                               )
                             }
-                            onRemove={() =>
-                              setDrafts((prev) =>
-                                prev.map((d, idx) =>
-                                  idx === i
-                                    ? { ...d, script: d.script.filter((_, si) => si !== li) }
-                                    : d
-                                )
-                              )
-                            }
-                          />
-                        ))}
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          onClick={() =>
-                            setDrafts((prev) =>
-                              prev.map((d, idx) =>
-                                idx === i
-                                  ? { ...d, script: [...d.script, emptyScriptLine()] }
-                                  : d
-                              )
-                            )
-                          }
-                        >
-                          <Plus className='h-4 w-4' />
-                          {t('character.admin.addLine')}
-                        </Button>
+                          >
+                            <Plus className='h-4 w-4' />
+                            {t('character.admin.addLine')}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
 
-            <div className='flex justify-end gap-2'>
-              <Button variant='outline' onClick={() => navigate({ to: '/character/admin' })}>
-                {t('common.cancel')}
-              </Button>
-              <Button onClick={save}>{t('common.save')}</Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </main>
+              <div className='flex justify-end gap-2'>
+                <Button
+                  variant='outline'
+                  onClick={() => navigate({ to: '/character/admin' })}
+                >
+                  {t('common.cancel')}
+                </Button>
+                <Button onClick={save}>{t('common.save')}</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </SectionPageLayout.Content>
+    </SectionPageLayout>
   )
 }

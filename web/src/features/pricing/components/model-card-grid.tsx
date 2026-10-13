@@ -21,16 +21,16 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { CharacterView } from '@/features/character/types'
 import { Button } from '@/components/ui/button'
+import type { CharacterView } from '@/features/character/types'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { DEFAULT_PRICING_PAGE_SIZE, DEFAULT_TOKEN_UNIT } from '../constants'
+import type { ScoreDimension } from '../lib/scores'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelCard } from './model-card'
 import type { ModelPerfBadgeData } from './model-perf-badge'
-import type { ScoreDimension } from '../lib/scores'
 
 export interface ModelCardGridProps {
   models: PricingModel[]
@@ -42,6 +42,7 @@ export interface ModelCardGridProps {
   selectedGroup?: string
   characterMap?: ReadonlyMap<string, CharacterView>
   dimension?: ScoreDimension
+  onDimensionChange?: (dim: ScoreDimension) => void
 }
 
 const EMPTY_CHARACTER_MAP = new Map<string, CharacterView>()
@@ -114,6 +115,7 @@ export const ModelCardGrid = memo(function ModelCardGrid(
             perf={perfMap.get(model.model_name || '')}
             character={characterMap.get(model.model_name || '')}
             dimension={props.dimension}
+            onDimensionChange={props.onDimensionChange}
             onClick={props.onModelClick}
           />
         ))}

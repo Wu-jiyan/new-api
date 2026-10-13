@@ -40,6 +40,7 @@ This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI pro
 - Translation files: `web/src/i18n/locales/{lang}.json` — flat JSON, keys are English source strings
 - Usage: `useTranslation()` hook, call `t('English key')` in components
 - CLI tools: `bun run i18n:sync` (from `web/`)
+- **Never round-trip locale files through `JSON.parse`/`JSON.stringify`:** some keys store protected identifiers with `\uXXXX` escapes so they do not appear in plain text, and re-serializing silently rewrites those escapes. Add or remove keys by editing the raw lines, leaving every other byte untouched, and re-check `git diff` shows only the intended lines.
 
 ## Rules
 
@@ -50,6 +51,8 @@ This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI pro
 - Avoid adding package-level or module-level helper functions that have only one caller and do not express a stable business concept. Inline that logic at the call site instead.
 - A separate function is appropriate when it represents reusable behavior, a required interface/framework callback, an exported API, a test fixture, or complex business logic that deserves direct tests.
 - If a single-use helper is kept, its name must describe a durable domain concept rather than a mechanical step extracted only to shorten the caller.
+
+- **Calibrate derived constants against real data, never by intuition:** thresholds, cut-offs, weights and score buckets taken from an external data source (a leaderboard, an API, a distribution) MUST be derived by sampling that source and checking the resulting bucket distribution. State the sample size and the date in a comment. Add a regression test that bounds the constant against the measured range, so a wrong assumption fails loudly instead of silently producing an unusable bucket (e.g. a top tier that no row can ever reach, or half the catalogue in the top tier).
 
 ### Authentication Security (OWASP Mandatory)
 
@@ -161,6 +164,9 @@ Tasks that touch none of these (for example unrelated frontend work, authenticat
 - **Reuse existing UI components first (mandatory):** Before implementing or changing frontend UI, read `web/AGENTS.md` and the project `shadcn-ui` skill, search `web/src/components/` and the relevant feature for existing components, and read matching implementations and call sites. Do not start from custom markup or registry installation without checking the repository first.
 - Prefer the project's shared business components over lower-level UI primitives when they cover the use case. Evaluate existing props, composition, and a compatible extension before introducing a replacement. Importing `Button` or `AlertDialog` does not satisfy this rule if the same behavior is already provided by a shared component such as `CopyButton` or `ConfirmDialog`.
 - New implementations of common UI behavior require a concrete capability gap: identify the existing candidates and explain why reuse, composition, or a compatible extension is unsuitable in the change summary or PR description. Different text, dimensions, colors, or feature location alone do not justify duplication. Feature components may compose shared components with business data and actions. Follow the reuse workflow and component entry points in `web/AGENTS.md`; generic library or registry guidance does not override this project-specific priority.
+- **Page shells (mandatory):** Use `SectionPageLayout` from `@/components/layout` for section pages; do not hand-roll `<main className='min-h-0 flex-1 overflow-y-auto'>` with a `container mx-auto max-w-*` wrapper. That pattern yields a different title treatment, padding and footer than the rest of the app. Because the outer `Main` is `overflow-hidden`, every branch a page renders — loading skeleton, empty state, error state and loaded content — MUST live inside `SectionPageLayout.Content`, the only scrollable region. Content placed outside it is unreachable on a phone. Add a regression test asserting the page body is contained in the layout's scroll region.
+- **Base UI `Select` requires `items` (mandatory):** `Select` is `SelectPrimitive.Root`, and `SelectValue` resolves the selected label from the Root's `items` prop. A self-closing `<SelectValue placeholder=... />` on a `Select` without `items` renders an EMPTY trigger, so the control shows nothing and the operator cannot tell which option is active. Pass `items={[{ value, label }]}` matching the rendered `SelectItem` list, as the existing settings pages do.
+- **User choice must beat a server-configured default:** when a URL-backed filter has an operator-configured default, an explicit user selection MUST be written to the URL even when it equals the default value. Never map the selected value to `undefined` as a shorthand for "default", because `undefined` is indistinguishable from "never chosen" and the selection silently snaps back to the configured default. Test the case where the configured default differs from what the user picks.
 - Use `bun` as the preferred package manager and script runner for the frontend (`web/`):
   - `bun install` for dependency installation
   - `bun run dev` for development server

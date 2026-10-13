@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ArrowUpDown, Check, Filter, Gauge } from 'lucide-react'
+import { ArrowUpDown, Check, Filter, Gauge, Search } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -30,9 +30,11 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -51,6 +53,11 @@ import {
   type SortOption,
   type ViewMode,
 } from '../constants'
+import {
+  parseSearchScopes,
+  SEARCH_SCOPES,
+  type SearchScope,
+} from '../lib/filters'
 import type { ScoreDimension } from '../lib/scores'
 import type { PricingModel, PricingVendor, TokenUnit } from '../types'
 import { PricingSidebar } from './pricing-sidebar'
@@ -58,6 +65,9 @@ import { PricingSidebar } from './pricing-sidebar'
 export interface PricingToolbarProps {
   filteredCount: number
   totalCount?: number
+  /** Fields the search box matches; defaults to model name only */
+  searchScopes?: string[]
+  onSearchScopesChange?: (value: string[]) => void
   sortBy: string
   onSortChange: (value: string) => void
   /** Score dimension driving score sorting, tier badges and the tier filter */
@@ -89,6 +99,70 @@ export interface PricingToolbarProps {
   hasActiveFilters: boolean
   activeFilterCount: number
   onClearFilters: () => void
+}
+
+type PricingSearchScopeSelectProps = Pick<
+  PricingToolbarProps,
+  'searchScopes' | 'onSearchScopesChange'
+>
+
+/**
+ * 选择搜索命中的字段，默认只有模型名，避免描述、标签与供应商名带来的误导结果。
+ */
+function PricingSearchScopeSelect(props: PricingSearchScopeSelectProps) {
+  const { t } = useTranslation()
+  const scopeLabels: Record<SearchScope, string> = {
+    name: t('Search model name'),
+    description: t('Search description'),
+    tags: t('Search tags'),
+    vendor: t('Search vendor'),
+  }
+  const selectedScopes = parseSearchScopes(props.searchScopes)
+  // 触发按钮直接回显当前生效的范围，否则用户只能打开菜单才知道搜的是哪些字段。
+  const scopeSummary =
+    selectedScopes.length === 1
+      ? scopeLabels[selectedScopes[0]]
+      : t('Search scope · {{count}} fields', { count: selectedScopes.length })
+
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            // 可见文本回显当前生效的范围，按钮本身仍需有稳定的无障碍名称。
+            aria-label={t('Search scope')}
+            className='h-8 gap-1.5 px-3 text-xs'
+          />
+        }
+      >
+        <Search className='size-3.5' />
+        <span className='max-w-32 truncate'>{scopeSummary}</span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end' className='w-52'>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{t('Search scope')}</DropdownMenuLabel>
+          {SEARCH_SCOPES.map((scope) => (
+            <DropdownMenuCheckboxItem
+              key={scope}
+              checked={selectedScopes.includes(scope)}
+              onCheckedChange={(checked) => {
+                const next = checked
+                  ? [...selectedScopes, scope]
+                  : selectedScopes.filter((item) => item !== scope)
+                // 至少保留一个范围，否则搜索结果无法解释。
+                props.onSearchScopesChange?.(parseSearchScopes(next))
+              }}
+            >
+              {scopeLabels[scope]}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 }
 
 export function PricingToolbar(props: PricingToolbarProps) {
@@ -132,6 +206,10 @@ export function PricingToolbar(props: PricingToolbarProps) {
         </div>
 
         <div className='flex min-w-0 flex-wrap items-center gap-2'>
+          <PricingSearchScopeSelect
+            searchScopes={props.searchScopes}
+            onSearchScopesChange={props.onSearchScopesChange}
+          />
           <ToggleGroup
             value={[props.showRechargePrice ? 'recharge' : 'standard']}
             onValueChange={(values) => {
@@ -238,6 +316,10 @@ export function PricingToolbar(props: PricingToolbarProps) {
             onChange={props.onViewModeChange}
           />
         </div>
+        {/* 分数块本身即交互入口，这里统一给出一次提示，避免每张卡片重复。 */}
+        <p className='text-muted-foreground/70 text-xs'>
+          {t('Click a score to switch dimension')}
+        </p>
       </div>
 
       <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>

@@ -41,7 +41,16 @@ let ratings: ModelRatingItem[] = []
 let ratingReads = 0
 
 function mockGet() {
-  return vi.spyOn(api, 'get').mockImplementation(async () => {
+  return vi.spyOn(api, 'get').mockImplementation(async (url) => {
+    if (url === '/api/admin/model-rating/square-defaults') {
+      return {
+        data: {
+          success: true,
+          data: { sort: 'score-high', dimension: 'aa_intelligence' },
+          sorts: ['name', 'price-low', 'price-high', 'score-high'],
+        },
+      }
+    }
     ratingReads++
     return {
       data: {
@@ -55,7 +64,12 @@ function mockGet() {
           aa_agentic: aaThresholds,
         },
         deepswe: { last_sync_at: 0, last_sync_num: 0 },
-        aa: { last_sync_at: 0, last_sync_num: 0, api_key_set: false, last_error: '' },
+        aa: {
+          last_sync_at: 0,
+          last_sync_num: 0,
+          api_key_set: false,
+          last_error: '',
+        },
       },
     }
   })
@@ -192,7 +206,9 @@ describe('model rating dimensions', () => {
     const success = vi.spyOn(toast, 'success')
     await openPage()
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Save thresholds' }))
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Save thresholds' })
+    )
 
     await waitFor(() =>
       expect(put).toHaveBeenCalledWith('/api/admin/model-rating/thresholds', {
@@ -222,7 +238,9 @@ describe('model rating dimensions', () => {
     mockGet()
     const user = await openPage()
 
-    await user.click(await screen.findByRole('tab', { name: 'AA Intelligence' }))
+    await user.click(
+      await screen.findByRole('tab', { name: 'AA Intelligence' })
+    )
 
     // 55 落在 AA 综合阈值 [50,60) -> SSR；同一分数若用 DeepSWE 阈值会是 UR
     expect(await screen.findByText('SSR')).toBeVisible()
@@ -262,5 +280,22 @@ describe('model rating page layout', () => {
     const tablist = await screen.findByRole('tablist')
     expect(tablist.className).toContain('flex-wrap')
     expect(tablist.className).toContain('max-w-full')
+  })
+
+  it('shows the configured default sort as a translated label, not a raw value', async () => {
+    ratings = [
+      { id: 1, model_name: 'rating-model-a', rating: 'SSR', rating_score: 60 },
+    ]
+    mockGet()
+    const user = await openPage()
+
+    await user.click(await screen.findByRole('tab', { name: 'Settings' }))
+
+    const trigger = await screen.findByLabelText('Default sort')
+    expect(trigger).toHaveTextContent('Score: High to Low')
+    expect(trigger).not.toHaveTextContent('score-high')
+
+    const dimension = await screen.findByLabelText('Default score dimension')
+    expect(dimension).toHaveTextContent('AA Intelligence')
   })
 })

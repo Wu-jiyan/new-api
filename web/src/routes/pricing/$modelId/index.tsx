@@ -34,6 +34,11 @@ const modelDetailsSearchSchema = z.object({
   tokenUnit: z.enum(['M', 'K']).optional(),
   view: z.enum(['card', 'table']).optional().catch(undefined),
   rechargePrice: z.boolean().optional(),
+  // 详情页可直接分享「当前看的是哪个评分维度」的链接；缺省时用后台配置的默认维度。
+  dimension: z
+    .enum(['deepswe', 'aa_intelligence', 'aa_coding', 'aa_agentic'])
+    .optional()
+    .catch(undefined),
 })
 
 export const Route = createFileRoute('/pricing/$modelId/')({

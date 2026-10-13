@@ -23,7 +23,10 @@ export default function ModelRatingPage() {
   const [thresholds, setThresholds] = useState<
     Partial<Record<RatingDimension, typeof EMPTY_THRESHOLDS>>
   >({})
-  const [deepsweSync, setDeepSweSync] = useState({ last_sync_at: 0, last_sync_num: 0 })
+  const [deepsweSync, setDeepSweSync] = useState({
+    last_sync_at: 0,
+    last_sync_num: 0,
+  })
   const [aaStatus, setAaStatus] = useState({
     last_sync_at: 0,
     last_sync_num: 0,
@@ -68,7 +71,7 @@ export default function ModelRatingPage() {
       <SectionPageLayout.Title>{t('Model Rating')}</SectionPageLayout.Title>
       <SectionPageLayout.Content>
         <div className='space-y-4'>
-          <p className='text-sm text-muted-foreground'>
+          <p className='text-muted-foreground text-sm'>
             {t(
               'Score models across four independent dimensions. Each dimension syncs from its own source, keeps its own thresholds, and manual entries are never overwritten.'
             )}

@@ -25,6 +25,8 @@ import { useAuthStore } from '@/stores/auth-store'
 
 const pricingSearchSchema = z.object({
   search: z.string().optional(),
+  /** 逗号分隔的可搜索字段，例如 `name,description`；缺省时只搜索模型名 */
+  searchScope: z.string().optional(),
   sort: z.string().optional(),
   vendor: z.string().optional(),
   group: z.string().optional(),

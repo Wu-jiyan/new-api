@@ -42,13 +42,17 @@ import {
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
-import { DEFAULT_SCORE_DIMENSION, tierForDimension, type ScoreDimension } from '../lib/scores'
+import {
+  DEFAULT_SCORE_DIMENSION,
+  tierForDimension,
+  type ScoreDimension,
+} from '../lib/scores'
 import { taskPriceLabel, taskUsageUnitLabel } from '../lib/task-price-display'
 import type { PricingModel, PriceType, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
-import { RatingBadge } from './rating-badge'
 import { ModelScores } from './model-scores'
+import { RatingBadge } from './rating-badge'
 
 export interface ModelCardProps {
   model: PricingModel
@@ -62,6 +66,8 @@ export interface ModelCardProps {
   character?: CharacterView
   /** Selected score dimension: drives the tier badge and highlights one score */
   dimension?: ScoreDimension
+  /** Enables the score row as dimension switch buttons inside the card */
+  onDimensionChange?: (dim: ScoreDimension) => void
 }
 
 export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
@@ -88,9 +94,9 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const stage0Silhouette = character?.stages?.[0]?.silhouette_url
   const showPortrait = Boolean(
     character &&
-      character.max_stage >= 0 &&
-      character.total_calls >= 1 &&
-      stage0Image
+    character.max_stage >= 0 &&
+    character.total_calls >= 1 &&
+    stage0Image
   )
   const showSilhouette = Boolean(character && !showPortrait)
   const portraitUrl = showPortrait
@@ -309,12 +315,13 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             alt=''
             className='absolute inset-y-0 right-0 h-full w-2/5 object-cover object-top opacity-70'
             style={{
-              maskImage: 'linear-gradient(to left, black 30%, transparent 100%)',
+              maskImage:
+                'linear-gradient(to left, black 30%, transparent 100%)',
               WebkitMaskImage:
                 'linear-gradient(to left, black 30%, transparent 100%)',
             }}
           />
-          <div className='absolute inset-0 bg-gradient-to-r from-background/95 via-background/70 to-transparent' />
+          <div className='from-background/95 via-background/70 absolute inset-0 bg-gradient-to-r to-transparent' />
         </div>
       )}
       {showSilhouette && (
@@ -332,7 +339,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                     'linear-gradient(to left, black 30%, transparent 100%)',
                 }}
               />
-              <div className='absolute inset-0 bg-gradient-to-r from-background/95 via-background/70 to-transparent' />
+              <div className='from-background/95 via-background/70 absolute inset-0 bg-gradient-to-r to-transparent' />
             </>
           ) : (
             <div className='absolute inset-0 flex items-end justify-end p-3'>
@@ -349,7 +356,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               </div>
             </div>
           )}
-          <div className='text-muted-foreground absolute right-2 bottom-2 flex items-center gap-1 rounded-full border bg-background/70 px-2 py-0.5 text-[11px]'>
+          <div className='text-muted-foreground bg-background/70 absolute right-2 bottom-2 flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]'>
             <Lock className='h-3 w-3' />
             {t('character.unlockHint')}
           </div>
@@ -400,6 +407,9 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         <ModelScores
           model={props.model}
           dimension={dimension}
+          onDimensionChange={props.onDimensionChange}
+          // 每张卡片都重复一次提示会淹没信息，提示由工具栏统一出现一次。
+          showHint={false}
           className='border-border/60 rounded-md border px-2 py-1.5'
         />
         <div className='flex min-w-0 flex-col gap-1.5'>

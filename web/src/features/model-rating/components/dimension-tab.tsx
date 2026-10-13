@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
 import { RefreshCw, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -19,7 +19,11 @@ import {
   syncDeepSweRatings,
   updateRatingThresholds,
 } from '../api'
-import { AA_SCORE_FIELDS, DIMENSION_META, RATINGS_PAGE_SIZE } from '../constants'
+import {
+  AA_SCORE_FIELDS,
+  DIMENSION_META,
+  RATINGS_PAGE_SIZE,
+} from '../constants'
 import type {
   ModelRatingItem,
   RatingDimension,
@@ -37,7 +41,10 @@ function ratingForScore(score: number, thresholds: RatingThresholds): string {
   return 'N'
 }
 
-const AA_FIELD_TO_DIMENSION: Record<(typeof AA_SCORE_FIELDS)[number], RatingDimension> = {
+const AA_FIELD_TO_DIMENSION: Record<
+  (typeof AA_SCORE_FIELDS)[number],
+  RatingDimension
+> = {
   aa_intelligence_score: 'aa_intelligence',
   aa_coding_score: 'aa_coding',
   aa_agentic_score: 'aa_agentic',
@@ -64,7 +71,9 @@ function ThresholdsCard(props: {
       props.onSaved()
       toast.success(
         retiered > 0
-          ? t('Thresholds updated, retiered {{count}} models', { count: retiered })
+          ? t('Thresholds updated, retiered {{count}} models', {
+              count: retiered,
+            })
           : t('Thresholds updated')
       )
     } catch (error) {
@@ -74,7 +83,12 @@ function ThresholdsCard(props: {
     }
   }
 
-  const invalid = !(draft.ur > draft.ssr && draft.ssr > draft.sr && draft.sr > draft.r && draft.r >= 0)
+  const invalid = !(
+    draft.ur > draft.ssr &&
+    draft.ssr > draft.sr &&
+    draft.sr > draft.r &&
+    draft.r >= 0
+  )
 
   return (
     <Card className='p-4'>
@@ -87,17 +101,26 @@ function ThresholdsCard(props: {
               className='h-7 w-16'
               type='number'
               value={draft[key]}
-              onChange={(e) => setDraft({ ...draft, [key]: Number(e.target.value) })}
+              onChange={(e) =>
+                setDraft({ ...draft, [key]: Number(e.target.value) })
+              }
             />
           </label>
         ))}
-        <Button size='sm' variant='outline' disabled={saving || invalid} onClick={() => void save()}>
+        <Button
+          size='sm'
+          variant='outline'
+          disabled={saving || invalid}
+          onClick={() => void save()}
+        >
           {t('Save thresholds')}
         </Button>
         <span className='text-muted-foreground'>
           {props.dimension === 'deepswe'
             ? t('Saving retiers every DeepSWE model by the new thresholds')
-            : t('Tier is derived on read, so new thresholds take effect immediately')}
+            : t(
+                'Tier is derived on read, so new thresholds take effect immediately'
+              )}
         </span>
       </div>
     </Card>
@@ -119,10 +142,17 @@ function ScoreRow(props: {
 
   const score = edited ?? stored
   const dirty = score !== stored
-  const displayRating = score > 0 ? ratingForScore(score, props.thresholds) : (props.item.rating ?? '')
+  const displayRating =
+    score > 0
+      ? ratingForScore(score, props.thresholds)
+      : (props.item.rating ?? '')
   const isManual =
-    meta.source === 'deepswe' ? props.item.rating_source === 'manual' : props.item.aa_source === 'manual'
-  const otherFields = AA_SCORE_FIELDS.filter((field) => field !== meta.scoreField)
+    meta.source === 'deepswe'
+      ? props.item.rating_source === 'manual'
+      : props.item.aa_source === 'manual'
+  const otherFields = AA_SCORE_FIELDS.filter(
+    (field) => field !== meta.scoreField
+  )
 
   async function saveScore(next: number) {
     setSaving(true)
@@ -146,7 +176,7 @@ function ScoreRow(props: {
         {/* AA 三维度来自同一次同步，后端按三个维度整体写入，因此另两个维度只读展示。 */}
         {meta.source === 'aa' &&
           otherFields.map((field) => (
-            <span key={field} className='text-xs text-muted-foreground'>
+            <span key={field} className='text-muted-foreground text-xs'>
               {DIMENSION_META[AA_FIELD_TO_DIMENSION[field]].label}:{' '}
               {formatNumber(props.item[field] ?? 0, props.locale)}
             </span>
@@ -165,7 +195,7 @@ function ScoreRow(props: {
             placeholder={t('Score')}
             onChange={(e) => setEdited(Number(e.target.value))}
           />
-          <span className='absolute top-1/2 right-2 -translate-y-1/2 text-[10px] text-muted-foreground'>
+          <span className='text-muted-foreground absolute top-1/2 right-2 -translate-y-1/2 text-[10px]'>
             %
           </span>
         </div>
@@ -182,7 +212,7 @@ function ScoreRow(props: {
           <Button
             size='sm'
             variant='ghost'
-            className='h-7 px-2 text-muted-foreground hover:text-destructive'
+            className='text-muted-foreground hover:text-destructive h-7 px-2'
             disabled={saving}
             onClick={() => {
               setEdited(0)
@@ -225,7 +255,7 @@ export function DimensionTab(props: {
   if (isDeepSwe) {
     const lastSyncAt = props.deepsweSync.last_sync_at
     syncStatusCard = (
-      <Card className='p-4 text-xs text-muted-foreground'>
+      <Card className='text-muted-foreground p-4 text-xs'>
         {lastSyncAt > 0
           ? t('Last sync: {{time}} · updated {{count}}', {
               time: new Date(lastSyncAt * 1000).toLocaleString(locale),
@@ -237,7 +267,9 @@ export function DimensionTab(props: {
   } else if (!props.aaKeySet) {
     syncStatusCard = (
       <Card className='border-primary/30 bg-primary/5 p-4 text-sm'>
-        {t('Artificial Analysis API key is not configured yet. Add it in Settings to enable sync.')}
+        {t(
+          'Artificial Analysis API key is not configured yet. Add it in Settings to enable sync.'
+        )}
       </Card>
     )
   }
@@ -257,7 +289,9 @@ export function DimensionTab(props: {
           score: 'rating_score' in m ? m.rating_score : m.aa_coding_score,
         })),
       })
-      toast.success(t('Sync completed, updated {{count}} models', { count: res.updated }))
+      toast.success(
+        t('Sync completed, updated {{count}} models', { count: res.updated })
+      )
       props.onReload()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('Sync failed'))
@@ -321,10 +355,18 @@ export function DimensionTab(props: {
             disabled={props.items.length === 0 || resetting}
             onClick={() => void resetCurrentPage()}
           >
-            <Trash2 className='mr-1.5 size-4' /> {t('Clear ratings on this page')}
+            <Trash2 className='mr-1.5 size-4' />{' '}
+            {t('Clear ratings on this page')}
           </Button>
-          <Button size='sm' variant='outline' disabled={syncing} onClick={() => void doSync()}>
-            <RefreshCw className={`mr-1.5 size-4 ${syncing ? 'animate-spin' : ''}`} />
+          <Button
+            size='sm'
+            variant='outline'
+            disabled={syncing}
+            onClick={() => void doSync()}
+          >
+            <RefreshCw
+              className={`mr-1.5 size-4 ${syncing ? 'animate-spin' : ''}`}
+            />
             {t('Sync {{source}}', { source: meta.label })}
           </Button>
         </div>
@@ -342,22 +384,42 @@ export function DimensionTab(props: {
         <Card className='border-primary/30 bg-primary/5 p-4'>
           <div className='flex items-center justify-between gap-2 text-sm'>
             <span className='font-semibold'>{t('Sync result')}</span>
-            <Button size='sm' variant='ghost' className='h-6 px-2' onClick={() => setSyncResult(null)}>
+            <Button
+              size='sm'
+              variant='ghost'
+              className='h-6 px-2'
+              onClick={() => setSyncResult(null)}
+            >
               {t('Close')}
             </Button>
           </div>
-          <div className='mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground'>
-            <span className='text-green-600'>{t('Updated {{count}}', { count: syncResult.updated })}</span>
-            <span>{t('Unchanged {{count}}', { count: syncResult.unchanged })}</span>
-            <span>{t('Unmatched {{count}}', { count: syncResult.unmatched })}</span>
-            <span>{t('Manual skipped {{count}}', { count: syncResult.skippedManual })}</span>
+          <div className='text-muted-foreground mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs'>
+            <span className='text-green-600'>
+              {t('Updated {{count}}', { count: syncResult.updated })}
+            </span>
+            <span>
+              {t('Unchanged {{count}}', { count: syncResult.unchanged })}
+            </span>
+            <span>
+              {t('Unmatched {{count}}', { count: syncResult.unmatched })}
+            </span>
+            <span>
+              {t('Manual skipped {{count}}', {
+                count: syncResult.skippedManual,
+              })}
+            </span>
           </div>
           {syncResult.models.length > 0 && (
             <div className='mt-2 max-h-32 space-y-1 overflow-y-auto'>
               {syncResult.models.map((m) => (
-                <div key={m.modelName} className='flex items-center gap-2 text-xs'>
-                  <span className='min-w-0 flex-1 truncate font-mono'>{m.modelName}</span>
-                  <span className='shrink-0 text-muted-foreground'>
+                <div
+                  key={m.modelName}
+                  className='flex items-center gap-2 text-xs'
+                >
+                  <span className='min-w-0 flex-1 truncate font-mono'>
+                    {m.modelName}
+                  </span>
+                  <span className='text-muted-foreground shrink-0'>
                     {formatNumber(m.score, locale)}%
                   </span>
                 </div>
@@ -368,14 +430,19 @@ export function DimensionTab(props: {
       )}
 
       <div className='space-y-1.5'>
-        <div className='flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-muted-foreground'>
+        <div className='text-muted-foreground flex flex-wrap items-center justify-between gap-2 px-1 text-xs'>
           <span>
             {t('{{count}} models total', { count: props.total })} ·{' '}
             {t('rated on this page {{count}}', {
-              count: props.items.filter((m) => (m[meta.scoreField] ?? 0) > 0).length,
+              count: props.items.filter((m) => (m[meta.scoreField] ?? 0) > 0)
+                .length,
             })}
           </span>
-          <span>{t('Tier cannot be edited directly; it is computed from score and thresholds')}</span>
+          <span>
+            {t(
+              'Tier cannot be edited directly; it is computed from score and thresholds'
+            )}
+          </span>
         </div>
         {props.items.map((item) => (
           <ScoreRow
@@ -388,12 +455,17 @@ export function DimensionTab(props: {
           />
         ))}
         {props.items.length === 0 && (
-          <p className='py-10 text-center text-sm text-muted-foreground'>{t('No models')}</p>
+          <p className='text-muted-foreground py-10 text-center text-sm'>
+            {t('No models')}
+          </p>
         )}
         {totalPages > 1 && (
-          <div className='flex items-center justify-between pt-3 text-xs text-muted-foreground'>
+          <div className='text-muted-foreground flex items-center justify-between pt-3 text-xs'>
             <span>
-              {t('Page {{page}} / {{total}}', { page: props.page, total: totalPages })}
+              {t('Page {{page}} / {{total}}', {
+                page: props.page,
+                total: totalPages,
+              })}
             </span>
             <div className='flex items-center gap-1.5'>
               <Button

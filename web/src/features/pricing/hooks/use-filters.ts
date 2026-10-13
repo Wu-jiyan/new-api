@@ -31,7 +31,11 @@ import {
   type ViewMode,
   type SortOption,
 } from '../constants'
-import { filterAndSortModels, extractAllTags } from '../lib/filters'
+import {
+  filterAndSortModels,
+  extractAllTags,
+  parseSearchScopes,
+} from '../lib/filters'
 import {
   DEFAULT_SCORE_DIMENSION,
   isScoreDimension,
@@ -41,6 +45,7 @@ import type { PricingModel, TokenUnit } from '../types'
 
 type FilterState = {
   search?: string
+  searchScope?: string
   sort?: string
   vendor?: string
   group?: string
@@ -76,6 +81,7 @@ export function useFilters(
   const search = useSearch({ from: '/pricing/' })
   const [filterState, setFilterState] = useState<FilterState>(() => ({
     search: search.search,
+    searchScope: search.searchScope,
     sort: search.sort,
     vendor: search.vendor,
     group: search.group,
@@ -91,6 +97,10 @@ export function useFilters(
 
   const searchInput = filterState.search || ''
   const debouncedSearchInput = useDebounce(searchInput, 200)
+  const searchScopes = useMemo(
+    () => parseSearchScopes(filterState.searchScope),
+    [filterState.searchScope]
+  )
   // URL 参数优先，其次是运营配置的默认排序，最后才是内置默认值。
   const sortBy =
     filterState.sort ||
@@ -128,9 +138,15 @@ export function useFilters(
     (v: string) => updateFilters({ search: v || undefined }),
     [updateFilters]
   )
+  const setSearchScopes = useCallback(
+    // 用户显式选择的范围必须落库，即使与默认值相同；配置默认值只在 URL 缺参时生效。
+    (v: string[]) =>
+      updateFilters({ searchScope: parseSearchScopes(v).join(',') }),
+    [updateFilters]
+  )
   const setSortBy = useCallback(
-    (v: string) =>
-      updateFilters({ sort: v === SORT_OPTIONS.NAME ? undefined : v }),
+    // 同上：选择“按名称排序”也要写入，否则会回落到运营配置的默认排序。
+    (v: string) => updateFilters({ sort: v }),
     [updateFilters]
   )
   const setVendorFilter = useCallback(
@@ -158,14 +174,14 @@ export function useFilters(
     [updateFilters]
   )
   const setRatingFilter = useCallback(
-    (v: string) =>
-      updateFilters({ rating: v === FILTER_ALL ? undefined : v }),
+    (v: string) => updateFilters({ rating: v === FILTER_ALL ? undefined : v }),
     [updateFilters]
   )
   const setScoreDimension = useCallback(
     (v: ScoreDimension) =>
       updateFilters({
-        dimension: v === DEFAULT_SCORE_DIMENSION ? undefined : v,
+        // 显式选择必须写入，即使与运营配置的默认维度相同。
+        dimension: v,
         // 档位筛选按维度生效，换维度后旧的档位选择不再适用。
         rating: undefined,
       }),
@@ -196,6 +212,7 @@ export function useFilters(
 
     return filterAndSortModels(models, {
       search: debouncedSearchInput,
+      searchScopes,
       vendor: vendorFilter,
       group: groupFilter,
       quotaType: quotaTypeFilter,
@@ -208,6 +225,7 @@ export function useFilters(
   }, [
     models,
     debouncedSearchInput,
+    searchScopes,
     vendorFilter,
     groupFilter,
     quotaTypeFilter,
@@ -271,6 +289,7 @@ export function useFilters(
 
   return {
     searchInput,
+    searchScopes,
     sortBy,
     vendorFilter,
     groupFilter,
@@ -283,6 +302,7 @@ export function useFilters(
     viewMode,
     showRechargePrice,
     setSearchInput,
+    setSearchScopes,
     setSortBy,
     setVendorFilter,
     setGroupFilter,

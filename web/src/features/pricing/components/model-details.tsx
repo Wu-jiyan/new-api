@@ -30,7 +30,7 @@ import {
   Sparkles,
   Timer,
 } from 'lucide-react'
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton } from '@/components/copy-button'
@@ -83,6 +83,7 @@ import { withPluginPricing } from '../lib/plugin-pricing'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
 import {
   DEFAULT_SCORE_DIMENSION,
+  isScoreDimension,
   tierForDimension,
   type ScoreDimension,
 } from '../lib/scores'
@@ -99,8 +100,6 @@ import {
   taskTierConditions,
   pricingDisplayFallbackKey,
 } from '../lib/task-price-display'
-import { RatingBadge } from './rating-badge'
-import { ModelScores } from './model-scores'
 import type {
   ModelCapability,
   PriceType,
@@ -111,6 +110,8 @@ import { DynamicPricingBreakdown } from './dynamic-pricing-breakdown'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelDetailsApi } from './model-details-api'
 import { ModelDetailsPerformance } from './model-details-performance'
+import { ModelScores } from './model-scores'
+import { RatingBadge } from './rating-badge'
 
 // ----------------------------------------------------------------------------
 // Local UI helpers
@@ -601,7 +602,11 @@ function ModelBackendDetailsSection(props: { model: PricingModel }) {
 // Model header (always visible above the detail sections)
 // ----------------------------------------------------------------------------
 
-function ModelHeader(props: { model: PricingModel; dimension: ScoreDimension }) {
+function ModelHeader(props: {
+  model: PricingModel
+  dimension: ScoreDimension
+  onDimensionChange?: (dim: ScoreDimension) => void
+}) {
   const { t } = useTranslation()
   const model = props.model
   const modelIconKey = model.icon || model.vendor_icon
@@ -631,8 +636,13 @@ function ModelHeader(props: { model: PricingModel; dimension: ScoreDimension }) 
         )}
         <span className='text-muted-foreground/30'>·</span>
         <ModelBillingModeBadge model={model} />
-        </div>
-      <ModelScores model={model} dimension={props.dimension} className='mt-1.5' />
+      </div>
+      <ModelScores
+        model={model}
+        dimension={props.dimension}
+        onDimensionChange={props.onDimensionChange}
+        className='mt-1.5'
+      />
       {description && (
         <p className='text-muted-foreground mt-2 text-sm leading-relaxed'>
           {description}
@@ -1477,6 +1487,8 @@ export interface ModelDetailsContentProps {
   showRechargePrice?: boolean
   /** Selected score dimension: drives the tier badge and the highlighted score */
   dimension?: ScoreDimension
+  /** Called when a score block in the header row switches the active dimension */
+  onDimensionChange?: (dim: ScoreDimension) => void
 }
 
 export function ModelDetailsContent(props: ModelDetailsContentProps) {
@@ -1500,7 +1512,11 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
 
   return (
     <div className='@container/details space-y-4'>
-      <ModelHeader model={props.model} dimension={scoreDimension} />
+      <ModelHeader
+        model={props.model}
+        dimension={scoreDimension}
+        onDimensionChange={props.onDimensionChange}
+      />
 
       <Tabs defaultValue='overview' className='gap-4'>
         <TabsList className='bg-muted/60 grid w-full grid-cols-3 gap-1 rounded-lg p-1 group-data-horizontal/tabs:h-auto'>
@@ -1622,10 +1638,31 @@ export function ModelDetails() {
     isLoading,
     priceRate,
     usdExchangeRate,
+    defaults,
   } = usePricingData()
 
   const tokenUnit: TokenUnit =
     search.tokenUnit === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
+
+  // URL 里的维度优先，其次是后台配置的默认维度：独立详情页因此与模型广场
+  // 的默认口径一致，同时访客的切换可以随链接分享和刷新保留。
+  const configuredDimension = isScoreDimension(defaults?.dimension)
+    ? defaults.dimension
+    : DEFAULT_SCORE_DIMENSION
+  const scoreDimension = isScoreDimension(search.dimension)
+    ? search.dimension
+    : configuredDimension
+
+  const changeDimension = useCallback(
+    (next: ScoreDimension) => {
+      navigate({
+        to: '/pricing/$modelId',
+        params: { modelId: modelId ?? '' },
+        search: { ...search, dimension: next },
+      })
+    },
+    [navigate, search, modelId]
+  )
 
   const model = useMemo(() => {
     if (!models || !modelId) return null
@@ -1694,6 +1731,8 @@ export function ModelDetails() {
 
         <ModelDetailsContent
           model={model}
+          dimension={scoreDimension}
+          onDimensionChange={changeDimension}
           groupRatio={groupRatio || {}}
           usableGroup={usableGroup || {}}
           autoGroups={autoGroups || []}

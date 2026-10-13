@@ -132,7 +132,11 @@ function PoolEditor(props: { pool?: GachaPool; onClose: () => void; onSaved: () 
               </div>
               <div className='space-y-1.5'>
                 <Label>保底档位</Label>
-                <Select value={form.pity_rarity ?? ''} onValueChange={(v) => setForm({ ...form, pity_rarity: v ?? '' })}>
+                <Select
+                  items={RARITIES.map((r) => ({ value: r, label: r }))}
+                  value={form.pity_rarity ?? ''}
+                  onValueChange={(v) => setForm({ ...form, pity_rarity: v ?? '' })}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder='选择档位' />
                   </SelectTrigger>
@@ -153,7 +157,11 @@ function PoolEditor(props: { pool?: GachaPool; onClose: () => void; onSaved: () 
           )}
           <div className='space-y-1.5'>
             <Label>十连软保底档位</Label>
-            <Select value={form.ten_guarantee ?? ''} onValueChange={(v) => setForm({ ...form, ten_guarantee: v ?? '' })}>
+            <Select
+              items={[{ value: '', label: '不启用' }, ...RARITIES.map((r) => ({ value: r, label: r }))]}
+              value={form.ten_guarantee ?? ''}
+              onValueChange={(v) => setForm({ ...form, ten_guarantee: v ?? '' })}
+            >
               <SelectTrigger>
                 <SelectValue placeholder='不启用' />
               </SelectTrigger>
@@ -477,7 +485,11 @@ function GenerateEntriesDialog(props: { pool: GachaPool; onClose: () => void; on
             <div className='flex items-center justify-between gap-2'>
               <span className='text-sm font-semibold'>模型选择</span>
               <div className='flex items-center gap-2'>
-                <Select value={ratingFilter} onValueChange={(v) => setRatingFilter(v ?? '')}>
+                <Select
+                  items={[{ value: '', label: '全部档位' }, ...RARITIES.map((r) => ({ value: r, label: r }))]}
+                  value={ratingFilter}
+                  onValueChange={(v) => setRatingFilter(v ?? '')}
+                >
                   <SelectTrigger className='h-7 w-28'>
                     <SelectValue placeholder='全部档位' />
                   </SelectTrigger>

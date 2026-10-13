@@ -17,7 +17,15 @@ export const RATINGS_PAGE_SIZE = 20
  */
 export const DIMENSION_META: Record<
   RatingDimension,
-  { label: string; scoreField: 'rating_score' | 'aa_intelligence_score' | 'aa_coding_score' | 'aa_agentic_score'; source: 'deepswe' | 'aa' }
+  {
+    label: string
+    scoreField:
+      | 'rating_score'
+      | 'aa_intelligence_score'
+      | 'aa_coding_score'
+      | 'aa_agentic_score'
+    source: 'deepswe' | 'aa'
+  }
 > = {
   deepswe: {
     label: 'DeepSWE',

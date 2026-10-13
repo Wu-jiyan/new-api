@@ -574,7 +574,7 @@ describe('model cards', () => {
       ).toBe('error')
     )
     expect(request).toHaveBeenCalledWith('/api/perf-metrics/summary', {
-params: { hours: 24, recent_model: ['example-model'] },
+      params: { hours: 24, recent_model: ['example-model'] },
       paramsSerializer: { indexes: null },
       optionalAuth: true,
     })

@@ -78,6 +78,9 @@ export function PasskeyDomainSelector(props: PasskeyDomainSelectorProps) {
         <div id={id} className='space-y-2'>
           <Label htmlFor={`${id}-domain`}>{t('Passkey website domain')}</Label>
           <Select
+            // Base UI 的 SelectValue 依赖 Root 上的 items 解析当前项文案，
+            // 缺失时下拉框会渲染成空白，因此这里必须提供。
+            items={available.map((domain) => ({ value: domain, label: domain }))}
             value={available.includes(value ?? '') ? value : available[0]}
             onValueChange={(value) => {
               if (value) props.onChange(value)

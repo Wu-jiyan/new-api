@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Layers, PackageOpen } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { SectionPageLayout } from '@/components/layout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -189,42 +190,44 @@ export default function GachaEntitlementsPage() {
   }
 
   return (
-    <main className='min-h-0 flex-1 overflow-y-auto'>
-      <div className='container mx-auto max-w-6xl space-y-6 py-8'>
-        <div className='flex flex-wrap items-end justify-between gap-4'>
-          <div className='space-y-1'>
-            <div className='flex items-center gap-2 text-sm font-semibold tracking-[0.2em] text-primary uppercase'>
-              <Layers className='size-4' /> My Entitlements
-            </div>
-            <h1 className='text-2xl font-bold'>{t('My entitlements')}</h1>
-            <p className='text-sm text-muted-foreground'>
-              {t(
-                'Pulled quota is a subscription restricted to its model range. Use your own API token — the balance is deducted automatically.'
-              )}
-            </p>
-            <p className='text-xs text-muted-foreground'>
-              {t('Total {{total}} · Active on this page {{active}}', {
-                total,
-                active: activeCount,
-              })}
-            </p>
+    <SectionPageLayout>
+      <SectionPageLayout.Title>{t('My entitlements')}</SectionPageLayout.Title>
+      <SectionPageLayout.Actions>
+        <div className='flex gap-2'>
+          {filters.map((item) => (
+            <Button
+              key={item.key}
+              size='sm'
+              variant={filter === item.key ? 'default' : 'outline'}
+              onClick={() => setFilter(item.key)}
+            >
+              {item.label}
+            </Button>
+          ))}
+        </div>
+      </SectionPageLayout.Actions>
+      <SectionPageLayout.Content>
+      <div className='space-y-6'>
+        <div className='space-y-1'>
+          <div className='flex items-center gap-2 text-sm font-semibold tracking-[0.2em] text-primary uppercase'>
+            <Layers className='size-4' /> My Entitlements
           </div>
-          <div className='flex gap-2'>
-            {filters.map((item) => (
-              <Button
-                key={item.key}
-                size='sm'
-                variant={filter === item.key ? 'default' : 'outline'}
-                onClick={() => setFilter(item.key)}
-              >
-                {item.label}
-              </Button>
-            ))}
-          </div>
+          <p className='text-sm text-muted-foreground'>
+            {t(
+              'Pulled quota is a subscription restricted to its model range. Use your own API token — the balance is deducted automatically.'
+            )}
+          </p>
+          <p className='text-xs text-muted-foreground'>
+            {t('Total {{total}} · Active on this page {{active}}', {
+              total,
+              active: activeCount,
+            })}
+          </p>
         </div>
 
         {renderEntitlements()}
       </div>
-    </main>
+      </SectionPageLayout.Content>
+    </SectionPageLayout>
   )
 }

@@ -16,8 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterProvider,
+} from '@tanstack/react-router'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { PricingSidebar } from '../components/pricing-sidebar'
@@ -25,7 +33,12 @@ import {
   PricingToolbar,
   type PricingToolbarProps,
 } from '../components/pricing-toolbar'
+import { SORT_OPTIONS } from '../constants'
+import { useFilters } from '../hooks/use-filters'
+import type { ScoreDimension } from '../lib/scores'
 import type { PricingModel } from '../types'
+
+type PricingDefaults = { sort?: string; dimension?: ScoreDimension }
 
 function toolbarProps(): PricingToolbarProps {
   return {
@@ -62,6 +75,53 @@ function toolbarProps(): PricingToolbarProps {
     activeFilterCount: 0,
     onClearFilters: vi.fn(),
   }
+}
+
+/** Wires the real filter state into the toolbar, the way the pricing page does. */
+function PricingControlsWithDefaults(props: { defaults: PricingDefaults }) {
+  const filters = useFilters([], props.defaults)
+
+  return (
+    <PricingToolbar
+      {...toolbarProps()}
+      filteredCount={filters.filteredModels.length}
+      searchScopes={filters.searchScopes}
+      onSearchScopesChange={filters.setSearchScopes}
+      sortBy={filters.sortBy}
+      onSortChange={filters.setSortBy}
+      dimension={filters.scoreDimension}
+      onDimensionChange={filters.setScoreDimension}
+    />
+  )
+}
+
+async function renderPricingControls(defaults: PricingDefaults) {
+  const root = createRootRoute()
+  const pricing = createRoute({
+    getParentRoute: () => root,
+    path: '/pricing/',
+    component: () => <PricingControlsWithDefaults defaults={defaults} />,
+    validateSearch: (search: Record<string, unknown>) => search,
+  })
+  const router = createRouter({
+    routeTree: root.addChildren([pricing]),
+    history: createMemoryHistory({ initialEntries: ['/pricing/'] }),
+  })
+  render(<RouterProvider router={router} />)
+  await screen.findByRole('button', { name: 'Search scope' })
+  return router
+}
+
+/** A controlled host so the scope picker behaves like a parent page would. */
+function PricingSearchScopeToolbar() {
+  const [scopes, setScopes] = useState<string[]>(['name'])
+  return (
+    <PricingToolbar
+      {...toolbarProps()}
+      searchScopes={scopes}
+      onSearchScopesChange={setScopes}
+    />
+  )
 }
 
 describe('pricing controls', () => {
@@ -226,5 +286,77 @@ describe('pricing controls', () => {
     expect(props.onClearFilters).toHaveBeenCalledOnce()
     await user.keyboard('{Escape}')
     expect(await screen.findByRole('button', { name: /Filter/ })).toHaveFocus()
+  })
+
+  it('keeps the score dimension the user picked when the configured default is another dimension', async () => {
+    const user = userEvent.setup()
+    await renderPricingControls({ dimension: 'aa_intelligence' })
+    expect(
+      screen.getByRole('button', { name: 'AA Intelligence' })
+    ).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'AA Intelligence' }))
+    await user.click(screen.getByRole('menuitem', { name: 'DeepSWE' }))
+
+    expect(screen.getByRole('button', { name: 'DeepSWE' })).toBeVisible()
+  })
+
+  it('keeps name sorting when the configured default sorts by score', async () => {
+    const user = userEvent.setup()
+    await renderPricingControls({ sort: SORT_OPTIONS.SCORE_HIGH })
+    expect(
+      screen.getByRole('button', { name: 'Score: High to Low' })
+    ).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Score: High to Low' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Name' }))
+
+    expect(screen.getByRole('button', { name: 'Name' })).toBeVisible()
+  })
+
+  it('marks only the model name as searched while no scope is chosen', async () => {
+    const user = userEvent.setup()
+    render(<PricingToolbar {...toolbarProps()} />)
+
+    await user.click(screen.getByRole('button', { name: 'Search scope' }))
+
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'Search model name' })
+    ).toHaveAttribute('aria-checked', 'true')
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'Search description' })
+    ).toHaveAttribute('aria-checked', 'false')
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'Search tags' })
+    ).toHaveAttribute('aria-checked', 'false')
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'Search vendor' })
+    ).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('adds and removes searched fields from the search scope dropdown', async () => {
+    const user = userEvent.setup()
+    render(<PricingSearchScopeToolbar />)
+
+    await user.click(screen.getByRole('button', { name: 'Search scope' }))
+    await user.click(
+      screen.getByRole('menuitemcheckbox', { name: 'Search description' })
+    )
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'Search description' })
+    ).toHaveAttribute('aria-checked', 'true')
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'Search model name' })
+    ).toHaveAttribute('aria-checked', 'true')
+
+    await user.click(
+      screen.getByRole('menuitemcheckbox', { name: 'Search model name' })
+    )
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'Search model name' })
+    ).toHaveAttribute('aria-checked', 'false')
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'Search description' })
+    ).toHaveAttribute('aria-checked', 'true')
   })
 })

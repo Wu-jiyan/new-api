@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
 import { ExternalLink, KeyRound, Settings2, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -17,8 +17,16 @@ import {
 import { getSortLabels, SORT_OPTIONS } from '@/features/pricing/constants'
 import { toIntlLocale } from '@/i18n/languages'
 
-import { getSquareDefaults, updateAASettings, updateSquareDefaults } from '../api'
-import { DEFAULT_SQUARE_DEFAULTS, DIMENSION_META, RATING_DIMENSIONS } from '../constants'
+import {
+  getSquareDefaults,
+  updateAASettings,
+  updateSquareDefaults,
+} from '../api'
+import {
+  DEFAULT_SQUARE_DEFAULTS,
+  DIMENSION_META,
+  RATING_DIMENSIONS,
+} from '../constants'
 import type { AASyncStatus, RatingDimension } from '../types'
 
 const AA_ATTRIBUTION_URL = 'https://artificialanalysis.ai/'
@@ -75,7 +83,7 @@ function SquareDefaultsCard(props: { onChanged: () => void }) {
         <Settings2 className='size-4' />
         {t('Model square defaults')}
       </div>
-      <p className='mt-1 text-xs text-muted-foreground'>
+      <p className='text-muted-foreground mt-1 text-xs'>
         {t(
           'Applied when a visitor opens the model square without a sort or dimension in the URL. Visitors can still switch afterwards; their choice wins and is kept in the link.'
         )}
@@ -85,6 +93,12 @@ function SquareDefaultsCard(props: { onChanged: () => void }) {
           <Label htmlFor='square-default-sort'>{t('Default sort')}</Label>
           <Select
             id='square-default-sort'
+            // Base UI 的 SelectValue 依赖 Root 上的 items 解析当前项文案，
+            // 缺失时下拉框会渲染成空白，所以这里必须和选项列表保持一致。
+            items={Object.values(SORT_OPTIONS).map((value) => ({
+              value,
+              label: sortLabels[value],
+            }))}
             value={sort ?? ''}
             disabled={sort === undefined}
             onValueChange={(value) => setSort(value ?? undefined)}
@@ -107,6 +121,10 @@ function SquareDefaultsCard(props: { onChanged: () => void }) {
           </Label>
           <Select
             id='square-default-dimension'
+            items={RATING_DIMENSIONS.map((dim) => ({
+              value: dim,
+              label: DIMENSION_META[dim].label,
+            }))}
             value={dimension ?? ''}
             disabled={dimension === undefined}
             onValueChange={(value) => setDimension(value as RatingDimension)}
@@ -123,21 +141,24 @@ function SquareDefaultsCard(props: { onChanged: () => void }) {
             </SelectContent>
           </Select>
         </div>
-        <Button size='sm' disabled={saving || !dirty} onClick={() => void save()}>
+        <Button
+          size='sm'
+          disabled={saving || !dirty}
+          onClick={() => void save()}
+        >
           {t('Save')}
         </Button>
       </div>
       {dirty && (
-        <p className='mt-2 text-xs text-muted-foreground'>{t('Unsaved changes')}</p>
+        <p className='text-muted-foreground mt-2 text-xs'>
+          {t('Unsaved changes')}
+        </p>
       )}
     </Card>
   )
 }
 
-export function SettingsTab(props: {
-  aa: AASyncStatus
-  onReload: () => void
-}) {
+export function SettingsTab(props: { aa: AASyncStatus; onReload: () => void }) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const [apiKey, setApiKey] = useState('')
@@ -169,7 +190,7 @@ export function SettingsTab(props: {
           <KeyRound className='size-4' />
           {t('Artificial Analysis API key')}
         </div>
-        <p className='mt-1 text-xs text-muted-foreground'>
+        <p className='text-muted-foreground mt-1 text-xs'>
           {t(
             'Required to sync the AA Intelligence, Coding and Agentic dimensions. Stored on the server only and never returned to the browser. The free tier allows 100 requests per 24-hour window, and one daily sync uses about two.'
           )}
@@ -181,12 +202,20 @@ export function SettingsTab(props: {
               id='aa-api-key'
               type='password'
               autoComplete='off'
-              placeholder={props.aa.api_key_set ? t('Configured, enter a new key to replace') : t('Not configured')}
+              placeholder={
+                props.aa.api_key_set
+                  ? t('Configured, enter a new key to replace')
+                  : t('Not configured')
+              }
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
             />
           </div>
-          <Button size='sm' disabled={saving || apiKey.trim() === ''} onClick={() => void save()}>
+          <Button
+            size='sm'
+            disabled={saving || apiKey.trim() === ''}
+            onClick={() => void save()}
+          >
             {t('Save')}
           </Button>
           {props.aa.api_key_set && (
@@ -197,10 +226,16 @@ export function SettingsTab(props: {
               onClick={() => {
                 setApiKey('')
                 void updateAASettings('')
-                  .then(() => toast.success(t('Artificial Analysis API key cleared')))
+                  .then(() =>
+                    toast.success(t('Artificial Analysis API key cleared'))
+                  )
                   .then(() => props.onReload())
                   .catch((error: unknown) =>
-                    toast.error(error instanceof Error ? error.message : t('Update failed'))
+                    toast.error(
+                      error instanceof Error
+                        ? error.message
+                        : t('Update failed')
+                    )
                   )
               }}
             >
@@ -208,27 +243,31 @@ export function SettingsTab(props: {
             </Button>
           )}
         </div>
-        <div className='mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground'>
+        <div className='text-muted-foreground mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs'>
           <span>
-            {props.aa.api_key_set ? t('Status: configured') : t('Status: not configured')}
+            {props.aa.api_key_set
+              ? t('Status: configured')
+              : t('Status: not configured')}
           </span>
           <span>
             {props.aa.last_sync_at > 0
               ? t('Last sync: {{time}} · updated {{count}}', {
-                  time: new Date(props.aa.last_sync_at * 1000).toLocaleString(locale),
+                  time: new Date(props.aa.last_sync_at * 1000).toLocaleString(
+                    locale
+                  ),
                   count: props.aa.last_sync_num,
                 })
               : t('Never synced')}
           </span>
         </div>
         {props.aa.last_error && (
-          <p className='mt-2 text-xs text-destructive'>{props.aa.last_error}</p>
+          <p className='text-destructive mt-2 text-xs'>{props.aa.last_error}</p>
         )}
       </Card>
 
       <Card className='p-4'>
         <div className='text-sm font-semibold'>{t('Attribution')}</div>
-        <p className='mt-1 text-xs text-muted-foreground'>
+        <p className='text-muted-foreground mt-1 text-xs'>
           {t(
             'The Artificial Analysis free tier requires crediting the source when the data is displayed. Model scores in the model square link back to the provider.'
           )}

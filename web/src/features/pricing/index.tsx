@@ -64,6 +64,7 @@ export function Pricing() {
     tagFilter,
     ratingFilter,
     scoreDimension,
+    searchScopes,
     tokenUnit,
     viewMode,
     showRechargePrice,
@@ -76,6 +77,7 @@ export function Pricing() {
     setTagFilter,
     setRatingFilter,
     setScoreDimension,
+    setSearchScopes,
     setTokenUnit,
     setViewMode,
     setShowRechargePrice,
@@ -140,6 +142,7 @@ export function Pricing() {
           selectedGroup={groupFilter}
           characterMap={characterMap}
           dimension={scoreDimension}
+          onDimensionChange={setScoreDimension}
         />
       )
     }
@@ -242,6 +245,8 @@ export function Pricing() {
                 totalCount={models?.length}
                 sortBy={sortBy}
                 onSortChange={setSortBy}
+                searchScopes={searchScopes}
+                onSearchScopesChange={setSearchScopes}
                 dimension={scoreDimension}
                 onDimensionChange={setScoreDimension}
                 tokenUnit={tokenUnit}
@@ -283,6 +288,8 @@ export function Pricing() {
                 if (!open) setSelectedModelName(null)
               }}
               model={selectedModel}
+              dimension={scoreDimension}
+              onDimensionChange={setScoreDimension}
               groupRatio={groupRatio || {}}
               usableGroup={usableGroup || {}}
               endpointMap={
