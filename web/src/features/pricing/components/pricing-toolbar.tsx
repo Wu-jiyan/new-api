@@ -316,10 +316,6 @@ export function PricingToolbar(props: PricingToolbarProps) {
             onChange={props.onViewModeChange}
           />
         </div>
-        {/* 分数块本身即交互入口，这里统一给出一次提示，避免每张卡片重复。 */}
-        <p className='text-muted-foreground/70 text-xs'>
-          {t('Click a score to switch dimension')}
-        </p>
       </div>
 
       <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>

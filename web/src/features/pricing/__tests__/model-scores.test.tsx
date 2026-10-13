@@ -18,7 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createJSONStorage } from 'zustand/middleware'
 
@@ -37,7 +36,7 @@ import type { PricingModel } from '../types'
 // jsdom cannot load its ESM build, and the tab is never opened in these tests.
 vi.mock('@visactor/react-vchart', () => ({ VChart: () => null }))
 
-/** Only AA Agentic is left unscored so the empty state stays observable. */
+/** AA Agentic is left unscored so the empty state stays observable. */
 function scoredModel(overrides: Partial<PricingModel> = {}): PricingModel {
   return {
     id: 1,
@@ -58,11 +57,14 @@ function scoredModel(overrides: Partial<PricingModel> = {}): PricingModel {
   }
 }
 
-/** The block wrapping a dimension label, whether it renders as a button or a div. */
-function dimensionBlock(label: string): HTMLElement {
-  const block = screen.getByText(label).parentElement
-  if (!block) throw new Error(`Missing score block for ${label}`)
-  return block
+/** The label, the score and the row element for one dimension. */
+function dimension(label: string) {
+  const dt = screen.getByText(label)
+  const row = dt.parentElement
+  if (!row) throw new Error(`Missing score row for ${label}`)
+  const score = row.querySelector('dd > span')
+  if (!score) throw new Error(`Missing score for ${label}`)
+  return { dt, score, row }
 }
 
 let queryClient: QueryClient
@@ -99,126 +101,60 @@ afterEach(() => {
 })
 
 describe('model score row', () => {
-  it('shows a score for every scored dimension and an empty marker for the unscored one', () => {
+  it('shows every dimension with its own score and marks the unscored one', () => {
     render(<ModelScores model={scoredModel()} dimension='deepswe' />)
 
-    expect(within(dimensionBlock('DeepSWE')).getByText('62')).toBeVisible()
-    expect(
-      within(dimensionBlock('AA Intelligence')).getByText('58')
-    ).toBeVisible()
-    expect(within(dimensionBlock('AA Coding')).getByText('71')).toBeVisible()
-    expect(within(dimensionBlock('AA Agentic')).getByText('—')).toBeVisible()
+    expect(dimension('DeepSWE').score).toHaveTextContent('62')
+    expect(dimension('AA Intelligence').score).toHaveTextContent('58')
+    expect(dimension('AA Coding').score).toHaveTextContent('71')
+    // 未评分不是隐藏，而是显示占位符，读者才知道「没有数据」而不是「分很低」
+    expect(dimension('AA Agentic').score).toHaveTextContent('—')
+    expect(dimension('AA Agentic').score).toHaveClass('text-muted-foreground')
   })
 
-  it('colours each dimension label with the colour of its own tier', () => {
+  it('colours each score by its own tier and greys the inactive labels', () => {
+    render(<ModelScores model={scoredModel()} dimension='aa_coding' />)
+
+    // 上色落在分数上：SR 紫、R 蓝、N 灰
+    expect(dimension('AA Coding').score).toHaveClass('text-purple-600')
+    expect(dimension('DeepSWE').score).toHaveClass('text-blue-600')
+    expect(dimension('AA Intelligence').score).toHaveClass('text-slate-600')
+
+    // 维度名只用正文色/弱化色区分当前维度，不参与档位配色
+    expect(dimension('AA Coding').dt).toHaveClass('text-foreground')
+    expect(dimension('DeepSWE').dt).toHaveClass('text-muted-foreground')
+    expect(dimension('DeepSWE').dt).not.toHaveClass('text-blue-600')
+  })
+
+  it('renders plain text with nothing to click', () => {
     render(<ModelScores model={scoredModel()} dimension='deepswe' />)
 
-    expect(screen.getByText('DeepSWE')).toHaveClass('text-blue-600')
-    expect(screen.getByText('AA Intelligence')).toHaveClass('text-slate-600')
-    expect(screen.getByText('AA Coding')).toHaveClass('text-purple-600')
-    expect(screen.getByText('AA Agentic')).toHaveClass('text-muted-foreground')
+    expect(screen.queryByRole('button')).toBeNull()
+    // 维度切换由模型广场工具栏负责，这一行不再承担任何交互或额外提示
+    expect(screen.getByText('AA Coding').closest('dl')).toBeVisible()
   })
 
-  it('renders read-only blocks without buttons or an interaction hint', () => {
-    render(<ModelScores model={scoredModel()} dimension='deepswe' />)
-
-    expect(screen.queryAllByRole('button')).toHaveLength(0)
-    expect(
-      screen.queryByText('Click a score to switch dimension')
-    ).not.toBeInTheDocument()
-    expect(dimensionBlock('DeepSWE')).toHaveAttribute('aria-current', 'true')
-    expect(dimensionBlock('AA Coding')).not.toHaveAttribute('aria-current')
-  })
-
-  it('disables the dimensions that have no score when the row is interactive', () => {
-    render(
-      <ModelScores
-        model={scoredModel()}
-        dimension='deepswe'
-        onDimensionChange={vi.fn()}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: /AA Agentic/ })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /AA Coding/ })).toBeEnabled()
-  })
-
-  it('reports the clicked dimension and keeps the active one exposed as pressed', async () => {
-    const user = userEvent.setup()
-    const onDimensionChange = vi.fn()
-    render(
-      <ModelScores
-        model={scoredModel()}
-        dimension='deepswe'
-        onDimensionChange={onDimensionChange}
-      />
-    )
-
-    await user.click(screen.getByRole('button', { name: /AA Coding/ }))
-
-    expect(onDimensionChange).toHaveBeenCalledWith('aa_coding')
-    expect(screen.getByRole('button', { name: /DeepSWE/ })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
-    expect(screen.getByRole('button', { name: /AA Coding/ })).toHaveAttribute(
-      'aria-pressed',
-      'false'
-    )
-    expect(screen.getByText('Click a score to switch dimension')).toBeVisible()
-  })
-
-  it('names each score button with its dimension, score and tier', () => {
-    render(
-      <ModelScores
-        model={scoredModel()}
-        dimension='deepswe'
-        onDimensionChange={vi.fn()}
-      />
-    )
-
-    expect(
-      screen.getByRole('button', { name: /AA Coding.*71.*SR/ })
-    ).toBeVisible()
-  })
-
-  it('switches the dimension when a score block is activated from the keyboard', async () => {
-    const user = userEvent.setup()
-    const onDimensionChange = vi.fn()
-    render(
-      <ModelScores
-        model={scoredModel()}
-        dimension='deepswe'
-        onDimensionChange={onDimensionChange}
-      />
-    )
-
-    screen.getByRole('button', { name: /AA Intelligence/ }).focus()
-
-    await user.keyboard('{Enter}')
-    expect(onDimensionChange).toHaveBeenCalledWith('aa_intelligence')
-  })
-
-  it('keeps the model card closed when a score block inside it is clicked', async () => {
-    const user = userEvent.setup()
-    const onClick = vi.fn()
-    const onDimensionChange = vi.fn()
+  it('omits the tier badge inside the score row on the model square card', () => {
     render(
       <ModelCard
         model={scoredModel()}
-        onClick={onClick}
-        dimension='deepswe'
-        onDimensionChange={onDimensionChange}
+        onClick={vi.fn()}
+        dimension='aa_coding'
       />
     )
 
-    await user.click(screen.getByRole('button', { name: /AA Coding/ }))
-
-    expect(onDimensionChange).toHaveBeenCalledWith('aa_coding')
-    expect(onClick).not.toHaveBeenCalled()
+    // 卡片标题旁的档位角标保留；分数行本身保持纯文字，不给每格再加角标
+    const scoreRow = document.querySelector('dl')
+    if (!scoreRow) throw new Error('Missing score row')
+    expect(within(scoreRow).queryByText('SR')).toBeNull()
+    expect(within(scoreRow).queryByText('N')).toBeNull()
+    // 分数行是纯文本，没有任何可点击元素
+    expect(within(scoreRow).queryAllByRole('button')).toHaveLength(0)
   })
+})
 
-  it('follows the dimension prop for the detail header badge and the highlighted score', async () => {
+describe('model detail header', () => {
+  it('shows the tier badge and follows the selected dimension', () => {
     vi.spyOn(api, 'get').mockResolvedValue({
       data: {
         success: true,
@@ -227,38 +163,48 @@ describe('model score row', () => {
         },
       },
     })
-    render(
+
+    const { rerender } = render(
       <QueryClientProvider client={queryClient}>
         <ModelDetailsContent
           model={scoredModel()}
           groupRatio={{ default: 1 }}
           usableGroup={{ default: { desc: 'Default', ratio: 1 } }}
           endpointMap={{}}
-          autoGroups={['default']}
+          autoGroups={[]}
           priceRate={1}
           usdExchangeRate={1}
           tokenUnit='M'
           dimension='aa_coding'
-          onDimensionChange={vi.fn()}
         />
       </QueryClientProvider>
     )
-    // Settles the header's performance query so no update lands after the test.
-    await screen.findByText('99.50%')
 
-    const titleRow = screen.getByRole('heading', {
-      name: 'scored-model',
-    }).parentElement
-    if (!titleRow) throw new Error('Missing model header title row')
+    // 标题旁的角标跟随当前维度：AA Coding 是 SR，DeepSWE 是 R
+    const header = document.querySelector('header')
+    if (!header) throw new Error('Missing model header')
+    // 标题行是第一层 div；分数行 <dl> 是它的兄弟节点，各自的角标互不影响
+    const titleRow = header.querySelector('div')
+    if (!titleRow) throw new Error('Missing model title row')
     expect(within(titleRow).getByText('SR')).toBeVisible()
-    expect(within(titleRow).queryByText('R')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /AA Coding/ })).toHaveAttribute(
-      'aria-pressed',
-      'true'
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <ModelDetailsContent
+          model={scoredModel()}
+          groupRatio={{ default: 1 }}
+          usableGroup={{ default: { desc: 'Default', ratio: 1 } }}
+          endpointMap={{}}
+          autoGroups={[]}
+          priceRate={1}
+          usdExchangeRate={1}
+          tokenUnit='M'
+          dimension='deepswe'
+        />
+      </QueryClientProvider>
     )
-    expect(screen.getByRole('button', { name: /DeepSWE/ })).toHaveAttribute(
-      'aria-pressed',
-      'false'
-    )
+
+    expect(within(titleRow).getByText('R')).toBeVisible()
+    expect(within(titleRow).queryByText('SR')).toBeNull()
   })
 })

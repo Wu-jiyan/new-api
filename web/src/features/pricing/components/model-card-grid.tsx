@@ -42,7 +42,6 @@ export interface ModelCardGridProps {
   selectedGroup?: string
   characterMap?: ReadonlyMap<string, CharacterView>
   dimension?: ScoreDimension
-  onDimensionChange?: (dim: ScoreDimension) => void
 }
 
 const EMPTY_CHARACTER_MAP = new Map<string, CharacterView>()
@@ -115,7 +114,6 @@ export const ModelCardGrid = memo(function ModelCardGrid(
             perf={perfMap.get(model.model_name || '')}
             character={characterMap.get(model.model_name || '')}
             dimension={props.dimension}
-            onDimensionChange={props.onDimensionChange}
             onClick={props.onModelClick}
           />
         ))}

@@ -142,7 +142,6 @@ export function Pricing() {
           selectedGroup={groupFilter}
           characterMap={characterMap}
           dimension={scoreDimension}
-          onDimensionChange={setScoreDimension}
         />
       )
     }
@@ -289,7 +288,6 @@ export function Pricing() {
               }}
               model={selectedModel}
               dimension={scoreDimension}
-              onDimensionChange={setScoreDimension}
               groupRatio={groupRatio || {}}
               usableGroup={usableGroup || {}}
               endpointMap={

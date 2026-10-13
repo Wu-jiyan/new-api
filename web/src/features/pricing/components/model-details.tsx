@@ -30,7 +30,7 @@ import {
   Sparkles,
   Timer,
 } from 'lucide-react'
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton } from '@/components/copy-button'
@@ -605,7 +605,6 @@ function ModelBackendDetailsSection(props: { model: PricingModel }) {
 function ModelHeader(props: {
   model: PricingModel
   dimension: ScoreDimension
-  onDimensionChange?: (dim: ScoreDimension) => void
 }) {
   const { t } = useTranslation()
   const model = props.model
@@ -640,7 +639,7 @@ function ModelHeader(props: {
       <ModelScores
         model={model}
         dimension={props.dimension}
-        onDimensionChange={props.onDimensionChange}
+        showBadge
         className='mt-1.5'
       />
       {description && (
@@ -1487,8 +1486,6 @@ export interface ModelDetailsContentProps {
   showRechargePrice?: boolean
   /** Selected score dimension: drives the tier badge and the highlighted score */
   dimension?: ScoreDimension
-  /** Called when a score block in the header row switches the active dimension */
-  onDimensionChange?: (dim: ScoreDimension) => void
 }
 
 export function ModelDetailsContent(props: ModelDetailsContentProps) {
@@ -1512,11 +1509,7 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
 
   return (
     <div className='@container/details space-y-4'>
-      <ModelHeader
-        model={props.model}
-        dimension={scoreDimension}
-        onDimensionChange={props.onDimensionChange}
-      />
+      <ModelHeader model={props.model} dimension={scoreDimension} />
 
       <Tabs defaultValue='overview' className='gap-4'>
         <TabsList className='bg-muted/60 grid w-full grid-cols-3 gap-1 rounded-lg p-1 group-data-horizontal/tabs:h-auto'>
@@ -1644,25 +1637,14 @@ export function ModelDetails() {
   const tokenUnit: TokenUnit =
     search.tokenUnit === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
 
-  // URL 里的维度优先，其次是后台配置的默认维度：独立详情页因此与模型广场
-  // 的默认口径一致，同时访客的切换可以随链接分享和刷新保留。
+  // 维度取自 URL，其次是后台配置的默认维度：独立详情页因此与模型广场的口径一致，
+  // 从广场带 ?dimension= 进来时也能保持同一视角。维度不在本页切换。
   const configuredDimension = isScoreDimension(defaults?.dimension)
     ? defaults.dimension
     : DEFAULT_SCORE_DIMENSION
   const scoreDimension = isScoreDimension(search.dimension)
     ? search.dimension
     : configuredDimension
-
-  const changeDimension = useCallback(
-    (next: ScoreDimension) => {
-      navigate({
-        to: '/pricing/$modelId',
-        params: { modelId: modelId ?? '' },
-        search: { ...search, dimension: next },
-      })
-    },
-    [navigate, search, modelId]
-  )
 
   const model = useMemo(() => {
     if (!models || !modelId) return null
@@ -1732,7 +1714,6 @@ export function ModelDetails() {
         <ModelDetailsContent
           model={model}
           dimension={scoreDimension}
-          onDimensionChange={changeDimension}
           groupRatio={groupRatio || {}}
           usableGroup={usableGroup || {}}
           autoGroups={autoGroups || []}

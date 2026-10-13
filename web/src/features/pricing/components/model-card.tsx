@@ -66,8 +66,6 @@ export interface ModelCardProps {
   character?: CharacterView
   /** Selected score dimension: drives the tier badge and highlights one score */
   dimension?: ScoreDimension
-  /** Enables the score row as dimension switch buttons inside the card */
-  onDimensionChange?: (dim: ScoreDimension) => void
 }
 
 export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
@@ -404,14 +402,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         />
       </CardHeader>
       <CardContent className='relative flex flex-1 flex-col gap-3'>
-        <ModelScores
-          model={props.model}
-          dimension={dimension}
-          onDimensionChange={props.onDimensionChange}
-          // 每张卡片都重复一次提示会淹没信息，提示由工具栏统一出现一次。
-          showHint={false}
-          className='border-border/60 rounded-md border px-2 py-1.5'
-        />
+        <ModelScores model={props.model} dimension={dimension} />
         <div className='flex min-w-0 flex-col gap-1.5'>
           <p className='text-muted-foreground line-clamp-2 text-[13px] leading-5 break-words'>
             {props.model.description || t('No description available.')}
