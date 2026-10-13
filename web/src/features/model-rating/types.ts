@@ -71,3 +71,9 @@ export interface SyncSummary {
   skippedManual: number
   models: { modelName: string; score: number }[]
 }
+
+/** 模型广场的默认排序与默认评分维度（运营侧站点配置）。 */
+export interface ModelSquareDefaults {
+  sort: string
+  dimension: RatingDimension
+}

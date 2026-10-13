@@ -300,4 +300,6 @@ const (
 	OptionKeyModelRatingThresholds = "ModelRatingThresholds"
 	// OptionKeyAAApiKey 保存 Artificial Analysis API Key，为空时跳过 AA 同步。
 	OptionKeyAAApiKey = "ArtificialAnalysisApiKey"
+	// OptionKeyModelSquareDefaults 保存模型广场的默认排序与默认评分维度。
+	OptionKeyModelSquareDefaults = "ModelSquareDefaults"
 )

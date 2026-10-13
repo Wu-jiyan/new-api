@@ -20,6 +20,8 @@ For commercial licensing, please contact support@quantumnous.com
 // Pricing Types
 // ----------------------------------------------------------------------------
 
+import type { ScoreDimension } from './lib/scores'
+
 export type PricingVendor = {
   id: number
   name: string
@@ -144,6 +146,11 @@ export type PricingData = {
   usable_group: Record<string, { desc: string; ratio: number }>
   supported_endpoint: Record<string, string>
   auto_groups: string[]
+  /** Operator-configured initial sort and score dimension for the model square */
+  defaults?: {
+    sort?: string
+    dimension?: ScoreDimension
+  }
 }
 
 export type TokenUnit = 'M' | 'K'

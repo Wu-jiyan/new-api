@@ -43,14 +43,37 @@ func TestParseAAPages(t *testing.T) {
 	require.Equal(t, 48.0, scores.Intelligence["deepseek-v4-pro"])
 }
 
-// 各维度量纲不同（DeepSWE 是 pass@1 百分比，AA 是指数），阈值必须相互独立。
+// 各维度量纲不同（DeepSWE 是 pass@1 百分比，AA 是指数），阈值必须相互独立：
+// 同一个分数在不同维度落到的档位应该不同，否则说明阈值被错误地共用了。
 func TestMapScoreToRatingPerDimension(t *testing.T) {
-	// DeepSWE: 60 落在 [55,65) -> SSR
-	require.Equal(t, "SSR", MapScoreToRatingWith(60, ratingThresholdsDefault[RatingDimensionDeepSwe]))
-	// AA 综合: 55 落在 [50,60) -> SSR；同一分数在 AA 编码档位里是 UR
-	require.Equal(t, "SSR", MapScoreToRatingWith(55, ratingThresholdsDefault[RatingDimensionAAIntelligence]))
-	require.Equal(t, "UR", MapScoreToRatingWith(55, ratingThresholdsDefault[RatingDimensionAACoding]))
-	require.Equal(t, "SSR", MapScoreToRatingWith(45, ratingThresholdsDefault[RatingDimensionAAAgentic]))
+	// 30 分：DeepSWE -> R，AA 综合 -> SR，AA 编码 -> N，AA Agentic -> R
+	require.Equal(t, "R", MapScoreToRatingWith(30, ratingThresholdsDefault[RatingDimensionDeepSwe]))
+	require.Equal(t, "SR", MapScoreToRatingWith(30, ratingThresholdsDefault[RatingDimensionAAIntelligence]))
+	require.Equal(t, "N", MapScoreToRatingWith(30, ratingThresholdsDefault[RatingDimensionAACoding]))
+	require.Equal(t, "R", MapScoreToRatingWith(30, ratingThresholdsDefault[RatingDimensionAAAgentic]))
+	// 50 分：DeepSWE -> SR，AA 综合 -> UR，AA 编码 -> R，AA Agentic -> SR
+	require.Equal(t, "SR", MapScoreToRatingWith(50, ratingThresholdsDefault[RatingDimensionDeepSwe]))
+	require.Equal(t, "UR", MapScoreToRatingWith(50, ratingThresholdsDefault[RatingDimensionAAIntelligence]))
+	require.Equal(t, "R", MapScoreToRatingWith(50, ratingThresholdsDefault[RatingDimensionAACoding]))
+}
+
+// 默认阈值必须落在 AA 榜单的真实取值范围内，否则最强者永远拿不到 UR、
+// 或半数模型挤进 UR。这组数字由榜单抽样标定，改动前应重新核对分布。
+func TestDefaultThresholdsCoverMeasuredAARange(t *testing.T) {
+	// 2026-10 实测 Artificial Analysis 免费档全榜最高分
+	measuredMax := map[RatingDimension]float64{
+		RatingDimensionAAIntelligence: 57.6,
+		RatingDimensionAACoding:       81.6,
+		RatingDimensionAAAgentic:      57.9,
+	}
+	for dim, max := range measuredMax {
+		th := ratingThresholdsDefault[dim]
+		require.Less(t, th.UR, max, "%s: UR 阈值必须低于榜单最高分，否则没有模型能到 UR", dim)
+		require.Greater(t, th.UR, th.SSR, "%s: 阈值必须 UR>SSR>SR>R>=0", dim)
+		require.Greater(t, th.SSR, th.SR, "%s: 阈值必须 UR>SSR>SR>R>=0", dim)
+		require.Greater(t, th.SR, th.R, "%s: 阈值必须 UR>SSR>SR>R>=0", dim)
+		require.GreaterOrEqual(t, th.R, 0.0, "%s: R 阈值不能为负", dim)
+	}
 }
 
 // 阈值写入后按维度生效，且非法阈值被拒绝。
@@ -168,4 +191,44 @@ func TestApplyAAScores(t *testing.T) {
 	res, err = ApplyAAScores(scores)
 	require.NoError(t, err)
 	require.Equal(t, 2, res.Updated)
+}
+
+func TestModelSquareDefaultsValidation(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	original := modelSquareDefaults
+	t.Cleanup(func() { modelSquareDefaults = original })
+	prev := common.OptionMap
+	common.OptionMap = map[string]string{}
+	t.Cleanup(func() { common.OptionMap = prev })
+
+	next := ModelSquareDefaults{Sort: "score-high", Dimension: RatingDimensionAACoding}
+	require.NoError(t, SetModelSquareDefaults(next))
+	require.Equal(t, next, GetModelSquareDefaults())
+
+	// 非法排序与未知维度必须被拒绝，不能写进配置后靠前端静默回退
+	require.Error(t, SetModelSquareDefaults(ModelSquareDefaults{
+		Sort: "not-a-sort", Dimension: RatingDimensionDeepSwe,
+	}))
+	require.Error(t, SetModelSquareDefaults(ModelSquareDefaults{
+		Sort: "name", Dimension: RatingDimension("nope"),
+	}))
+	// 被拒绝的写入不应改变已生效的值
+	require.Equal(t, next, GetModelSquareDefaults())
+
+	ReloadModelSquareDefaults()
+	require.Equal(t, next, GetModelSquareDefaults())
+}
+
+func TestReloadModelSquareDefaultsIgnoresCorruptOption(t *testing.T) {
+	original := modelSquareDefaults
+	t.Cleanup(func() { modelSquareDefaults = original })
+	prev := common.OptionMap
+	t.Cleanup(func() { common.OptionMap = prev })
+
+	// 旧配置里存过的无效排序不能让广场拿到非法值
+	common.OptionMap = map[string]string{
+		common.OptionKeyModelSquareDefaults: `{"sort":"legacy-sort","dimension":"deepswe"}`,
+	}
+	ReloadModelSquareDefaults()
+	require.Equal(t, DefaultModelSquareDefaults, GetModelSquareDefaults())
 }

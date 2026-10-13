@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { ExternalLink, KeyRound, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ExternalLink, KeyRound, Settings2, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -7,12 +7,132 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { getSortLabels, SORT_OPTIONS } from '@/features/pricing/constants'
 import { toIntlLocale } from '@/i18n/languages'
 
-import { updateAASettings } from '../api'
-import type { AASyncStatus } from '../types'
+import { getSquareDefaults, updateAASettings, updateSquareDefaults } from '../api'
+import { DEFAULT_SQUARE_DEFAULTS, DIMENSION_META, RATING_DIMENSIONS } from '../constants'
+import type { AASyncStatus, RatingDimension } from '../types'
 
 const AA_ATTRIBUTION_URL = 'https://artificialanalysis.ai/'
+
+function SquareDefaultsCard(props: { onChanged: () => void }) {
+  const { t } = useTranslation()
+  const [sort, setSort] = useState<string | undefined>()
+  const [dimension, setDimension] = useState<RatingDimension | undefined>()
+  const [saving, setSaving] = useState(false)
+  const sortLabels = getSortLabels(t)
+
+  // 配置加载完成前禁用下拉框，避免让人以为改了却没保存。
+  const dirty =
+    sort !== undefined &&
+    dimension !== undefined &&
+    (sort !== DEFAULT_SQUARE_DEFAULTS.sort ||
+      dimension !== DEFAULT_SQUARE_DEFAULTS.dimension)
+
+  useEffect(() => {
+    let cancelled = false
+    getSquareDefaults()
+      .then((res) => {
+        if (cancelled || !res.defaults) return
+        setSort(res.defaults.sort)
+        setDimension(res.defaults.dimension)
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          toast.error(error instanceof Error ? error.message : t('Load failed'))
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [t])
+
+  async function save() {
+    if (!sort || !dimension) return
+    setSaving(true)
+    try {
+      await updateSquareDefaults({ sort, dimension })
+      toast.success(t('Model square defaults updated'))
+      props.onChanged()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('Update failed'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Card className='p-4'>
+      <div className='flex items-center gap-2 text-sm font-semibold'>
+        <Settings2 className='size-4' />
+        {t('Model square defaults')}
+      </div>
+      <p className='mt-1 text-xs text-muted-foreground'>
+        {t(
+          'Applied when a visitor opens the model square without a sort or dimension in the URL. Visitors can still switch afterwards; their choice wins and is kept in the link.'
+        )}
+      </p>
+      <div className='mt-3 flex flex-wrap items-end gap-3'>
+        <div className='flex min-w-48 flex-col gap-1'>
+          <Label htmlFor='square-default-sort'>{t('Default sort')}</Label>
+          <Select
+            id='square-default-sort'
+            value={sort ?? ''}
+            disabled={sort === undefined}
+            onValueChange={(value) => setSort(value ?? undefined)}
+          >
+            <SelectTrigger className='w-full'>
+              <SelectValue placeholder={t('Loading')} />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.values(SORT_OPTIONS).map((value) => (
+                <SelectItem key={value} value={value}>
+                  {sortLabels[value]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className='flex min-w-48 flex-col gap-1'>
+          <Label htmlFor='square-default-dimension'>
+            {t('Default score dimension')}
+          </Label>
+          <Select
+            id='square-default-dimension'
+            value={dimension ?? ''}
+            disabled={dimension === undefined}
+            onValueChange={(value) => setDimension(value as RatingDimension)}
+          >
+            <SelectTrigger className='w-full'>
+              <SelectValue placeholder={t('Loading')} />
+            </SelectTrigger>
+            <SelectContent>
+              {RATING_DIMENSIONS.map((dim) => (
+                <SelectItem key={dim} value={dim}>
+                  {DIMENSION_META[dim].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button size='sm' disabled={saving || !dirty} onClick={() => void save()}>
+          {t('Save')}
+        </Button>
+      </div>
+      {dirty && (
+        <p className='mt-2 text-xs text-muted-foreground'>{t('Unsaved changes')}</p>
+      )}
+    </Card>
+  )
+}
 
 export function SettingsTab(props: {
   aa: AASyncStatus
@@ -43,6 +163,7 @@ export function SettingsTab(props: {
 
   return (
     <div className='space-y-4'>
+      <SquareDefaultsCard onChanged={props.onReload} />
       <Card className='p-4'>
         <div className='flex items-center gap-2 text-sm font-semibold'>
           <KeyRound className='size-4' />

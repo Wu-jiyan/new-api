@@ -3,6 +3,7 @@ import { Pencil, Plus, Search, Trash2, TrendingUp, Wand2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { SectionPageLayout } from '@/components/layout'
 import { MultiSelect, type Option } from '@/components/multi-select'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -794,14 +795,14 @@ function PoolsTab() {
 export default function GachaAdminPage() {
   const { t } = useTranslation()
   return (
-    <main className='min-h-0 flex-1 overflow-y-auto'>
-      <div className='container mx-auto max-w-6xl space-y-6 py-8'>
-        <div>
-          <h1 className='text-2xl font-bold'>{t('Gacha Admin')}</h1>
+    <SectionPageLayout>
+      <SectionPageLayout.Title>{t('Gacha Admin')}</SectionPageLayout.Title>
+      <SectionPageLayout.Content>
+        <div className='space-y-4'>
           <p className='text-sm text-muted-foreground'>{t('Card pools, entries and economics')}</p>
+          <PoolsTab />
         </div>
-        <PoolsTab />
-      </div>
-    </main>
+      </SectionPageLayout.Content>
+    </SectionPageLayout>
   )
 }

@@ -29,6 +29,7 @@ import {
   DEFAULT_TOKEN_UNIT,
   VIEW_MODES,
   type ViewMode,
+  type SortOption,
 } from '../constants'
 import { filterAndSortModels, extractAllTags } from '../lib/filters'
 import {
@@ -60,7 +61,18 @@ function normalizeViewMode(value: unknown): ViewMode {
   return VIEW_MODES.CARD
 }
 
-export function useFilters(models: PricingModel[]) {
+// 服务端返回的默认排序可能来自旧配置，只接受本地已知的排序项。
+function isSortOption(value: unknown): value is SortOption {
+  return (
+    typeof value === 'string' &&
+    (Object.values(SORT_OPTIONS) as string[]).includes(value)
+  )
+}
+
+export function useFilters(
+  models: PricingModel[],
+  defaults?: { sort?: string; dimension?: ScoreDimension }
+) {
   const search = useSearch({ from: '/pricing/' })
   const [filterState, setFilterState] = useState<FilterState>(() => ({
     search: search.search,
@@ -79,16 +91,22 @@ export function useFilters(models: PricingModel[]) {
 
   const searchInput = filterState.search || ''
   const debouncedSearchInput = useDebounce(searchInput, 200)
-  const sortBy = filterState.sort || SORT_OPTIONS.NAME
+  // URL 参数优先，其次是运营配置的默认排序，最后才是内置默认值。
+  const sortBy =
+    filterState.sort ||
+    (isSortOption(defaults?.sort) ? defaults.sort : SORT_OPTIONS.NAME)
   const vendorFilter = filterState.vendor || FILTER_ALL
   const groupFilter = filterState.group || FILTER_ALL
   const quotaTypeFilter = filterState.quotaType || QUOTA_TYPES.ALL
   const endpointTypeFilter = filterState.endpointType || ENDPOINT_TYPES.ALL
   const tagFilter = filterState.tag || FILTER_ALL
   const ratingFilter = filterState.rating || FILTER_ALL
-  const scoreDimension: ScoreDimension = isScoreDimension(filterState.dimension)
-    ? filterState.dimension
+  const configuredDimension = isScoreDimension(defaults?.dimension)
+    ? defaults.dimension
     : DEFAULT_SCORE_DIMENSION
+  const scoreDimension = isScoreDimension(filterState.dimension)
+    ? filterState.dimension
+    : configuredDimension
   const tokenUnit: TokenUnit =
     filterState.tokenUnit === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
   const viewMode = normalizeViewMode(filterState.view)

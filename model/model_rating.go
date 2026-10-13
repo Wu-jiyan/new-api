@@ -1,6 +1,9 @@
 package model
 
 import (
+	"fmt"
+	"slices"
+
 	"github.com/QuantumNous/new-api/common"
 )
 
@@ -39,11 +42,17 @@ func (t RatingThresholds) Valid() bool {
 
 // ratingThresholdsDefault 各维度默认阈值。DeepSWE 与 AA 的量纲不同
 // （前者是 pass@1 百分比，后者是 0-100 的指数），因此不能共用一套。
+//
+// AA 三组阈值按 Artificial Analysis 免费档榜单的真实分布标定（2026-10
+// 抽样，分别有 689 / 258 / 166 个模型带分），目标是 UR 约占 5-9%、
+// N 约占 43-49%。凭直觉设的初版阈值是错的：Intelligence 全榜最高分
+// 只有 57.6，UR 却设在 60，于是没有任何模型能达到 UR；Coding 的 UR 设在
+// 45，则有一半模型落在 UR。AA 分布会随榜单漂移，管理端可随时调整。
 var ratingThresholdsDefault = map[RatingDimension]RatingThresholds{
 	RatingDimensionDeepSwe:        {UR: 65, SSR: 55, SR: 45, R: 30},
-	RatingDimensionAAIntelligence: {UR: 60, SSR: 50, SR: 40, R: 30},
-	RatingDimensionAACoding:       {UR: 45, SSR: 35, SR: 25, R: 18},
-	RatingDimensionAAAgentic:      {UR: 50, SSR: 42, SR: 34, R: 26},
+	RatingDimensionAAIntelligence: {UR: 45, SSR: 37, SR: 24, R: 12},
+	RatingDimensionAACoding:       {UR: 76, SSR: 70, SR: 58, R: 42},
+	RatingDimensionAAAgentic:      {UR: 52, SSR: 45, SR: 32, R: 18},
 }
 
 // modelRatingThresholds 当前各维度阈值，由 ReloadModelRatingThresholds 加载。
@@ -135,4 +144,64 @@ func ReloadModelRatingThresholds() {
 		}
 	}
 	modelRatingThresholds = loaded
+}
+
+// ModelSquareSortKeys 模型广场可选的排序方式，取值与前端 SORT_OPTIONS 一致。
+var ModelSquareSortKeys = []string{"name", "price-low", "price-high", "score-high"}
+
+// ModelSquareDefaults 模型广场的默认展示方式。这是运营侧的站点配置，
+// 匿名访客也能读取，因此只影响未指定 URL 参数时的初始状态，用户在页面上
+// 切换维度或排序仍会写入 URL 并优先生效。
+type ModelSquareDefaults struct {
+	Sort      string          `json:"sort"`
+	Dimension RatingDimension `json:"dimension"`
+}
+
+// DefaultModelSquareDefaults 默认按名称排序、DeepSWE 维度。选 DeepSWE 是因为
+// AA 的 Coding / Agentic 维度在榜单上覆盖很稀疏（抽样中分别只有 258 / 166 个
+// 模型有分，Contrast Intelligence 的 689），默认维度用满覆盖的那个更合适。
+var DefaultModelSquareDefaults = ModelSquareDefaults{Sort: "name", Dimension: RatingDimensionDeepSwe}
+
+var modelSquareDefaults = DefaultModelSquareDefaults
+
+// GetModelSquareDefaults 返回当前生效的模型广场默认展示方式。
+func GetModelSquareDefaults() ModelSquareDefaults {
+	return modelSquareDefaults
+}
+
+// SetModelSquareDefaults 校验并保存模型广场默认展示方式。非法取值被忽略并返回错误。
+func SetModelSquareDefaults(next ModelSquareDefaults) error {
+	if !slices.Contains(ModelSquareSortKeys, next.Sort) {
+		return fmt.Errorf("unknown sort option %q", next.Sort)
+	}
+	if !slices.Contains(RatingDimensions, next.Dimension) {
+		return fmt.Errorf("unknown rating dimension %q", next.Dimension)
+	}
+	encoded, err := common.Marshal(next)
+	if err != nil {
+		return err
+	}
+	if err := UpdateOption(common.OptionKeyModelSquareDefaults, string(encoded)); err != nil {
+		return err
+	}
+	modelSquareDefaults = next
+	return nil
+}
+
+// ReloadModelSquareDefaults 从选项表重新加载模型广场默认展示方式。
+func ReloadModelSquareDefaults() {
+	common.OptionMapRWMutex.RLock()
+	raw := common.OptionMap[common.OptionKeyModelSquareDefaults]
+	common.OptionMapRWMutex.RUnlock()
+
+	loaded := DefaultModelSquareDefaults
+	if raw != "" {
+		var stored ModelSquareDefaults
+		if err := common.Unmarshal([]byte(raw), &stored); err == nil &&
+			slices.Contains(ModelSquareSortKeys, stored.Sort) &&
+			slices.Contains(RatingDimensions, stored.Dimension) {
+			loaded = stored
+		}
+	}
+	modelSquareDefaults = loaded
 }

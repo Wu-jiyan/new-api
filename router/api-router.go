@@ -238,6 +238,8 @@ func SetApiRouter(router *gin.Engine) {
 			modelRatingAdminRoute.POST("/sync/aa", controller.AdminSyncAARatings)
 			modelRatingAdminRoute.PUT("/thresholds", controller.AdminUpdateModelRatingThresholds)
 			modelRatingAdminRoute.PUT("/aa-settings", controller.AdminUpdateAASettings)
+			modelRatingAdminRoute.GET("/square-defaults", controller.AdminGetModelSquareDefaults)
+			modelRatingAdminRoute.PUT("/square-defaults", controller.AdminUpdateModelSquareDefaults)
 		}
 
 		// AI Character (character system) admin management

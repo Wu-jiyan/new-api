@@ -48,6 +48,7 @@ export function Pricing() {
     usableGroup,
     endpointMap,
     autoGroups,
+    defaults,
     isLoading,
     priceRate,
     usdExchangeRate,
@@ -84,7 +85,7 @@ export function Pricing() {
     availableTags,
     clearFilters,
     clearSearch,
-  } = useFilters(models || [])
+  } = useFilters(models || [], defaults)
 
   // 角色 model_name 为前缀（如 deepseek），匹配该前缀下所有模型；多个角色覆盖同一模型时取最长前缀。
   const characterMap = useCharacterMap(models ?? [])

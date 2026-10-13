@@ -47,3 +47,9 @@ export const AA_SCORE_FIELDS = [
   'aa_coding_score',
   'aa_agentic_score',
 ] as const
+
+/** 与后端 model.DefaultModelSquareDefaults 保持一致，用于判断「未改动」。 */
+export const DEFAULT_SQUARE_DEFAULTS = {
+  sort: 'name',
+  dimension: 'deepswe',
+} as const

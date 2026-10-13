@@ -71,6 +71,7 @@ export function usePricingData(enabled = true) {
     usableGroup: data?.usable_group ?? {},
     endpointMap: data?.supported_endpoint ?? {},
     autoGroups: data?.auto_groups ?? [],
+    defaults: data?.defaults,
     isLoading,
     error,
     refetch,

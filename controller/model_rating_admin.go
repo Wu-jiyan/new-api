@@ -273,3 +273,31 @@ func AdminUpdateAASettings(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"api_key_set": key != ""}})
 }
+
+// AdminGetModelSquareDefaults 返回模型广场当前的默认排序与默认评分维度。
+func AdminGetModelSquareDefaults(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    model.GetModelSquareDefaults(),
+		"sorts":   model.ModelSquareSortKeys,
+	})
+}
+
+// AdminUpdateModelSquareDefaults 保存模型广场的默认排序与默认评分维度。
+// 非法取值会被后端拒绝，避免把无效值写进配置后前端静默回退。
+func AdminUpdateModelSquareDefaults(c *gin.Context) {
+	var req struct {
+		Sort      string                `json:"sort" binding:"required"`
+		Dimension model.RatingDimension `json:"dimension" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	next := model.ModelSquareDefaults{Sort: req.Sort, Dimension: req.Dimension}
+	if err := model.SetModelSquareDefaults(next); err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": next})
+}
