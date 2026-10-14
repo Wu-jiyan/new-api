@@ -211,3 +211,72 @@ func TestRequestPolicyEventsReachLogAdminInfo(t *testing.T) {
 	AppendRelayLogAdminInfo(untouched, nil, other)
 	assert.NotContains(t, other.Snapshot()["admin_info"], "request_policy", "requests without decisions do not carry an empty record")
 }
+
+func TestRoutineSuccessChainIsNotStoredInLog(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	c.Set("channel_id", 9)
+	state := RequestPolicy(c)
+	state.BeginAttempt(&model.Channel{Id: 9}, "default")
+	MarkRequestPolicySuccess(c, nil)
+
+	require.True(t, routineSuccessChain(state.Events()),
+		"one selection followed by one completion is the routine shape")
+
+	other := model.NewLogOther()
+	AppendRelayLogAdminInfo(c, nil, other)
+	adminInfo, ok := other.Snapshot()["admin_info"].(map[string]any)
+	require.True(t, ok, "the admin-only scope is still written for administrators")
+	assert.NotContains(t, adminInfo, "request_policy",
+		"the routine chain restates the log row's own outcome, so it is not stored")
+}
+
+func TestNonRoutineSuccessChainsAreStored(t *testing.T) {
+	// A completion naming a different channel means routing moved after the
+	// selection. That movement is exactly what the record exists to explain.
+	moved := []PolicyEvent{
+		{ChannelID: 9, Decision: PolicyDecision{Action: "attempt", Reason: "channel_selected", Source: "routing"}},
+		{ChannelID: 11, Decision: PolicyDecision{Action: "success", Reason: "request_completed", Source: "upstream"}},
+	}
+	assert.False(t, routineSuccessChain(moved), "a completion on another channel is not routine")
+
+	abnormal := []PolicyEvent{
+		{ChannelID: 9, Decision: PolicyDecision{Action: "attempt", Reason: "channel_selected", Source: "routing"}},
+		{ChannelID: 9, Decision: PolicyDecision{Action: "stop", Reason: "stream_not_successful", Source: "system"}},
+	}
+	assert.False(t, routineSuccessChain(abnormal), "an abnormal stream end is not routine")
+
+	unknown := []PolicyEvent{
+		{Decision: PolicyDecision{Action: "attempt", Reason: "channel_selected", Source: "routing"}},
+		{Decision: PolicyDecision{Action: "success", Reason: "request_completed", Source: "upstream"}},
+	}
+	assert.False(t, routineSuccessChain(unknown), "a chain without a channel id is not routine, so an unexplained record is never dropped")
+
+	assert.False(t, routineSuccessChain(nil), "an empty chain is not routine")
+}
+
+func TestRetriedRequestKeepsItsDecisionChain(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	state := RequestPolicy(c)
+	state.BeginAttempt(&model.Channel{Id: 11}, "default")
+	apiErr := types.NewOpenAIError(errors.New("upstream refused"), types.ErrorCodeBadResponseStatusCode, http.StatusBadGateway)
+	RecordPolicyFailure(c, 11, apiErr, DecideRelayRetry(c, apiErr, 0))
+	state.BeginAttempt(&model.Channel{Id: 12}, "default")
+	c.Set("channel_id", 12)
+	MarkRequestPolicySuccess(c, nil)
+
+	events := state.Events()
+	require.False(t, routineSuccessChain(events), "a retried request is not routine")
+	require.Greater(t, len(events), 2, "the failed attempt and its retry decision stay in the chain")
+	assert.Equal(t, PolicyDecision{Action: "failure", Reason: "upstream_failure", Source: "upstream"}, events[1].Decision,
+		"the upstream failure is still reported")
+	assert.Equal(t, PolicyDecision{Action: "success", Reason: "request_completed", Source: "upstream"}, events[len(events)-1].Decision,
+		"the chain still ends on the successful attempt")
+
+	other := model.NewLogOther()
+	AppendRelayLogAdminInfo(c, nil, other)
+	stored, ok := other.Snapshot()["admin_info"].(map[string]any)["request_policy"].([]PolicyEvent)
+	require.True(t, ok, "a retried relay keeps the decision events an administrator needs")
+	assert.Len(t, stored, len(events), "the whole chain is stored, not a summary")
+}

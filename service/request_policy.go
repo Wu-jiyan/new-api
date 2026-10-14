@@ -180,3 +180,31 @@ func RecordRequestPolicyTermination(c *gin.Context, apiErr *types.NewAPIError) {
 		state.AddEvent(PolicyEvent{ChannelID: c.GetInt("channel_id"), Status: apiErr.StatusCode, ErrorCode: string(apiErr.GetErrorCode()), Decision: PolicyDecision{Action: "stop", Reason: "request_failed", Source: "system"}, Health: "unchanged"})
 	}
 }
+
+// routineSuccessChain reports whether the recorded routing is the ordinary
+// "one channel was selected and it served the request" path.
+//
+// Storing that chain restates the log row's own outcome: the channel id is
+// already in admin_info.use_channel and in the row's channel_id column, the
+// group is in the group column, and the elapsed time is in use_time. It cost
+// roughly 340 bytes on every successful request while explaining nothing an
+// administrator could not read elsewhere.
+//
+// Any retry, upstream failure, health change or abnormal stream end produces a
+// different shape and is always kept, so this only drops the case that has no
+// decision to explain.
+func routineSuccessChain(events []PolicyEvent) bool {
+	if len(events) != 2 {
+		return false
+	}
+	selected, completed := events[0], events[1]
+	if selected.Decision != (PolicyDecision{Action: "attempt", Reason: "channel_selected", Source: "routing"}) {
+		return false
+	}
+	if completed.Decision != (PolicyDecision{Action: "success", Reason: "request_completed", Source: "upstream"}) {
+		return false
+	}
+	// A completion naming a different channel means routing moved after the
+	// selection, which is exactly the movement this record exists to explain.
+	return selected.ChannelID != 0 && selected.ChannelID == completed.ChannelID
+}

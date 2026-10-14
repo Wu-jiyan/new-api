@@ -614,9 +614,12 @@ func TestResponsesWebSocketReusesConnectionAndSettlesEachRequest(t *testing.T) {
 		assert.Equal(t, 1000, logs[index].PromptTokens)
 		assert.Equal(t, 10, logs[index].CompletionTokens)
 	}
-	// Routing decisions are persisted per request: the first create selects a
-	// channel, later creates on the same connection reuse it as a pin.
-	for index, wantDecision := range []string{"attempt:channel_selected", "select:pinned_channel"} {
+	// Routing decisions are persisted whenever routing has something to
+	// explain. The first create merely selects a channel and completes, which
+	// restates the row's own outcome, so it stores no chain. The later create
+	// on the same connection reuses that channel as a pin, and that movement is
+	// what the chain is there to record.
+	readDecisions := func(row model.Log) []string {
 		var other struct {
 			AdminInfo struct {
 				RequestPolicy []struct {
@@ -628,14 +631,16 @@ func TestResponsesWebSocketReusesConnectionAndSettlesEachRequest(t *testing.T) {
 				} `json:"request_policy"`
 			} `json:"admin_info"`
 		}
-		require.NoError(t, common.UnmarshalJsonStr(logs[index].Other, &other))
+		require.NoError(t, common.UnmarshalJsonStr(row.Other, &other))
 		var decisions []string
 		for _, event := range other.AdminInfo.RequestPolicy {
 			assert.Equal(t, fixture.channel.Id, event.ChannelID)
 			decisions = append(decisions, event.Decision.Action+":"+event.Decision.Reason)
 		}
-		assert.Contains(t, decisions, wantDecision, "request %d policy events: %v", index, decisions)
+		return decisions
 	}
+	assert.Empty(t, readDecisions(logs[0]), "a plain single-channel request stores no routing chain")
+	assert.Contains(t, readDecisions(logs[1]), "select:pinned_channel", "the pinned reuse on the same connection is recorded")
 	require.NoError(t, model.DB.First(token, token.Id).Error)
 	require.NoError(t, model.DB.First(user, user.Id).Error)
 	assert.Zero(t, token.RemainQuota)
