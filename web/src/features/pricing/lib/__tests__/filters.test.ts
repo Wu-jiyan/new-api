@@ -21,6 +21,7 @@ import { describe, expect, it } from 'vitest'
 import { SORT_OPTIONS } from '../../constants'
 import type { PricingModel } from '../../types'
 import { filterBySearch, parseSearchScopes, sortModels } from '../filters'
+import { sortGroups } from '../group-sort'
 
 function pricingModel(model: Partial<PricingModel>): PricingModel {
   return {
@@ -111,5 +112,58 @@ describe('filterBySearch', () => {
     expect(parseSearchScopes('vendor')).toEqual(['vendor'])
     expect(parseSearchScopes('unknown')).toEqual(['name'])
     expect(parseSearchScopes(undefined)).toEqual(['name'])
+  })
+})
+
+const GROUPS = ['vip', 'default', 'enterprise', 'beta']
+
+describe('sortGroups', () => {
+  it('lists chained groups in chain order and pushes the rest to the end by name', () => {
+    expect(
+      sortGroups(GROUPS, 'auto', { autoGroups: ['enterprise', 'vip'] })
+    ).toEqual(['enterprise', 'vip', 'beta', 'default'])
+  })
+
+  it('falls back to alphabetical order when there is no auto group chain', () => {
+    expect(sortGroups(GROUPS, 'auto', {})).toEqual([
+      'beta',
+      'default',
+      'enterprise',
+      'vip',
+    ])
+    expect(
+      sortGroups(GROUPS, 'auto', { autoGroups: ['default'] })
+    ).toEqual(['default', 'beta', 'enterprise', 'vip'])
+  })
+
+  it('orders by group name', () => {
+    expect(sortGroups(GROUPS, 'name', { autoGroups: ['vip'] })).toEqual([
+      'beta',
+      'default',
+      'enterprise',
+      'vip',
+    ])
+  })
+
+  it('orders by group ratio in both directions, breaking ties by name', () => {
+    const groupRatios = { vip: 3, default: 1, enterprise: 5, beta: 1 }
+    expect(sortGroups(GROUPS, 'ratio-asc', { groupRatios })).toEqual([
+      'beta',
+      'default',
+      'vip',
+      'enterprise',
+    ])
+    expect(sortGroups(GROUPS, 'ratio-desc', { groupRatios })).toEqual([
+      'enterprise',
+      'vip',
+      'beta',
+      'default',
+    ])
+  })
+
+  it('treats a group without a configured ratio as ratio 1', () => {
+    expect(
+      sortGroups(['a', 'b'], 'ratio-desc', { groupRatios: { a: 2 } })
+    ).toEqual(['a', 'b'])
   })
 })

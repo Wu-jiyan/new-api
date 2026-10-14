@@ -34,12 +34,15 @@ import {
 } from './components'
 import { EXCLUDED_GROUPS, VIEW_MODES } from './constants'
 import { useCharacterMap, useFilters, usePricingData } from './hooks'
+import type { GroupSortMode } from './lib/group-sort'
 
 export function Pricing() {
   const { t } = useTranslation()
   const [selectedModelName, setSelectedModelName] = useState<string | null>(
     null
   )
+  // 分组排序同时作用于左栏筛选与模型详情，两处共用同一个状态。
+  const [groupSort, setGroupSort] = useState<GroupSortMode>('auto')
 
   const {
     models,
@@ -231,6 +234,9 @@ export function Pricing() {
               vendors={vendors || []}
               groups={availableGroups}
               groupRatios={groupRatio}
+              autoGroups={autoGroups || []}
+              groupSort={groupSort}
+              onGroupSortChange={setGroupSort}
               tags={availableTags}
               models={models || []}
               hasActiveFilters={hasActiveFilters}
@@ -269,6 +275,9 @@ export function Pricing() {
                 vendors={vendors || []}
                 groups={availableGroups}
                 groupRatios={groupRatio}
+                autoGroups={autoGroups || []}
+                groupSort={groupSort}
+                onGroupSortChange={setGroupSort}
                 tags={availableTags}
                 models={models || []}
                 hasActiveFilters={hasActiveFilters}

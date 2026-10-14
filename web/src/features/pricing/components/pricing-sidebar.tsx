@@ -40,8 +40,10 @@ import {
 } from '../constants'
 import { hasTaskUsageSchema } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
+import { sortGroups, type GroupSortMode } from '../lib/group-sort'
 import { tierForDimension, type ScoreDimension } from '../lib/scores'
 import type { PricingModel, PricingVendor } from '../types'
+import { GroupSortControl } from './group-sort-control'
 
 type FilterOption = {
   value: string
@@ -56,6 +58,8 @@ type FilterSectionProps = {
   value: string
   options: FilterOption[]
   onChange: (value: string) => void
+  /** Optional control rendered above the options, e.g. a sort selector */
+  action?: ReactNode
 }
 
 export interface PricingSidebarProps {
@@ -76,6 +80,10 @@ export interface PricingSidebarProps {
   vendors: PricingVendor[]
   groups: string[]
   groupRatios?: Record<string, number>
+  /** Automatic group chain, used by the "Auto group chain" ordering */
+  autoGroups?: string[]
+  groupSort: GroupSortMode
+  onGroupSortChange: (value: GroupSortMode) => void
   tags: string[]
   models: PricingModel[]
   hasActiveFilters: boolean
@@ -139,6 +147,9 @@ function FilterSection(props: FilterSectionProps) {
         <ChevronDown className='text-muted-foreground size-4 transition-transform group-data-[panel-open]:rotate-180' />
       </CollapsibleTrigger>
       <CollapsibleContent>
+        {props.action && (
+          <div className='mb-2 flex justify-end'>{props.action}</div>
+        )}
         <div className='flex flex-wrap gap-1.5'>
           {props.options.map((option) => (
             <FilterChip
@@ -212,12 +223,17 @@ export const PricingSidebar = memo(function PricingSidebar(
       .filter((vendor) => vendor.count > 0),
   ]
 
+  // 分组按用户选择的顺序展示；未指定时用自动分组链顺序，结果始终确定。
+  const orderedGroups = sortGroups(props.groups, props.groupSort, {
+    autoGroups: props.autoGroups,
+    groupRatios: props.groupRatios,
+  })
   const groupOptions: FilterOption[] = [
     {
       value: FILTER_ALL,
       label: t('All Groups'),
     },
-    ...props.groups.map((group) => ({
+    ...orderedGroups.map((group) => ({
       value: group,
       label: group,
       suffix: formatGroupRatio(props.groupRatios?.[group]),
@@ -326,6 +342,12 @@ export const PricingSidebar = memo(function PricingSidebar(
           value={props.groupFilter}
           options={groupOptions}
           onChange={props.onGroupChange}
+          action={
+            <GroupSortControl
+              value={props.groupSort}
+              onChange={props.onGroupSortChange}
+            />
+          }
         />
         <FilterSection
           title={t('All Vendors')}

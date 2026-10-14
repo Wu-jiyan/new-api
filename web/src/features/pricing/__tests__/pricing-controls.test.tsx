@@ -47,6 +47,8 @@ function toolbarProps(): PricingToolbarProps {
     sortBy: 'name',
     dimension: 'deepswe',
     onDimensionChange: vi.fn(),
+    groupSort: 'auto',
+    onGroupSortChange: vi.fn(),
     tokenUnit: 'M',
     showRechargePrice: false,
     viewMode: 'card',
@@ -358,5 +360,46 @@ describe('pricing controls', () => {
     expect(
       screen.getByRole('menuitemcheckbox', { name: 'Search description' })
     ).toHaveAttribute('aria-checked', 'true')
+  })
+})
+
+describe('group ordering', () => {
+  const groupChip = (name: string) =>
+    screen.getByRole('button', { name: new RegExp(`^${name}\\s*`) })
+  const renderedBefore = (a: HTMLElement, b: HTMLElement) =>
+    Boolean(
+      a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING
+    )
+
+  function sidebarProps(groupSort: 'auto' | 'name') {
+    return {
+      ...toolbarProps(),
+      groups: ['vip', 'default', 'beta'],
+      groupRatios: { vip: 3, default: 1, beta: 1 },
+      autoGroups: ['vip'],
+      models: [] as PricingModel[],
+      groupSort,
+      onGroupSortChange: vi.fn(),
+    }
+  }
+
+  it('lists groups alphabetically by default ordering', () => {
+    render(<PricingSidebar {...sidebarProps('name')} />)
+
+    expect(renderedBefore(groupChip('beta'), groupChip('default'))).toBe(true)
+    expect(renderedBefore(groupChip('default'), groupChip('vip'))).toBe(true)
+  })
+
+  it('puts auto group chain groups first and the rest last by name', () => {
+    render(<PricingSidebar {...sidebarProps('auto')} />)
+
+    expect(renderedBefore(groupChip('vip'), groupChip('beta'))).toBe(true)
+    expect(renderedBefore(groupChip('beta'), groupChip('default'))).toBe(true)
+  })
+
+  it('offers the ordering switcher in the groups section', () => {
+    render(<PricingSidebar {...sidebarProps('auto')} />)
+
+    expect(screen.getByRole('button', { name: 'Group order' })).toBeVisible()
   })
 })

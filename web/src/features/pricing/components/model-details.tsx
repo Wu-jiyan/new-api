@@ -30,7 +30,7 @@ import {
   Sparkles,
   Timer,
 } from 'lucide-react'
-import { useMemo } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton } from '@/components/copy-button'
@@ -82,6 +82,10 @@ import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
 import { withPluginPricing } from '../lib/plugin-pricing'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
 import {
+  sortGroups,
+  type GroupSortMode,
+} from '../lib/group-sort'
+import {
   DEFAULT_SCORE_DIMENSION,
   isScoreDimension,
   tierForDimension,
@@ -111,6 +115,7 @@ import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelDetailsApi } from './model-details-api'
 import { ModelDetailsPerformance } from './model-details-performance'
 import { ModelScores } from './model-scores'
+import { GroupSortControl } from './group-sort-control'
 import { RatingBadge } from './rating-badge'
 
 // ----------------------------------------------------------------------------
@@ -122,6 +127,22 @@ function SectionTitle(props: { children: React.ReactNode }) {
     <h2 className='text-muted-foreground mb-3 text-xs font-semibold tracking-wider uppercase'>
       {props.children}
     </h2>
+  )
+}
+
+/** 分组小节标题：带排序控件时把控件放到同一行右侧，避免重复出现标题。 */
+function GroupSectionHeading(props: {
+  title: string
+  control?: React.ReactNode
+}) {
+  if (!props.control) {
+    return <SectionTitle>{props.title}</SectionTitle>
+  }
+  return (
+    <div className='flex items-center justify-between gap-2'>
+      <SectionTitle>{props.title}</SectionTitle>
+      {props.control}
+    </div>
   )
 }
 
@@ -1017,13 +1038,43 @@ type GroupPricingSectionProps = {
 
 function GroupPricingSection(props: GroupPricingSectionProps) {
   const { t } = useTranslation()
+  const [groupSort, setGroupSort] = useState<GroupSortMode>('auto')
   const variants = props.model.billing_plugin_variants
+  // 排序在这里算一次，下面的三个分组布局分支共用同一份顺序。
+  const availableGroups = useMemo(
+    () =>
+      sortGroups(
+        getAvailableGroups(props.model, props.usableGroup || {}),
+        groupSort,
+        {
+          autoGroups: props.autoGroups,
+          groupRatios: props.groupRatio,
+        }
+      ),
+    [props.model, props.usableGroup, props.autoGroups, props.groupRatio, groupSort]
+  )
+  const sortControl = (
+    <GroupSortControl
+      value={groupSort}
+      onChange={setGroupSort}
+      className='ml-auto'
+    />
+  )
   if (!variants?.length) {
-    return <ProviderGroupPricingSection {...props} />
+    return (
+      <ProviderGroupPricingSection
+        {...props}
+        availableGroups={availableGroups}
+        sortControl={sortControl}
+      />
+    )
   }
   return (
     <section>
-      <SectionTitle>{t('Pricing by Group')}</SectionTitle>
+      <div className='flex items-center gap-2'>
+        <SectionTitle>{t('Pricing by Group')}</SectionTitle>
+        {sortControl}
+      </div>
       <Tabs key={props.model.model_name} defaultValue={variants[0].plugin_key}>
         <TabsList
           aria-label={t('Provider')}
@@ -1070,14 +1121,25 @@ function GroupPricingSection(props: GroupPricingSectionProps) {
 }
 
 function ProviderGroupPricingSection(
-  props: GroupPricingSectionProps & { hideTitle?: boolean }
+  props: GroupPricingSectionProps & {
+    hideTitle?: boolean
+    /** Group order decided by the parent so every layout branch agrees */
+    availableGroups?: string[]
+    sortControl?: ReactNode
+  }
 ) {
   const { t, i18n } = useTranslation()
   const showRechargePrice = props.showRechargePrice ?? false
 
   const availableGroups = useMemo(
-    () => getAvailableGroups(props.model, props.usableGroup || {}),
-    [props.model, props.usableGroup]
+    () =>
+      props.availableGroups ??
+      sortGroups(
+        getAvailableGroups(props.model, props.usableGroup || {}),
+        'auto',
+        { autoGroups: props.autoGroups, groupRatios: props.groupRatio }
+      ),
+    [props.availableGroups, props.model, props.usableGroup, props.autoGroups, props.groupRatio]
   )
 
   const isTokenBased = isTokenBasedModel(props.model)
@@ -1110,7 +1172,10 @@ function ProviderGroupPricingSection(
     return (
       <section>
         {!props.hideTitle && (
-          <SectionTitle>{t('Pricing by Group')}</SectionTitle>
+          <GroupSectionHeading
+            title={t('Pricing by Group')}
+            control={props.sortControl}
+          />
         )}
         <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
         <p className='text-muted-foreground text-sm'>
@@ -1142,7 +1207,10 @@ function ProviderGroupPricingSection(
       return (
         <section>
           {!props.hideTitle && (
-            <SectionTitle>{t('Pricing by Group')}</SectionTitle>
+            <GroupSectionHeading
+            title={t('Pricing by Group')}
+            control={props.sortControl}
+          />
           )}
           <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
           <div className='rounded-lg border border-amber-200/70 bg-amber-50/70 p-3 dark:border-amber-500/20 dark:bg-amber-500/10'>
@@ -1203,7 +1271,10 @@ function ProviderGroupPricingSection(
     return (
       <section>
         {!props.hideTitle && (
-          <SectionTitle>{t('Pricing by Group')}</SectionTitle>
+          <GroupSectionHeading
+            title={t('Pricing by Group')}
+            control={props.sortControl}
+          />
         )}
         <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
         <div className='space-y-3'>
@@ -1362,7 +1433,10 @@ function ProviderGroupPricingSection(
     return (
       <section>
         {!props.hideTitle && (
-          <SectionTitle>{t('Pricing by Group')}</SectionTitle>
+          <GroupSectionHeading
+            title={t('Pricing by Group')}
+            control={props.sortControl}
+          />
         )}
         <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
         <UnconfiguredTaskPricingNotice model={props.model} />
@@ -1393,7 +1467,12 @@ function ProviderGroupPricingSection(
 
   return (
     <section>
-      {!props.hideTitle && <SectionTitle>{t('Pricing by Group')}</SectionTitle>}
+      {!props.hideTitle && (
+        <GroupSectionHeading
+          title={t('Pricing by Group')}
+          control={props.sortControl}
+        />
+      )}
       <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
       <StaticDataTable
         className='-mx-4 rounded-none border-0 sm:mx-0'
