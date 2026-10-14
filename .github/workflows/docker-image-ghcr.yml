@@ -69,7 +69,35 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & push single-arch
-        id: build
+        id: build_attempt_1
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          push: true
+          build-args: |
+            VITE_REACT_APP_SYSTEM_NAME=二五云API
+            VITE_REACT_APP_FAVICON=https://res.25y.cn/favicon.ico
+          tags: |
+            ghcr.io/${{ env.LOWERCASE_REPO }}:${{ needs.prepare.outputs.version }}-${{ matrix.arch }}
+            ghcr.io/${{ env.LOWERCASE_REPO }}:latest-${{ matrix.arch }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: mode=max
+          sbom: true
+
+      # GitHub Actions has no native step retry, so the second attempt is a
+      # conditional step that runs only when the first one failed. This absorbs
+      # transient Docker Hub failures (for example a 502 while resolving a
+      # digest-pinned base image manifest) without adding a third-party retry
+      # action and without replacing the official build action with a
+      # hand-rolled buildx CLI call.
+      - name: Wait before retry
+        if: ${{ failure() && steps.build_attempt_1.outcome == 'failure' }}
+        run: sleep 30
+
+      - name: Build & push single-arch (retry)
+        if: ${{ failure() && steps.build_attempt_1.outcome == 'failure' }}
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
