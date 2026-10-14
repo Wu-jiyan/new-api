@@ -803,4 +803,19 @@ describe('model cards', () => {
     expect(spans[0]).toHaveClass('bg-amber-500')
     vi.useRealTimers()
   })
+
+  it('shows the group flat price instead of per-token prices when the group forces one', () => {
+    render(
+      <ModelCard
+        model={pricingModel()}
+        onClick={vi.fn()}
+        groupForcedPrice={{ default: 0.02 }}
+      />
+    )
+
+    expect(screen.getByText(/\$0\.02/)).toBeVisible()
+    // The token prices of this model are not what the caller is charged.
+    expect(screen.queryByText('Input')).not.toBeInTheDocument()
+    expect(screen.queryByText('Output')).not.toBeInTheDocument()
+  })
 })

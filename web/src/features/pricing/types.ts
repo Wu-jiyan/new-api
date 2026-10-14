@@ -143,6 +143,8 @@ export type PricingData = {
   data: PricingModel[]
   vendors: PricingVendor[]
   group_ratio: Record<string, number>
+  /** Groups whose every request costs one flat USD price, ignoring model pricing */
+  group_forced_price?: Record<string, number>
   usable_group: Record<string, { desc: string; ratio: number }>
   supported_endpoint: Record<string, string>
   auto_groups: string[]

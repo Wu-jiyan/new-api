@@ -39,6 +39,8 @@ export interface PricingTableProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   selectedGroup?: string
+  /** Groups that charge one flat USD price per request instead of a model price */
+  groupForcedPrice?: Record<string, number>
   onModelClick?: (modelName: string) => void
 }
 
@@ -52,6 +54,7 @@ export function PricingTable(props: PricingTableProps) {
     tokenUnit = DEFAULT_TOKEN_UNIT,
     showRechargePrice = false,
     selectedGroup,
+    groupForcedPrice,
     onModelClick,
   } = props
 
@@ -66,6 +69,7 @@ export function PricingTable(props: PricingTableProps) {
     usdExchangeRate,
     showRechargePrice,
     selectedGroup,
+    groupForcedPrice,
   })
 
   const { table } = useDataTable({

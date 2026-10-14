@@ -28,7 +28,10 @@ import {
   getDynamicPricingSummary,
   isUnconfiguredTaskUsageModel,
 } from '../lib/dynamic-price'
-import { isTokenBasedModel } from '../lib/model-helpers'
+import {
+  getDisplayGroupForcedPrice,
+  isTokenBasedModel,
+} from '../lib/model-helpers'
 import { formatPrice, stripTrailingZeros } from '../lib/price'
 import type { PricingModel } from '../types'
 import type { ModelPriceCellOptions } from './model-price-cell'
@@ -74,6 +77,18 @@ export function CachedPriceCell(props: {
       currency,
     ]
   )
+
+  // A forced-price group has no separate cache charge: the whole request costs
+  // one flat amount, so a cache price here would be invented.
+  if (
+    getDisplayGroupForcedPrice(
+      model,
+      props.options.groupForcedPrice,
+      selectedGroup
+    ) !== undefined
+  ) {
+    return <span className='text-muted-foreground/30 text-xs'>—</span>
+  }
 
   if (dynamicSummary) {
     if (dynamicSummary.isSpecialExpression) {

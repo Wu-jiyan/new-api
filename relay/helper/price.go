@@ -60,7 +60,41 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) hostty
 		groupRatioInfo.GroupRatio = ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
 	}
 
+	groupRatioInfo.ForcedPrice, groupRatioInfo.HasForcedPrice = ratio_setting.GetGroupForcedPrice(relayInfo.UsingGroup)
+	if groupRatioInfo.HasForcedPrice {
+		// A forced price is absolute: no ratio may scale it, including the
+		// per-user-group special ratio resolved above.
+		groupRatioInfo.GroupRatio = 1
+	}
+
 	return groupRatioInfo
+}
+
+// GroupForcedPriceData prices every request billed as the group at one flat USD
+// amount. It deliberately returns no OtherRatios and a group ratio of 1, so
+// image counts, durations and resolutions cannot scale a price the operator
+// declared as exact.
+//
+// forced is false when the group has no forced price and normal model pricing
+// applies. A non-nil error means the configured price cannot be converted to a
+// quota; the caller must fail the request rather than silently fall back, or a
+// group meant to charge $X would quietly bill the model's own price.
+func GroupForcedPriceData(groupRatioInfo hosttypes.GroupRatioInfo) (priceData hosttypes.PriceData, forced bool, err error) {
+	if !groupRatioInfo.HasForcedPrice {
+		return hosttypes.PriceData{}, false, nil
+	}
+	quota, err := common.QuotaFromFloatStrict(groupRatioInfo.ForcedPrice * common.QuotaPerUnit)
+	if err != nil {
+		return hosttypes.PriceData{}, true, err
+	}
+	return hosttypes.PriceData{
+		ModelPrice:        groupRatioInfo.ForcedPrice,
+		UsePrice:          true,
+		Quota:             quota,
+		QuotaToPreConsume: quota,
+		GroupRatioInfo:    groupRatioInfo,
+		FreeModel:         quota == 0,
+	}, true, nil
 }
 
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (hosttypes.PriceData, error) {
@@ -73,6 +107,18 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	modelPrice, usePrice := ratio_setting.GetModelPrice(billingModelName, false)
 
 	groupRatioInfo := HandleGroupRatio(c, info)
+
+	// A group forced price replaces model pricing before any price/ratio lookup,
+	// so an unconfigured model in such a group is billable and the group's
+	// expression never runs.
+	forced, isForced, err := GroupForcedPriceData(groupRatioInfo)
+	if err != nil {
+		return hosttypes.PriceData{}, err
+	}
+	if isForced {
+		info.PriceData = forced
+		return forced, nil
+	}
 
 	// Check if this model uses tiered_expr billing
 	if billing_setting.GetBillingMode(billingModelName) == billing_setting.BillingModeTieredExpr {
@@ -210,6 +256,15 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 // ModelPriceHelperPerCall 按次/按量计费的 PriceHelper (MJ、Task)
 func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (hosttypes.PriceData, error) {
 	groupRatioInfo := HandleGroupRatio(c, info)
+
+	forced, isForced, err := GroupForcedPriceData(groupRatioInfo)
+	if err != nil {
+		return hosttypes.PriceData{}, err
+	}
+	if isForced {
+		info.PriceData = forced
+		return forced, nil
+	}
 
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
 	usePrice := success

@@ -43,6 +43,7 @@ const defaults = {
   MaxTokenAutoGroups: 5,
   DefaultUseAutoGroup: false,
   GroupSpecialUsableGroup: '{}',
+  GroupForcedPrice: '{}',
 }
 
 const schema = z.object({
@@ -54,6 +55,7 @@ const schema = z.object({
   MaxTokenAutoGroups: positiveIntegerSchema('Enter a positive integer'),
   DefaultUseAutoGroup: z.boolean(),
   GroupSpecialUsableGroup: z.string(),
+  GroupForcedPrice: z.string(),
 })
 
 function Fixture(props: {
@@ -260,6 +262,29 @@ describe('group settings workspace', () => {
     await waitFor(() => expect(input).toHaveFocus())
     expect(screen.getByText('Enter a positive integer')).toBeVisible()
     expect(onSave).not.toHaveBeenCalled()
+  })
+
+  it('saves a group forced price and drops a non-positive one', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    render(<Fixture onSave={onSave} />)
+
+    const forcedPrice = screen.getAllByRole('spinbutton', {
+      name: 'Forced price',
+    })[0]
+    await user.type(forcedPrice, '0.02')
+    // A second group, where the forced price is set to zero: zero would make
+    // the whole group free, which the Ratio column is for.
+    const second = screen.getAllByRole('spinbutton', { name: 'Forced price' })[1]
+    await user.type(second, '0')
+
+    await user.click(
+      screen.getByRole('button', { name: 'Save group settings' })
+    )
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    expect(JSON.parse(onSave.mock.calls[0][0].GroupForcedPrice)).toEqual({
+      default: 0.02,
+    })
   })
 
   it('shows empty state guidance and disables save during a pending request', async () => {

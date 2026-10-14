@@ -62,6 +62,9 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo, task *model
 		other.SetPublic("model_ratio", info.PriceData.ModelRatio)
 	}
 	other.SetPublic("group_ratio", info.PriceData.GroupRatioInfo.GroupRatio)
+	if info.PriceData.GroupRatioInfo.HasForcedPrice {
+		other.SetPublic("group_forced_price", info.PriceData.GroupRatioInfo.ForcedPrice)
+	}
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other.SetPublic("user_group_ratio", info.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	}

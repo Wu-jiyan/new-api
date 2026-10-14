@@ -175,6 +175,29 @@ func PrepareTieredBillingForSelectedGroup(c *gin.Context, relayInfo *relaycommon
 		)
 	}
 	if snap == nil {
+		// A group forced price has no expression snapshot, but a retry that
+		// lands on such a group must still reserve before the upstream call —
+		// otherwise an unaffordable flat fee is only discovered at settlement.
+		if !relayInfo.PriceData.GroupRatioInfo.HasForcedPrice {
+			return nil
+		}
+		reserved, err := common.QuotaRoundChecked(relayInfo.PriceData.GroupRatioInfo.ForcedPrice * common.QuotaPerUnit)
+		if err != nil {
+			return types.NewErrorWithStatusCode(
+				err,
+				types.ErrorCodeModelPriceError,
+				http.StatusBadRequest,
+				types.ErrOptionWithSkipRetry(),
+			)
+		}
+		relayInfo.PriceData.FreeModel = false
+		if relayInfo.Billing == nil {
+			return PreConsumeBilling(c, reserved, relayInfo)
+		}
+		if err := relayInfo.Billing.Reserve(reserved); err != nil {
+			return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
+		}
+		relayInfo.FinalPreConsumedQuota = relayInfo.Billing.GetPreConsumedQuota()
 		return nil
 	}
 	if snap.GroupRatio == 0 {

@@ -145,6 +145,7 @@ const createGroupSchema = (t: Translate) =>
     MaxTokenAutoGroups: positiveIntegerSchema(t('Enter a positive integer')),
     DefaultUseAutoGroup: z.boolean(),
     GroupSpecialUsableGroup: createJsonStringField(t),
+    GroupForcedPrice: createJsonStringField(t),
   })
 
 type ModelFormValues = z.infer<ReturnType<typeof createModelSchema>>
@@ -252,6 +253,7 @@ export function RatioSettingsCard({
     GroupSpecialUsableGroup: normalizeJsonString(
       groupDefaults.GroupSpecialUsableGroup
     ),
+    GroupForcedPrice: normalizeJsonString(groupDefaults.GroupForcedPrice),
   })
   const modelSchema = useMemo(() => createModelSchema(t), [t])
   const groupSchema = useMemo(() => createGroupSchema(t), [t])
@@ -342,6 +344,7 @@ export function RatioSettingsCard({
       GroupSpecialUsableGroup: normalizeJsonString(
         groupDefaults.GroupSpecialUsableGroup
       ),
+      GroupForcedPrice: normalizeJsonString(groupDefaults.GroupForcedPrice),
     }
 
     groupForm.reset({
@@ -354,6 +357,7 @@ export function RatioSettingsCard({
       GroupSpecialUsableGroup: formatJsonForTextarea(
         groupDefaults.GroupSpecialUsableGroup
       ),
+      GroupForcedPrice: formatJsonForTextarea(groupDefaults.GroupForcedPrice),
     })
   }, [groupDefaults, groupForm])
 
@@ -420,12 +424,15 @@ export function RatioSettingsCard({
         GroupSpecialUsableGroup: normalizeJsonString(
           values.GroupSpecialUsableGroup
         ),
+        GroupForcedPrice: normalizeJsonString(values.GroupForcedPrice),
       }
 
-      // Map form field names to API keys (most are 1:1, except GroupSpecialUsableGroup)
+      // Map form field names to API keys (most are 1:1, except the nested
+      // group_ratio_setting.* options)
       const apiKeyMap: Record<string, string> = {
         GroupSpecialUsableGroup:
           'group_ratio_setting.group_special_usable_group',
+        GroupForcedPrice: 'group_ratio_setting.group_forced_price',
       }
 
       const updates = (

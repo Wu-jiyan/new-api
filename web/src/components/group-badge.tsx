@@ -21,15 +21,22 @@ import { useTranslation } from 'react-i18next'
 
 import { cn } from '@/lib/utils'
 
+import { formatGroupRatioLabel } from '../lib/group-ratio'
+
 import { StatusBadge, type StatusBadgeProps } from './status-badge'
 import { Badge } from './ui/badge'
 
+/**
+ * Text for a group-ratio chip: a free group reads as "Free" rather than "0x",
+ * which reads like a typo to anyone who has not configured the ratio.
+ */
 export function GroupMultiplierBadge(props: {
   children?: ReactNode
   className?: string
   label?: string
   ratio?: number | null
 }) {
+  const { t } = useTranslation()
   let colorClassName =
     'border-muted-foreground/30 bg-muted text-muted-foreground'
   if (props.ratio != null && props.ratio > 1) {
@@ -49,7 +56,9 @@ export function GroupMultiplierBadge(props: {
       )}
     >
       {props.children}
-      <span>{props.label ?? `${props.ratio}x`}</span>
+      <span>
+        {props.label ?? formatGroupRatioLabel(props.ratio, t('Free of charge'))}
+      </span>
     </Badge>
   )
 }

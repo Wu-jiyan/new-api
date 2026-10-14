@@ -40,6 +40,8 @@ export interface ModelCardGridProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   selectedGroup?: string
+  /** Groups that charge one flat USD price per request instead of a model price */
+  groupForcedPrice?: Record<string, number>
   characterMap?: ReadonlyMap<string, CharacterView>
   dimension?: ScoreDimension
 }
@@ -111,6 +113,7 @@ export const ModelCardGrid = memo(function ModelCardGrid(
             usdExchangeRate={props.usdExchangeRate}
             showRechargePrice={props.showRechargePrice}
             selectedGroup={props.selectedGroup}
+            groupForcedPrice={props.groupForcedPrice}
             perf={perfMap.get(model.model_name || '')}
             character={characterMap.get(model.model_name || '')}
             dimension={props.dimension}

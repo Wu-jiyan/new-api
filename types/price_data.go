@@ -11,6 +11,12 @@ type GroupRatioInfo struct {
 	GroupRatio        float64
 	GroupSpecialRatio float64
 	HasSpecialRatio   bool
+	// ForcedPrice is a flat USD price per request configured on the billing
+	// group. When HasForcedPrice is set it replaces the model's own price,
+	// ratio and billing expression entirely; the group ratio then reads 1
+	// because the operator asked for an exact charge, not a multiplier.
+	ForcedPrice    float64
+	HasForcedPrice bool
 }
 
 type PriceData struct {

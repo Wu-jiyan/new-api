@@ -51,6 +51,55 @@ export function getConfiguredGroupRatio(
 }
 
 /**
+ * Read the flat per-request price a group charges instead of model pricing.
+ * Returns undefined when the group has no forced price, so callers can fall
+ * back to ratio-based pricing.
+ */
+export function getGroupForcedPrice(
+  groupForcedPrice: Record<string, number> | undefined,
+  group: string | undefined
+): number | undefined {
+  if (!groupForcedPrice || !group || group === FILTER_ALL) return undefined
+  const price = groupForcedPrice[group]
+  return typeof price === 'number' && Number.isFinite(price) && price > 0
+    ? price
+    : undefined
+}
+
+/**
+ * Resolve the flat per-request price shown for a model.
+ *
+ * When no group filter is active this mirrors getDisplayGroupRatio: the model
+ * square shows the best price available to the viewer, which for forced-price
+ * groups is the cheapest flat fee. Returns undefined when no forced price
+ * applies and ratio-based pricing must be used instead.
+ */
+export function getDisplayGroupForcedPrice(
+  model: PricingModel,
+  groupForcedPrice: Record<string, number> | undefined,
+  selectedGroup?: string
+): number | undefined {
+  const modelEnableGroups = Array.isArray(model.enable_groups)
+    ? model.enable_groups
+    : []
+
+  if (
+    selectedGroup &&
+    selectedGroup !== FILTER_ALL &&
+    modelEnableGroups.includes(selectedGroup)
+  ) {
+    return getGroupForcedPrice(groupForcedPrice, selectedGroup)
+  }
+
+  let minPrice = Number.POSITIVE_INFINITY
+  for (const group of modelEnableGroups) {
+    const price = getGroupForcedPrice(groupForcedPrice, group)
+    if (price !== undefined && price < minPrice) minPrice = price
+  }
+  return minPrice === Number.POSITIVE_INFINITY ? undefined : minPrice
+}
+
+/**
  * Resolve the group ratio used by model square summary prices.
  *
  * When no specific group is selected, the model square shows the best price

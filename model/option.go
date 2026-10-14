@@ -261,6 +261,9 @@ func validateOptionValue(key string, value string) error {
 	if key == "log_cleanup_setting.retention_days" {
 		return operation_setting.ValidateLogCleanupRetentionDays(value)
 	}
+	if key == "group_ratio_setting.group_forced_price" {
+		return ratio_setting.CheckGroupForcedPrice(value)
+	}
 	return nil
 }
 

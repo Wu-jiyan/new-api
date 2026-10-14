@@ -1,5 +1,10 @@
 {
   "translation": {
+    "All group names live here. Ratio applies when calls are billed as this group; top-up ratio applies to users whose account is in this group. A forced price replaces every model price in the group with one flat amount per request.": "Все имена групп указаны здесь. Коэффициент применяется, когда запросы тарифицируются как эта группа; коэффициент пополнения действует для пользователей, чей аккаунт относится к этой группе. Фиксированная цена заменяет все цены моделей группы одной суммой за запрос.",
+    "Forced price": "Фиксированная цена",
+    "Group forced prices": "Фиксированные цены по группам",
+    "Groups with a forced price charge one flat amount per request: {{groups}}": "Группы с фиксированной ценой взимают одну фиксированную сумму за запрос: {{groups}}",
+    "Optional JSON map of group → USD price per request. A listed group charges exactly that amount for every request, ignoring the model price, the group ratio and the image count.": "Необязательная JSON-карта группа → цена в USD за запрос. Для указанной группы с каждого запроса взимается ровно эта сумма независимо от цены модели, коэффициента группы и количества изображений.",
     "{{count}} models total": "Всего моделей: {{count}}",
     "360": "360",
     "1000": "1000",

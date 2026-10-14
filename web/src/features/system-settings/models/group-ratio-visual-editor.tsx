@@ -68,6 +68,7 @@ import {
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
+  InputGroupText,
 } from '@/components/ui/input-group'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
@@ -80,6 +81,7 @@ import {
 } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toIntlLocale } from '@/i18n/languages'
+import { getCurrencyLabel } from '@/lib/currency'
 import { formatNumber } from '@/lib/format'
 
 import { safeJsonParse } from '../utils/json-parser'
@@ -102,6 +104,7 @@ type GroupRatioVisualEditorProps = {
   autoGroups: string
   maxTokenAutoGroupsField: ReactNode
   groupSpecialUsableGroup: string
+  groupForcedPrice: string
   onChange: (field: string, value: string) => void
 }
 
@@ -109,6 +112,7 @@ type GroupPricingRow = {
   _id: string
   name: string
   ratio: string
+  forcedPrice: string
   topupRatio: string
   selectable: boolean
   description: string
@@ -129,7 +133,9 @@ function createGroupPricingId() {
 }
 
 function normalizeRatio(value: unknown): number {
-  const parsed = Number(value)
+  // parseFloat, not Number: Number('') is 0, so a cleared field would silently
+  // serialize as a free group instead of falling back to the default ratio.
+  const parsed = Number.parseFloat(String(value))
   return Number.isFinite(parsed) ? parsed : 1
 }
 
@@ -159,21 +165,27 @@ function parseNestedRatioMap(
 function buildGroupPricingRows(
   groupRatio: string,
   userUsableGroups: string,
-  topupGroupRatio: string
+  topupGroupRatio: string,
+  groupForcedPrice: string
 ): GroupPricingRow[] {
   const ratioMap = parseRatioMap(groupRatio)
   const usableMap = parseUsableMap(userUsableGroups)
   const topupMap = parseRatioMap(topupGroupRatio)
+  const forcedPriceMap = parseRatioMap(groupForcedPrice)
   const names = new Set([
     ...Object.keys(ratioMap),
     ...Object.keys(usableMap),
     ...Object.keys(topupMap),
+    ...Object.keys(forcedPriceMap),
   ])
 
   return [...names].map((name) => ({
     _id: createGroupPricingId(),
     name,
     ratio: String(normalizeRatio(ratioMap[name])),
+    forcedPrice: Object.hasOwn(forcedPriceMap, name)
+      ? String(forcedPriceMap[name])
+      : '',
     topupRatio: Object.hasOwn(topupMap, name) ? String(topupMap[name]) : '',
     selectable: Object.hasOwn(usableMap, name),
     description: String(usableMap[name] ?? ''),
@@ -184,6 +196,7 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
   const groupRatio: Record<string, number> = {}
   const userUsableGroups: Record<string, string> = {}
   const topupGroupRatio: Record<string, number> = {}
+  const groupForcedPrice: Record<string, number> = {}
 
   for (const row of rows) {
     const name = row.name.trim()
@@ -196,12 +209,21 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
     if (topup !== '' && Number.isFinite(Number(topup))) {
       topupGroupRatio[name] = Number(topup)
     }
+    // A forced price must be strictly positive: zero would silently make the
+    // whole group free, which is what the ratio column is for.
+    const forcedPrice = row.forcedPrice.trim()
+    if (forcedPrice !== '' && Number.isFinite(Number(forcedPrice))) {
+      if (Number(forcedPrice) > 0) {
+        groupForcedPrice[name] = Number(forcedPrice)
+      }
+    }
   }
 
   return {
     GroupRatio: JSON.stringify(groupRatio, null, 2),
     UserUsableGroups: JSON.stringify(userUsableGroups, null, 2),
     TopupGroupRatio: JSON.stringify(topupGroupRatio, null, 2),
+    GroupForcedPrice: JSON.stringify(groupForcedPrice, null, 2),
   }
 }
 
@@ -211,18 +233,21 @@ function groupPricingSignature(rows: GroupPricingRow[]): string {
     groupRatio: parseRatioMap(serialized.GroupRatio),
     userUsableGroups: parseUsableMap(serialized.UserUsableGroups),
     topupGroupRatio: parseRatioMap(serialized.TopupGroupRatio),
+    groupForcedPrice: parseRatioMap(serialized.GroupForcedPrice),
   })
 }
 
 function sourceGroupPricingSignature(
   groupRatio: string,
   userUsableGroups: string,
-  topupGroupRatio: string
+  topupGroupRatio: string,
+  groupForcedPrice: string
 ): string {
   return JSON.stringify({
     groupRatio: parseRatioMap(groupRatio),
     userUsableGroups: parseUsableMap(userUsableGroups),
     topupGroupRatio: parseRatioMap(topupGroupRatio),
+    groupForcedPrice: parseRatioMap(groupForcedPrice),
   })
 }
 
@@ -277,6 +302,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   autoGroups,
   maxTokenAutoGroupsField,
   groupSpecialUsableGroup,
+  groupForcedPrice,
   onChange,
 }: GroupRatioVisualEditorProps) {
   const { t, i18n } = useTranslation()
@@ -287,16 +313,18 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
     const ratioMap = parseRatioMap(groupRatio)
     const usableMap = parseUsableMap(userUsableGroups)
     const topupMap = parseRatioMap(topupGroupRatio)
+    const forcedPriceMap = parseRatioMap(groupForcedPrice)
     const names = new Set([
       ...Object.keys(ratioMap),
       ...Object.keys(usableMap),
       ...Object.keys(topupMap),
+      ...Object.keys(forcedPriceMap),
     ])
     return [...names].map((name) => ({
       name,
       ratio: normalizeRatio(ratioMap[name]),
     }))
-  }, [groupRatio, userUsableGroups, topupGroupRatio])
+  }, [groupRatio, userUsableGroups, topupGroupRatio, groupForcedPrice])
 
   const registryNames = useMemo(
     () => registry.map((entry) => entry.name),
@@ -370,6 +398,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
           groupRatio={groupRatio}
           userUsableGroups={userUsableGroups}
           topupGroupRatio={topupGroupRatio}
+          groupForcedPrice={groupForcedPrice}
           onChange={onChange}
           onShowDetail={setDetailGroup}
         />
@@ -466,6 +495,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
         groupGroupRatio={groupGroupRatio}
         autoGroups={autoGroupsList}
         groupSpecialUsableGroup={groupSpecialUsableGroup}
+        groupForcedPrice={groupForcedPrice}
       />
     </Tabs>
   )
@@ -475,6 +505,7 @@ type GroupPricingTableProps = {
   groupRatio: string
   userUsableGroups: string
   topupGroupRatio: string
+  groupForcedPrice: string
   onChange: (field: string, value: string) => void
   onShowDetail: (name: string) => void
 }
@@ -483,20 +514,27 @@ function GroupPricingTable({
   groupRatio,
   userUsableGroups,
   topupGroupRatio,
+  groupForcedPrice,
   onChange,
   onShowDetail,
 }: GroupPricingTableProps) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [rows, setRows] = useState<GroupPricingRow[]>(() =>
-    buildGroupPricingRows(groupRatio, userUsableGroups, topupGroupRatio)
+    buildGroupPricingRows(
+      groupRatio,
+      userUsableGroups,
+      topupGroupRatio,
+      groupForcedPrice
+    )
   )
 
   useEffect(() => {
     const incomingSignature = sourceGroupPricingSignature(
       groupRatio,
       userUsableGroups,
-      topupGroupRatio
+      topupGroupRatio,
+      groupForcedPrice
     )
     setRows((currentRows) => {
       if (groupPricingSignature(currentRows) === incomingSignature) {
@@ -505,10 +543,11 @@ function GroupPricingTable({
       return buildGroupPricingRows(
         groupRatio,
         userUsableGroups,
-        topupGroupRatio
+        topupGroupRatio,
+        groupForcedPrice
       )
     })
-  }, [groupRatio, userUsableGroups, topupGroupRatio])
+  }, [groupRatio, userUsableGroups, topupGroupRatio, groupForcedPrice])
 
   const emitRows = useCallback(
     (nextRows: GroupPricingRow[]) => {
@@ -517,6 +556,7 @@ function GroupPricingTable({
       onChange('GroupRatio', serialized.GroupRatio)
       onChange('UserUsableGroups', serialized.UserUsableGroups)
       onChange('TopupGroupRatio', serialized.TopupGroupRatio)
+      onChange('GroupForcedPrice', serialized.GroupForcedPrice)
     },
     [onChange]
   )
@@ -549,6 +589,7 @@ function GroupPricingTable({
         _id: createGroupPricingId(),
         name,
         ratio: '1',
+        forcedPrice: '',
         topupRatio: '',
         selectable: true,
         description: '',
@@ -591,7 +632,7 @@ function GroupPricingTable({
             <CardTitle>{t('Pricing groups')}</CardTitle>
             <CardDescription>
               {t(
-                'All group names live here. Ratio applies when calls are billed as this group; top-up ratio applies to users whose account is in this group.'
+                'All group names live here. Ratio applies when calls are billed as this group; top-up ratio applies to users whose account is in this group. A forced price replaces every model price in the group with one flat amount per request.'
               )}
             </CardDescription>
           </div>
@@ -626,7 +667,7 @@ function GroupPricingTable({
             )}
           </InputGroup>
           <StaticDataTable
-            tableClassName='min-w-[760px]'
+            tableClassName='min-w-[900px]'
             tableProps={{ 'aria-label': t('Pricing groups') }}
             data={visibleRows}
             getRowKey={(row) => row._id}
@@ -683,6 +724,30 @@ function GroupPricingTable({
                       updateRow(row._id, 'ratio', event.target.value)
                     }
                   />
+                ),
+              },
+              {
+                id: 'forced-price',
+                header: t('Forced price'),
+                className: 'w-32',
+                cell: (row) => (
+                  <InputGroup>
+                    <InputGroupAddon>
+                      <InputGroupText>{getCurrencyLabel()}</InputGroupText>
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      type='number'
+                      min={0}
+                      step={0.0001}
+                      value={row.forcedPrice}
+                      aria-label={t('Forced price')}
+                      aria-invalid={Number(row.forcedPrice) < 0}
+                      placeholder={t('Not set')}
+                      onChange={(event) =>
+                        updateRow(row._id, 'forcedPrice', event.target.value)
+                      }
+                    />
+                  </InputGroup>
                 ),
               },
               {
@@ -1263,6 +1328,7 @@ type GroupDetailSheetProps = {
   groupGroupRatio: string
   autoGroups: string[]
   groupSpecialUsableGroup: string
+  groupForcedPrice: string
 }
 
 type VisibilityRule = {
@@ -1294,6 +1360,7 @@ function GroupDetailSheet(props: GroupDetailSheetProps) {
     const entry = props.registry.find((item) => item.name === name)
     const topupMap = parseRatioMap(props.topupGroupRatio)
     const usableMap = parseUsableMap(props.userUsableGroups)
+    const forcedPriceMap = parseRatioMap(props.groupForcedPrice)
     const overrideMap = parseNestedRatioMap(props.groupGroupRatio)
     const specialMap = safeJsonParse<Record<string, Record<string, string>>>(
       props.groupSpecialUsableGroup,
@@ -1332,6 +1399,9 @@ function GroupDetailSheet(props: GroupDetailSheetProps) {
 
     return {
       ratio: entry?.ratio,
+      forcedPrice: Object.hasOwn(forcedPriceMap, name)
+        ? String(forcedPriceMap[name])
+        : null,
       topupRatio: Object.hasOwn(topupMap, name) ? String(topupMap[name]) : null,
       selectable: Object.hasOwn(usableMap, name),
       description: String(usableMap[name] ?? ''),
@@ -1348,6 +1418,7 @@ function GroupDetailSheet(props: GroupDetailSheetProps) {
     props.groupGroupRatio,
     props.autoGroups,
     props.groupSpecialUsableGroup,
+    props.groupForcedPrice,
   ])
 
   return (
@@ -1374,6 +1445,14 @@ function GroupDetailSheet(props: GroupDetailSheetProps) {
                 <div className='flex justify-between'>
                   <dt className='text-muted-foreground'>{t('Ratio')}</dt>
                   <dd className='font-medium'>{detail.ratio ?? '-'}</dd>
+                </div>
+                <div className='flex justify-between'>
+                  <dt className='text-muted-foreground'>{t('Forced price')}</dt>
+                  <dd className='font-medium'>
+                    {detail.forcedPrice === null
+                      ? t('Not set')
+                      : `${getCurrencyLabel()}${detail.forcedPrice} / ${t('per request')}`}
+                  </dd>
                 </div>
                 <div className='flex justify-between'>
                   <dt className='text-muted-foreground'>{t('Top-up ratio')}</dt>

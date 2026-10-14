@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { StoryPlayer } from '@/features/character/components/story-player'
 import type { CharacterView } from '@/features/character/types'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 import { useSystemConfigStore } from '@/stores/system-config-store'
@@ -40,7 +41,10 @@ import {
   isUnconfiguredTaskUsageModel,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { isTokenBasedModel } from '../lib/model-helpers'
+import {
+  getDisplayGroupForcedPrice,
+  isTokenBasedModel,
+} from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
 import {
   DEFAULT_SCORE_DIMENSION,
@@ -62,6 +66,8 @@ export interface ModelCardProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   selectedGroup?: string
+  /** Groups that charge one flat USD price per request instead of a model price */
+  groupForcedPrice?: Record<string, number>
   perf?: ModelPerfBadgeData
   character?: CharacterView
   /** Selected score dimension: drives the tier badge and highlights one score */
@@ -286,6 +292,36 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             usdExchangeRate,
             props.selectedGroup
           )}
+          <span className='text-muted-foreground text-xs font-normal'>
+            {' '}
+            / {t('request')}
+          </span>
+        </span>
+      </div>
+    )
+  }
+
+  // A forced-price group replaces model pricing entirely, so every per-token
+  // figure above would quote a price nobody is charged.
+  const forcedPrice = getDisplayGroupForcedPrice(
+    props.model,
+    props.groupForcedPrice,
+    props.selectedGroup
+  )
+  if (forcedPrice !== undefined) {
+    const displayPrice =
+      showRechargePrice
+        ? (forcedPrice * priceRate) / usdExchangeRate
+        : forcedPrice
+    priceSummary = (
+      <div className='col-span-full flex min-w-0 flex-col gap-1'>
+        <span className='text-muted-foreground text-xs'>{t('Price')}</span>
+        <span className='font-mono text-sm font-semibold tabular-nums'>
+          {formatBillingCurrencyFromUSD(displayPrice, {
+            digitsLarge: 4,
+            digitsSmall: 6,
+            abbreviate: false,
+          })}
           <span className='text-muted-foreground text-xs font-normal'>
             {' '}
             / {t('request')}

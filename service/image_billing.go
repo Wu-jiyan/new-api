@@ -55,14 +55,18 @@ func PrepareImageBillingForRequest(c *gin.Context, info *relaycommon.RelayInfo, 
 		}
 	} else {
 		quantity := 1
-		if info.PriceData.UsePrice {
+		// A group forced price is charged once per request, so the requested
+		// image count must not scale it.
+		if info.PriceData.UsePrice && !info.PriceData.GroupRatioInfo.HasForcedPrice {
 			quantity = count
 		}
 		// Overwrite the per-attempt ratio so a failed attempt cannot leak its
 		// quantity into another channel.
 		info.PriceData.AddOtherRatio("n", float64(quantity))
 		base := info.ImageQuotaBeforeGroup
-		if info.PriceData.UsePrice {
+		if info.PriceData.GroupRatioInfo.HasForcedPrice {
+			base = info.PriceData.GroupRatioInfo.ForcedPrice * common.QuotaPerUnit
+		} else if info.PriceData.UsePrice {
 			base = info.PriceData.ModelPrice * common.QuotaPerUnit
 		}
 		quota, err = common.QuotaFromFloatStrict(info.PriceData.ApplyOtherRatiosToFloat(base * info.PriceData.GroupRatioInfo.GroupRatio))

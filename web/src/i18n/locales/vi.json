@@ -1,5 +1,10 @@
 {
   "translation": {
+    "All group names live here. Ratio applies when calls are billed as this group; top-up ratio applies to users whose account is in this group. A forced price replaces every model price in the group with one flat amount per request.": "Tất cả tên nhóm nằm ở đây. Hệ số áp dụng khi các lời gọi được tính phí theo nhóm đó; hệ số nạp tiền áp dụng cho người dùng có tài khoản thuộc nhóm đó. Giá cố định thay thế mọi giá của mô hình trong nhóm bằng một khoản cố định cho mỗi lần yêu cầu.",
+    "Forced price": "Giá cố định",
+    "Group forced prices": "Giá cố định theo nhóm",
+    "Groups with a forced price charge one flat amount per request: {{groups}}": "Các nhóm có giá cố định tính một khoản cố định cho mỗi lần yêu cầu: {{groups}}",
+    "Optional JSON map of group → USD price per request. A listed group charges exactly that amount for every request, ignoring the model price, the group ratio and the image count.": "Bản đồ JSON tùy chọn nhóm → giá USD cho mỗi lần yêu cầu. Nhóm được liệt kê sẽ bị tính đúng số tiền đó cho mọi lần yêu cầu, bỏ qua giá của mô hình, hệ số nhóm và số lượng ảnh.",
     "{{count}} models total": "Tổng {{count}} mô hình",
     "360": "360",
     "1000": "1000",

@@ -197,6 +197,13 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	groupRatio := relayInfo.PriceData.GroupRatioInfo.GroupRatio
 	modelPrice := relayInfo.PriceData.ModelPrice
 	usePrice := relayInfo.PriceData.UsePrice
+	if relayInfo.PriceData.GroupRatioInfo.HasForcedPrice {
+		// The group's flat fee replaces token pricing entirely.
+		modelPrice = relayInfo.PriceData.GroupRatioInfo.ForcedPrice
+		modelRatio = 0
+		groupRatio = 1
+		usePrice = true
+	}
 
 	quotaInfo := QuotaInfo{
 		InputDetails: TokenDetails{
@@ -257,6 +264,9 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	logContent = append(logContent, extraContent...)
 	other := GenerateWssOtherInfo(ctx, relayInfo, usage, modelRatio, groupRatio,
 		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+	if relayInfo.PriceData.GroupRatioInfo.HasForcedPrice {
+		other.SetPublic("group_forced_price", relayInfo.PriceData.GroupRatioInfo.ForcedPrice)
+	}
 	if tieredResult != nil {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
@@ -318,7 +328,8 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	if tieredOk {
 		tieredResult = tieredRes
 	}
-	fixedPriceBilling := tieredOk && isFixedPriceSettlement(relayInfo, tieredRes)
+	forcedPriceBilling := relayInfo.PriceData.GroupRatioInfo.HasForcedPrice
+	fixedPriceBilling := forcedPriceBilling || (tieredOk && isFixedPriceSettlement(relayInfo, tieredRes))
 
 	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
 	textInputTokens := usage.PromptTokensDetails.TextTokens
@@ -337,6 +348,14 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	groupRatio := relayInfo.PriceData.GroupRatioInfo.GroupRatio
 	modelPrice := relayInfo.PriceData.ModelPrice
 	usePrice := relayInfo.PriceData.UsePrice
+	if forcedPriceBilling {
+		// The group's flat fee replaces token pricing entirely, and stays due
+		// even when the response reports no usage.
+		modelPrice = relayInfo.PriceData.GroupRatioInfo.ForcedPrice
+		modelRatio = 0
+		groupRatio = 1
+		usePrice = true
+	}
 
 	quotaInfo := QuotaInfo{
 		InputDetails: TokenDetails{
@@ -397,6 +416,9 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	logContent = append(logContent, extraContent...)
 	other := GenerateAudioOtherInfo(ctx, relayInfo, usage, modelRatio, groupRatio,
 		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+	if relayInfo.PriceData.GroupRatioInfo.HasForcedPrice {
+		other.SetPublic("group_forced_price", relayInfo.PriceData.GroupRatioInfo.ForcedPrice)
+	}
 	if tieredResult != nil {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}

@@ -3,6 +3,7 @@ package ratio_setting
 import (
 	"encoding/json"
 	"errors"
+	"math"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
@@ -25,11 +26,18 @@ var defaultGroupGroupRatio = map[string]map[string]float64{
 
 var groupGroupRatioMap = types.NewRWMap[string, map[string]float64]()
 
+// groupForcedPriceMap maps a billing group to a flat USD price per request.
+// A group listed here charges exactly that amount for every request billed as
+// the group, whatever the model's own price, ratio or billing expression says.
+// An absent group means the group follows normal model pricing.
+var groupForcedPriceMap = types.NewRWMap[string, float64]()
+
 var defaultGroupSpecialUsableGroup = map[string]map[string]string{}
 
 type GroupRatioSetting struct {
 	GroupRatio              *types.RWMap[string, float64]            `json:"group_ratio"`
 	GroupGroupRatio         *types.RWMap[string, map[string]float64] `json:"group_group_ratio"`
+	GroupForcedPrice        *types.RWMap[string, float64]            `json:"group_forced_price"`
 	GroupSpecialUsableGroup *types.RWMap[string, map[string]string]  `json:"group_special_usable_group"`
 }
 
@@ -46,6 +54,7 @@ func init() {
 		GroupSpecialUsableGroup: groupSpecialUsableGroup,
 		GroupRatio:              groupRatioMap,
 		GroupGroupRatio:         groupGroupRatioMap,
+		GroupForcedPrice:        groupForcedPriceMap,
 	}
 
 	config.GlobalConfig.Register("group_ratio_setting", &groupRatioSetting)
@@ -55,6 +64,9 @@ func GetGroupRatioSetting() *GroupRatioSetting {
 	if groupRatioSetting.GroupSpecialUsableGroup == nil {
 		groupRatioSetting.GroupSpecialUsableGroup = types.NewRWMap[string, map[string]string]()
 		groupRatioSetting.GroupSpecialUsableGroup.AddAll(defaultGroupSpecialUsableGroup)
+	}
+	if groupRatioSetting.GroupForcedPrice == nil {
+		groupRatioSetting.GroupForcedPrice = groupForcedPriceMap
 	}
 	return &groupRatioSetting
 }
@@ -114,6 +126,37 @@ func CheckGroupRatio(jsonStr string) error {
 	for name, ratio := range checkGroupRatio {
 		if ratio < 0 {
 			return errors.New("group ratio must be not less than 0: " + name)
+		}
+	}
+	return nil
+}
+
+// GetGroupForcedPrice returns the flat USD per-request price a group charges
+// instead of its models' own pricing. The second result is false when the
+// group has no forced price and normal pricing applies.
+func GetGroupForcedPrice(name string) (float64, bool) {
+	price, ok := groupForcedPriceMap.Get(name)
+	if !ok || price <= 0 || math.IsNaN(price) || math.IsInf(price, 0) {
+		return 0, false
+	}
+	return price, true
+}
+
+func GetGroupForcedPriceCopy() map[string]float64 {
+	return groupForcedPriceMap.ReadAll()
+}
+
+// CheckGroupForcedPrice rejects anything that cannot be converted into a
+// positive quota: zero would silently turn the group into a free one, and
+// negative or non-finite values could produce a negative charge.
+func CheckGroupForcedPrice(jsonStr string) error {
+	prices := make(map[string]float64)
+	if err := common.UnmarshalJsonStr(jsonStr, &prices); err != nil {
+		return err
+	}
+	for name, price := range prices {
+		if price <= 0 || math.IsNaN(price) || math.IsInf(price, 0) {
+			return errors.New("group forced price must be a positive number: " + name)
 		}
 	}
 	return nil

@@ -258,7 +258,15 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 	exprStr, exists := billing_setting.ResolveTaskBillingExpr(pluginKey, modelName, info.UpstreamModelName)
 	useTiered := exists || billing_setting.GetBillingMode(modelName) == billing_setting.BillingModeTieredExpr
-	if useTiered {
+
+	// A group forced price replaces the whole expression before any of it is
+	// validated or evaluated, so a task model with no expression still bills.
+	groupRatioInfo := helper.HandleGroupRatio(c, info)
+	if forced, isForced, forcedErr := helper.GroupForcedPriceData(groupRatioInfo); forcedErr != nil {
+		return nil, service.TaskErrorWrapper(forcedErr, "model_price_error", http.StatusBadRequest)
+	} else if isForced {
+		priceData = forced
+	} else if useTiered {
 		provider, supported := adaptor.(channel.TaskUsageFactsProvider)
 		if billingexpr.UsesFixedPricing(exprStr) {
 			return nil, service.TaskErrorWrapper(fmt.Errorf("fixed pricing is not supported for task usage expressions"), "model_price_error", http.StatusBadRequest)
@@ -289,7 +297,6 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 			}
 			return nil, service.TaskErrorWrapper(runErr, "model_price_error", http.StatusBadRequest)
 		}
-		groupRatioInfo := helper.HandleGroupRatio(c, info)
 		quota, clamp := common.QuotaRoundChecked(cost * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
 		noteTaskQuotaClamp(info, clamp)
 		priceData = types.PriceData{Quota: quota, QuotaToPreConsume: quota, GroupRatioInfo: groupRatioInfo}
@@ -301,11 +308,15 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		}
 	}
 	info.PriceData = priceData
+	// A group forced price is exact per request, so no duration, resolution or
+	// count multiplier may scale it — including the ones estimated below and
+	// the ones the adaptor adjusts on submit.
+	forcedPrice := priceData.GroupRatioInfo.HasForcedPrice
 
 	// 5. 计费估算：让适配器根据用户请求提供 OtherRatios（时长、分辨率等）
 	//    必须在 ModelPriceHelperPerCall 之后调用（它会重建 PriceData）。
 	//    ResolveOriginTask 可能已在 remix 路径中预设了 OtherRatios，此处合并。
-	if info.TieredBillingSnapshot == nil {
+	if info.TieredBillingSnapshot == nil && !forcedPrice {
 		var estimatedRatios map[string]float64
 		if validatedProvider, ok := adaptor.(channel.TaskValidatedBillingProvider); ok {
 			estimatedRatios, err = validatedProvider.EstimateBillingValidated(c, info)
@@ -323,7 +334,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 
 	// 6. 将 OtherRatios 应用到基础额度（饱和转换，防止溢出成负数）
-	if info.TieredBillingSnapshot == nil && !common.StringsContains(constant.TaskPricePatches, modelName) {
+	if info.TieredBillingSnapshot == nil && !forcedPrice && !common.StringsContains(constant.TaskPricePatches, modelName) {
 		quotaWithRatios := info.PriceData.ApplyOtherRatiosToFloat(float64(info.PriceData.Quota))
 		quota, clamp := common.QuotaFromFloatChecked(quotaWithRatios)
 		info.PriceData.Quota = quota
@@ -386,7 +397,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 				noteTaskQuotaClamp(info, settlement.Clamp)
 			}
 		}
-	} else {
+	} else if !forcedPrice {
 		if adjustedRatios := adaptor.AdjustBillingOnSubmit(info, parsed.TaskData); len(adjustedRatios) > 0 {
 			if adjustedQuota, ok := recalcQuotaFromRatios(info, adjustedRatios); ok {
 				// 基于调整后的 ratios 重新计算 quota

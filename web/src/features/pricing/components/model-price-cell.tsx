@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { getCurrencyLabel } from '@/lib/currency'
+import { formatBillingCurrencyFromUSD, getCurrencyLabel } from '@/lib/currency'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { DEFAULT_TOKEN_UNIT } from '../constants'
@@ -30,7 +30,10 @@ import {
   getDynamicPricingSummary,
   isUnconfiguredTaskUsageModel,
 } from '../lib/dynamic-price'
-import { isTokenBasedModel } from '../lib/model-helpers'
+import {
+  getDisplayGroupForcedPrice,
+  isTokenBasedModel,
+} from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
 import { taskUsageUnitLabel } from '../lib/task-price-display'
 import type { PricingModel, TokenUnit } from '../types'
@@ -41,6 +44,8 @@ export type ModelPriceCellOptions = {
   usdExchangeRate?: number
   showRechargePrice?: boolean
   selectedGroup?: string
+  /** Groups that charge one flat USD price per request instead of a model price */
+  groupForcedPrice?: Record<string, number>
 }
 
 export function ModelPriceCell(props: {
@@ -83,6 +88,34 @@ export function ModelPriceCell(props: {
       currency,
     ]
   )
+  // A forced-price group replaces model pricing entirely, so the per-token
+  // figures below would quote a price nobody is charged.
+  const forcedPrice = getDisplayGroupForcedPrice(
+    props.model,
+    options.groupForcedPrice,
+    options.selectedGroup
+  )
+  if (forcedPrice !== undefined) {
+    const displayPrice = options.showRechargePrice
+      ? (forcedPrice * (options.priceRate ?? 1)) / (options.usdExchangeRate ?? 1)
+      : forcedPrice
+    return (
+      <span className='block max-w-full min-w-0'>
+        <span className='font-mono text-sm'>
+          {currencyLabel}
+          {formatBillingCurrencyFromUSD(displayPrice, {
+            digitsLarge: 4,
+            digitsSmall: 6,
+            abbreviate: false,
+            showSymbol: false,
+          })}
+        </span>
+        <span className='text-muted-foreground block text-xs'>
+          {t('per request')}
+        </span>
+      </span>
+    )
+  }
   let metrics: Array<{ label: string; value: string }>
   const providerCaption = dynamic?.providerCount
     ? t('{{count}} providers', { count: dynamic.providerCount })

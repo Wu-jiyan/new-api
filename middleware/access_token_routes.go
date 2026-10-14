@@ -309,11 +309,6 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"POST /api/gacha/pool/:id/pull":                                   accessTokenSessionRule,
 	"GET /api/gacha/entitlements":                                     accessTokenSessionRule,
 	"GET /api/gacha/stats":                                            accessTokenSessionRule,
-	"GET /api/gacha/admin/ratings":                                    accessTokenSessionRule,
-	"POST /api/gacha/admin/sync-rating":                               accessTokenSessionRule,
-	"PUT /api/gacha/admin/ratings/:id":                                accessTokenSessionRule,
-	"POST /api/gacha/admin/ratings/reset":                             accessTokenSessionRule,
-	"PUT /api/gacha/admin/settings":                                   accessTokenSessionRule,
 	"GET /api/gacha/admin/pools":                                      accessTokenSessionRule,
 	"POST /api/gacha/admin/pools":                                     accessTokenSessionRule,
 	"PUT /api/gacha/admin/pools/:id":                                  accessTokenSessionRule,
@@ -349,6 +344,18 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"GET /api/conversation_archive/export":                            accessTokenSessionRule,
 	"DELETE /api/conversation_archive/:id":                            accessTokenSessionRule,
 	"GET /api/data/channel_profit":                                    accessTokenSessionRule,
+
+	// router/api-router.go — model rating admin management
+	"GET /api/admin/model-rating":                 accessTokenSessionRule,
+	"PUT /api/admin/model-rating/:id":             accessTokenSessionRule,
+	"PUT /api/admin/model-rating/:id/aa":          accessTokenSessionRule,
+	"POST /api/admin/model-rating/reset":          accessTokenSessionRule,
+	"POST /api/admin/model-rating/sync/deepswe":   accessTokenSessionRule,
+	"POST /api/admin/model-rating/sync/aa":        accessTokenSessionRule,
+	"PUT /api/admin/model-rating/thresholds":      accessTokenSessionRule,
+	"PUT /api/admin/model-rating/aa-settings":     accessTokenSessionRule,
+	"GET /api/admin/model-rating/square-defaults": accessTokenSessionRule,
+	"PUT /api/admin/model-rating/square-defaults": accessTokenSessionRule,
 
 	// router/relay-router.go
 	"POST /pg/chat/completions": accessTokenSessionRule,

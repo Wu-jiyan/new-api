@@ -48,6 +48,7 @@ export function Pricing() {
     models,
     vendors,
     groupRatio,
+    groupForcedPrice,
     usableGroup,
     endpointMap,
     autoGroups,
@@ -143,6 +144,7 @@ export function Pricing() {
           tokenUnit={tokenUnit}
           showRechargePrice={showRechargePrice}
           selectedGroup={groupFilter}
+          groupForcedPrice={groupForcedPrice}
           characterMap={characterMap}
           dimension={scoreDimension}
         />
@@ -157,6 +159,7 @@ export function Pricing() {
         tokenUnit={tokenUnit}
         showRechargePrice={showRechargePrice}
         selectedGroup={groupFilter}
+        groupForcedPrice={groupForcedPrice}
         onModelClick={handleModelClick}
       />
     )
@@ -234,6 +237,7 @@ export function Pricing() {
               vendors={vendors || []}
               groups={availableGroups}
               groupRatios={groupRatio}
+              groupForcedPrice={groupForcedPrice}
               autoGroups={autoGroups || []}
               groupSort={groupSort}
               onGroupSortChange={setGroupSort}
@@ -298,6 +302,7 @@ export function Pricing() {
               model={selectedModel}
               dimension={scoreDimension}
               groupRatio={groupRatio || {}}
+              groupForcedPrice={groupForcedPrice || {}}
               usableGroup={usableGroup || {}}
               endpointMap={
                 (endpointMap as Record<

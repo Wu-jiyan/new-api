@@ -20,6 +20,7 @@ import { ChevronDown, RotateCcw } from 'lucide-react'
 import { memo, useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { isFreeGroupRatio } from '@/lib/group-ratio'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -27,6 +28,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 
@@ -41,6 +43,7 @@ import {
 import { hasTaskUsageSchema } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { sortGroups, type GroupSortMode } from '../lib/group-sort'
+import { getGroupForcedPrice } from '../lib/model-helpers'
 import { tierForDimension, type ScoreDimension } from '../lib/scores'
 import type { PricingModel, PricingVendor } from '../types'
 import { GroupSortControl } from './group-sort-control'
@@ -80,6 +83,8 @@ export interface PricingSidebarProps {
   vendors: PricingVendor[]
   groups: string[]
   groupRatios?: Record<string, number>
+  /** Groups that charge one flat price per request instead of a model price */
+  groupForcedPrice?: Record<string, number>
   /** Automatic group chain, used by the "Auto group chain" ordering */
   autoGroups?: string[]
   groupSort: GroupSortMode
@@ -91,8 +96,12 @@ export interface PricingSidebarProps {
   className?: string
 }
 
-function formatGroupRatio(ratio: number | undefined): string | undefined {
+function formatGroupRatio(
+  ratio: number | undefined,
+  freeLabel: string
+): string | undefined {
   if (ratio == null) return undefined
+  if (isFreeGroupRatio(ratio)) return freeLabel
   const formatted = Number.isInteger(ratio)
     ? ratio.toString()
     : ratio.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
@@ -233,11 +242,24 @@ export const PricingSidebar = memo(function PricingSidebar(
       value: FILTER_ALL,
       label: t('All Groups'),
     },
-    ...orderedGroups.map((group) => ({
-      value: group,
-      label: group,
-      suffix: formatGroupRatio(props.groupRatios?.[group]),
-    })),
+    ...orderedGroups.map((group) => {
+      const forcedPrice = getGroupForcedPrice(props.groupForcedPrice, group)
+      return {
+        value: group,
+        label: group,
+        suffix:
+          forcedPrice !== undefined
+            ? formatBillingCurrencyFromUSD(forcedPrice, {
+                digitsLarge: 4,
+                digitsSmall: 4,
+                abbreviate: false,
+              })
+            : formatGroupRatio(
+                props.groupRatios?.[group],
+                t('Free of charge')
+              ),
+      }
+    }),
   ]
 
   const quotaOptions: FilterOption[] = [

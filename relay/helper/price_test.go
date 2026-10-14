@@ -745,3 +745,95 @@ func (s *priceTestReservation) Refund(*gin.Context)      {}
 func (s *priceTestReservation) NeedsRefund() bool        { return false }
 func (s *priceTestReservation) GetPreConsumedQuota() int { return s.held }
 func (s *priceTestReservation) Reserve(quota int) error  { s.held = max(s.held, quota); return nil }
+
+// forcedPriceTestConfig loads a forced-price group alongside a deliberately
+// expensive group ratio, so a test fails if the ratio leaks into the charge.
+func forcedPriceTestConfig(t *testing.T) {
+	t.Helper()
+	saved := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		saved[key] = value
+		return nil
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
+	})
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"group_ratio_setting.group_ratio":        `{"forced-group":3,"plain-group":3}`,
+		"group_ratio_setting.group_forced_price": `{"forced-group":0.02}`,
+		"billing_setting.billing_mode":           `{"forced-tiered-model":"tiered_expr"}`,
+		"billing_setting.billing_expr":           `{"forced-tiered-model":"tier(\"base\", p * 2)"}`,
+	}))
+}
+
+func forcedPriceInfo(group string) *relaycommon.RelayInfo {
+	return &relaycommon.RelayInfo{
+		OriginModelName: "unpriced-model",
+		UserGroup:       "default",
+		UsingGroup:      group,
+	}
+}
+
+func TestGroupForcedPriceReplacesModelPricing(t *testing.T) {
+	forcedPriceTestConfig(t)
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	info := forcedPriceInfo("forced-group")
+
+	// n=4 stands in for an image count or any other request multiplier.
+	priceData, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{BillingRatios: map[string]float64{"n": 4}})
+	require.NoError(t, err, "a forced price makes an unpriced model billable")
+	assert.True(t, priceData.UsePrice)
+	assert.InDelta(t, 0.02, priceData.ModelPrice, 1e-9)
+	assert.Equal(t, 10_000, priceData.QuotaToPreConsume)
+	assert.Equal(t, 10_000, priceData.Quota)
+	assert.Empty(t, priceData.OtherRatios(), "no request multiplier may scale a forced price")
+	assert.Equal(t, float64(1), priceData.GroupRatioInfo.GroupRatio, "the group ratio must not scale a forced price")
+	assert.False(t, priceData.FreeModel)
+	assert.Nil(t, info.TieredBillingSnapshot)
+}
+
+func TestGroupForcedPriceOverridesBillingExpression(t *testing.T) {
+	forcedPriceTestConfig(t)
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	info := forcedPriceInfo("forced-group")
+	info.OriginModelName = "forced-tiered-model"
+
+	priceData, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{})
+	require.NoError(t, err)
+	assert.Equal(t, 10_000, priceData.QuotaToPreConsume)
+	assert.Nil(t, info.TieredBillingSnapshot, "a forced price must bypass the expression")
+}
+
+func TestGroupWithoutForcedPriceKeepsModelPricing(t *testing.T) {
+	forcedPriceTestConfig(t)
+	previousRatios := ratio_setting.ModelRatio2JSONString()
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"plain-priced-model":2}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(previousRatios))
+	})
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	info := forcedPriceInfo("plain-group")
+	info.OriginModelName = "plain-priced-model"
+
+	priceData, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{})
+	require.NoError(t, err)
+	assert.False(t, priceData.UsePrice)
+	assert.False(t, priceData.GroupRatioInfo.HasForcedPrice)
+	assert.Equal(t, float64(3), priceData.GroupRatioInfo.GroupRatio)
+	assert.Equal(t, 6000, priceData.QuotaToPreConsume, "1000 tokens x ratio 2 x group ratio 3")
+}
+
+func TestGroupForcedPriceRejectsUnusableValues(t *testing.T) {
+	for _, value := range []string{`{"g":0}`, `{"g":-1}`, `{"g":"abc"}`} {
+		t.Run(value, func(t *testing.T) {
+			assert.Error(t, ratio_setting.CheckGroupForcedPrice(value))
+		})
+	}
+	assert.NoError(t, ratio_setting.CheckGroupForcedPrice(`{"g":0.02}`))
+}

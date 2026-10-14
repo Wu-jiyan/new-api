@@ -1175,6 +1175,38 @@ func TestCalculateTextQuotaSummaryFixedPriceAppliesImageCountOnceAndAllowsOverri
 	require.Equal(t, 120000, summary.Quota)
 }
 
+func TestCalculateTextQuotaSummaryGroupForcedPriceOverridesModelPricing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName: "image-model",
+		StartTime:       time.Now(),
+		PriceData: hosttypes.PriceData{
+			ModelRatio: 7,
+			GroupRatioInfo: hosttypes.GroupRatioInfo{
+				GroupRatio:     3,
+				ForcedPrice:    0.02,
+				HasForcedPrice: true,
+			},
+		},
+	}
+	relayInfo.PriceData.AddOtherRatio("n", 4)
+
+	// Neither the model ratio, the group ratio nor the image count may change
+	// a flat per-request fee.
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{
+		PromptTokens:     1000,
+		CompletionTokens: 500,
+		TotalTokens:      1500,
+	})
+	require.Equal(t, 10000, summary.Quota)
+	require.True(t, summary.FixedPriceBilling)
+
+	// A flat fee is still due when the upstream reports no usage at all.
+	summary = calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+	require.Equal(t, 10000, summary.Quota)
+}
+
 func TestCalculateTextToolCallSurchargeGeneralizedBuiltInTools(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())

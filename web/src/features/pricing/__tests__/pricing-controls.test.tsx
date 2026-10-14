@@ -403,3 +403,41 @@ describe('group ordering', () => {
     expect(screen.getByRole('button', { name: 'Group order' })).toBeVisible()
   })
 })
+
+describe('free group ratio', () => {
+  function sidebarWithRatios(groupRatios: Record<string, number>) {
+    return {
+      ...toolbarProps(),
+      groups: Object.keys(groupRatios),
+      groupRatios,
+      models: [] as PricingModel[],
+      groupSort: 'name' as const,
+      onGroupSortChange: vi.fn(),
+    }
+  }
+
+  it('labels a zero-ratio group as free instead of showing "x0"', () => {
+    render(<PricingSidebar {...sidebarWithRatios({ free: 0, default: 1 })} />)
+
+    expect(screen.getByText('Free of charge')).toBeVisible()
+    expect(screen.queryByText('x0')).not.toBeInTheDocument()
+  })
+
+  it('keeps the multiplier suffix for a paid group', () => {
+    render(<PricingSidebar {...sidebarWithRatios({ premium: 0.5 })} />)
+
+    expect(screen.getByText('x0.5')).toBeVisible()
+  })
+
+  it('shows the flat price instead of a ratio for a forced-price group', () => {
+    render(
+      <PricingSidebar
+        {...sidebarWithRatios({ 'image-gen': 1 })}
+        groupForcedPrice={{ 'image-gen': 0.02 }}
+      />
+    )
+
+    expect(screen.getByText('$0.02')).toBeVisible()
+    expect(screen.queryByText('x1')).not.toBeInTheDocument()
+  })
+})

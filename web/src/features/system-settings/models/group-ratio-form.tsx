@@ -74,6 +74,7 @@ type GroupFormValues = {
   MaxTokenAutoGroups: number
   DefaultUseAutoGroup: boolean
   GroupSpecialUsableGroup: string
+  GroupForcedPrice: string
 }
 
 type GroupRatioFormProps = {
@@ -225,6 +226,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               />
             }
             groupSpecialUsableGroup={values.GroupSpecialUsableGroup ?? ''}
+            groupForcedPrice={values.GroupForcedPrice ?? ''}
             onChange={(field, value) =>
               handleFieldChange(field as keyof GroupFormValues, value)
             }
@@ -405,6 +407,32 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                   <FormDescription>
                     {t(
                       'Nested JSON defining per-group rules for adding (+:), removing (-:), or appending usable groups.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='GroupForcedPrice'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Group forced prices')}</FormLabel>
+                  <FormControl>
+                    <JsonCodeEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      textareaRef={field.ref}
+                      heightClassName='h-40 min-h-40 max-h-40'
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Optional JSON map of group → USD price per request. A listed group charges exactly that amount for every request, ignoring the model price, the group ratio and the image count.'
                     )}
                   </FormDescription>
                   <FormMessage />

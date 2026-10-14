@@ -290,10 +290,24 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 
 	ratio := dModelRatio.Mul(dGroupRatio)
-	summary.ToolCallSurchargeQuota = calculateTextToolCallSurcharge(ctx, relayInfo, &summary)
+	// A group forced price already defines the whole charge for the request, so
+	// per-tool surcharges must not be added on top of it.
+	if !relayInfo.PriceData.GroupRatioInfo.HasForcedPrice {
+		summary.ToolCallSurchargeQuota = calculateTextToolCallSurcharge(ctx, relayInfo, &summary)
+	}
 
 	var audioInputQuota decimal.Decimal
-	if !relayInfo.PriceData.UsePrice {
+	if relayInfo.PriceData.GroupRatioInfo.HasForcedPrice {
+		// The finally selected group defines the whole charge. Read it here
+		// rather than at pre-consume so a retry into a forced group is priced
+		// correctly too, and so a flat fee survives a zero-token response.
+		summary.FixedPriceBilling = true
+		quota, clamp := common.QuotaFromDecimalChecked(
+			decimal.NewFromFloat(relayInfo.PriceData.GroupRatioInfo.ForcedPrice).Mul(dQuotaPerUnit),
+		)
+		summary.Quota = quota
+		noteQuotaClamp(relayInfo, clamp)
+	} else if !relayInfo.PriceData.UsePrice {
 		baseTokens := dPromptTokens
 
 		var cachedTokensWithRatio decimal.Decimal
@@ -477,6 +491,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		other = GenerateTextOtherInfo(ctx, relayInfo, summary.ModelRatio, summary.GroupRatio, summary.CompletionRatio, summary.CacheTokens, summary.CacheRatio, summary.ModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	}
 	appendUsageBillingPathForLog(other, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens), originUsage)
+	if relayInfo.PriceData.GroupRatioInfo.HasForcedPrice {
+		other.SetPublic("group_forced_price", relayInfo.PriceData.GroupRatioInfo.ForcedPrice)
+	}
 	if adminRejectReason != "" {
 		other.SetAdmin("reject_reason", adminRejectReason)
 	}

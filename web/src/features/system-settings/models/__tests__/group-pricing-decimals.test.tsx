@@ -42,6 +42,7 @@ function PricingFixture() {
         autoGroups='[]'
         maxTokenAutoGroupsField={null}
         groupSpecialUsableGroup='{}'
+        groupForcedPrice={settings.GroupForcedPrice ?? '{}'}
         onChange={(field, value) =>
           setSettings((current) => ({ ...current, [field]: value }))
         }
@@ -53,7 +54,7 @@ function PricingFixture() {
 
 test.each([
   ['GroupRatio', 0],
-  ['TopupGroupRatio', 1],
+  ['TopupGroupRatio', 2],
 ] as const)(
   '%s preserves typed decimals and accepts them as valid numeric ratios',
   async (key, index) => {

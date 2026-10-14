@@ -56,6 +56,8 @@ import {
   getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
 import { PluginIcon } from '@/features/task-plugins/components/plugin-icon'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
+import { formatGroupRatioLabel } from '@/lib/group-ratio'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
@@ -78,7 +80,12 @@ import {
   type DynamicPriceEntry,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
+import {
+  getAvailableGroups,
+  getConfiguredGroupRatio,
+  getGroupForcedPrice,
+  isTokenBasedModel,
+} from '../lib/model-helpers'
 import { withPluginPricing } from '../lib/plugin-pricing'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
 import {
@@ -1028,6 +1035,8 @@ function getDynamicFormattedPricesByTier(
 type GroupPricingSectionProps = {
   model: PricingModel
   groupRatio: Record<string, number>
+  /** Groups that charge one flat USD price per request instead of a model price */
+  groupForcedPrice?: Record<string, number>
   usableGroup: Record<string, { desc: string; ratio: number }>
   autoGroups: string[]
   priceRate: number
@@ -1253,7 +1262,7 @@ function ProviderGroupPricingSection(
     })
     const formattedPricesByGroup = new Map(
       availableGroups.map((group) => {
-        const ratio = props.groupRatio[group] || 1
+        const ratio = getConfiguredGroupRatio(props.groupRatio, group)
         return [
           group,
           getDynamicFormattedPricesByTier(dynamicTiers, {
@@ -1279,7 +1288,7 @@ function ProviderGroupPricingSection(
         <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
         <div className='space-y-3'>
           {availableGroups.map((group) => {
-            const ratio = props.groupRatio[group] || 1
+            const ratio = getConfiguredGroupRatio(props.groupRatio, group)
             const formattedPricesByTier =
               formattedPricesByGroup.get(group) ??
               new Map<DynamicPricingTier, Map<string, string>>()
@@ -1289,7 +1298,7 @@ function ProviderGroupPricingSection(
                 <div className='bg-muted/20 flex items-center justify-between gap-3 border-b px-3 py-2'>
                   <GroupBadge group={group} size='sm' />
                   <span className='text-muted-foreground font-mono text-xs'>
-                    {ratio}x
+                    {formatGroupRatioLabel(ratio, t('Free of charge'))}
                   </span>
                 </div>
                 <StaticDataTable
@@ -1444,8 +1453,23 @@ function ProviderGroupPricingSection(
     )
   }
 
-  const renderGroupPrice = (group: string, type: PriceType) =>
-    formatGroupPrice(
+  // A group forced price replaces the model's own pricing entirely, so the
+  // per-token columns would otherwise quote a price nobody is charged.
+  const formatForcedGroupPrice = (forcedPrice: number) =>
+    formatBillingCurrencyFromUSD(
+      showRechargePrice
+        ? (forcedPrice * props.priceRate) / props.usdExchangeRate
+        : forcedPrice,
+      { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
+    )
+  const forcedPriceGroups = availableGroups.filter(
+    (group) => getGroupForcedPrice(props.groupForcedPrice, group) !== undefined
+  )
+
+  const renderGroupPrice = (group: string, type: PriceType) => {
+    const forcedPrice = getGroupForcedPrice(props.groupForcedPrice, group)
+    if (forcedPrice !== undefined) return formatForcedGroupPrice(forcedPrice)
+    return formatGroupPrice(
       props.model,
       group,
       type,
@@ -1455,8 +1479,11 @@ function ProviderGroupPricingSection(
       props.usdExchangeRate,
       props.groupRatio
     )
-  const renderFixedGroupPrice = (group: string) =>
-    formatFixedPrice(
+  }
+  const renderFixedGroupPrice = (group: string) => {
+    const forcedPrice = getGroupForcedPrice(props.groupForcedPrice, group)
+    if (forcedPrice !== undefined) return formatForcedGroupPrice(forcedPrice)
+    return formatFixedPrice(
       props.model,
       group,
       showRechargePrice,
@@ -1464,6 +1491,7 @@ function ProviderGroupPricingSection(
       props.usdExchangeRate,
       props.groupRatio
     )
+  }
 
   return (
     <section>
@@ -1493,7 +1521,11 @@ function ProviderGroupPricingSection(
             header: t('Ratio'),
             className: thClass,
             cellClassName: 'text-muted-foreground py-2.5 font-mono',
-            cell: (group) => `${props.groupRatio[group] || 1}x`,
+            cell: (group) =>
+              formatGroupRatioLabel(
+                getConfiguredGroupRatio(props.groupRatio, group),
+                t('Free of charge')
+              ),
           },
           ...(isTokenBased
             ? [
@@ -1536,6 +1568,13 @@ function ProviderGroupPricingSection(
             {t('Prices shown per {{unit}} tokens', { unit: tokenUnitLabel })}
           </p>
         )}
+        {forcedPriceGroups.length > 0 && (
+          <p className='text-muted-foreground/40 mt-1.5 px-4 text-[10px] sm:px-0'>
+            {t('Groups with a forced price charge one flat amount per request: {{groups}}', {
+              groups: forcedPriceGroups.join(', '),
+            })}
+          </p>
+        )}
       </div>
     </section>
   )
@@ -1556,6 +1595,8 @@ const TAB_META: Record<
 export interface ModelDetailsContentProps {
   model: PricingModel
   groupRatio: Record<string, number>
+  /** Groups that charge one flat USD price per request instead of a model price */
+  groupForcedPrice?: Record<string, number>
   usableGroup: Record<string, { desc: string; ratio: number }>
   endpointMap: Record<string, { path?: string; method?: string }>
   autoGroups: string[]
@@ -1635,6 +1676,7 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
             <GroupPricingSection
               model={props.model}
               groupRatio={props.groupRatio}
+              groupForcedPrice={props.groupForcedPrice}
               usableGroup={props.usableGroup}
               autoGroups={props.autoGroups}
               priceRate={props.priceRate}
@@ -1704,6 +1746,7 @@ export function ModelDetails() {
   const {
     models,
     groupRatio,
+    groupForcedPrice,
     usableGroup,
     endpointMap,
     autoGroups,
@@ -1794,6 +1837,7 @@ export function ModelDetails() {
           model={model}
           dimension={scoreDimension}
           groupRatio={groupRatio || {}}
+          groupForcedPrice={groupForcedPrice || {}}
           usableGroup={usableGroup || {}}
           autoGroups={autoGroups || []}
           priceRate={priceRate ?? 1}

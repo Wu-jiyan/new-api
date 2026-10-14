@@ -1,5 +1,10 @@
 {
   "translation": {
+    "All group names live here. Ratio applies when calls are billed as this group; top-up ratio applies to users whose account is in this group. A forced price replaces every model price in the group with one flat amount per request.": "所有分組名稱都在這裡。分組倍率在按該分組計費時生效；儲值倍率作用於帳號屬於該分組的使用者。強制價格會把分組內所有模型價格替換為統一的單次價格。",
+    "Forced price": "強制價格",
+    "Group forced prices": "分組強制價格",
+    "Groups with a forced price charge one flat amount per request: {{groups}}": "設定了強制價格的分組每次請求只收取固定金額：{{groups}}",
+    "Optional JSON map of group → USD price per request. A listed group charges exactly that amount for every request, ignoring the model price, the group ratio and the image count.": "可選的 JSON 對應：分組 → 每次請求的美元價格。列出的分組中，每次請求都只收取該金額，忽略模型價格、分組倍率與圖片數量。",
     "{{count}} models total": "共 {{count}} 個模型",
     "360": "360",
     "1000": "1000",
