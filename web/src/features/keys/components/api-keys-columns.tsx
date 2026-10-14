@@ -46,25 +46,38 @@ import {
 import { DataTableRowActions } from './data-table-row-actions'
 
 const EMPTY_GROUP_RATIOS: Record<string, number | string> = {}
+const EMPTY_GROUP_FORCED_PRICES: Record<string, number> = {}
 
-function useGroupRatios(): Record<string, number | string> {
+function useGroupRatios(): {
+  ratios: Record<string, number | string>
+  forcedPrices: Record<string, number>
+} {
   const { data } = useQuery({
     queryKey: ['user-groups'],
     queryFn: async () => requireServerSuccess(await getUserGroups()),
     staleTime: 0,
     select: (res) => {
-      if (!res.success || !res.data) return {}
       const ratios: Record<string, number | string> = {}
+      const forcedPrices: Record<string, number> = {}
+      if (!res.success || !res.data) return { ratios, forcedPrices }
       for (const [group, info] of Object.entries(res.data)) {
+        const forced = info.forced_price
+        if (typeof forced === 'number' && Number.isFinite(forced) && forced > 0) {
+          forcedPrices[group] = forced
+          continue
+        }
         if (typeof info.ratio === 'number' || typeof info.ratio === 'string') {
           ratios[group] = info.ratio
         }
       }
-      return ratios
+      return { ratios, forcedPrices }
     },
   })
 
-  return data ?? EMPTY_GROUP_RATIOS
+  return {
+    ratios: data?.ratios ?? EMPTY_GROUP_RATIOS,
+    forcedPrices: data?.forcedPrices ?? EMPTY_GROUP_FORCED_PRICES,
+  }
 }
 
 export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
@@ -72,7 +85,8 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
   useSystemConfigStore((state) => state.config.currency)
   const { meta: currency } = getCurrencyDisplay()
   const quotaUnit = currency.kind === 'tokens' ? t('Tokens') : currency.symbol
-  const groupRatios = useGroupRatios()
+  const { ratios: groupRatios, forcedPrices: groupForcedPrices } =
+    useGroupRatios()
   const shouldReduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const justNowLabel = t('Just now')
@@ -158,6 +172,7 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
             <ApiKeyGroupCell
               group={group}
               ratio={groupRatios[group]}
+              forcedPrice={groupForcedPrices[group]}
               crossGroupRetry={apiKey.cross_group_retry}
               shouldReduceMotion={shouldReduceMotion}
             />
@@ -233,6 +248,6 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
         meta: { pinned: 'right' as const },
       },
     ],
-    [t, quotaUnit, now, groupRatios, shouldReduceMotion, locale, justNowLabel]
+    [t, quotaUnit, now, groupRatios, groupForcedPrices, shouldReduceMotion, locale, justNowLabel]
   )
 }

@@ -60,7 +60,15 @@ export async function getUserModels(): Promise<{
 export async function getUserGroups(): Promise<{
   success: boolean
   message?: string
-  data?: Record<string, { desc: string; ratio: number | string }>
+  data?: Record<
+    string,
+    {
+      desc: string
+      ratio: number | string
+      /** Present when the group charges one flat price per request */
+      forced_price?: number
+    }
+  >
 }> {
   const res = await api.get('/api/user/self/groups')
   return res.data

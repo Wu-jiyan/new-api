@@ -48,6 +48,8 @@ export type ApiKeyGroupOption = {
   label: string
   desc?: string
   ratio?: number | string
+  /** Flat per-request price the group charges instead of the ratio */
+  forcedPrice?: number
 }
 
 type ApiKeyGroupComboboxProps = {
@@ -132,6 +134,7 @@ export function ApiKeyGroupCombobox({
           <span className='hidden sm:block'>
             <GroupRatioBadge
               ratio={selectedOption?.ratio}
+              forcedPrice={selectedOption?.forcedPrice}
               isAuto={isAutoSelected}
               shouldReduceMotion={shouldReduceMotion}
             />
@@ -199,6 +202,7 @@ export function ApiKeyGroupCombobox({
                     </span>
                     <GroupRatioBadge
                       ratio={option.ratio}
+                      forcedPrice={option.forcedPrice}
                       isAuto={isAutoOption}
                       shouldReduceMotion={shouldReduceMotion}
                     />

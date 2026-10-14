@@ -27,7 +27,9 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useMediaQuery } from '@/hooks'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { cn } from '@/lib/utils'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { GroupRatioBadge, type GroupRatio } from './auto-group-visuals'
 
@@ -35,17 +37,30 @@ type ApiKeyGroupCellProps = {
   crossGroupRetry: boolean
   group: string
   ratio?: GroupRatio
+  /** Flat per-request price this group charges instead of the ratio */
+  forcedPrice?: number
   shouldReduceMotion: boolean
 }
 
 export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
   const { t } = useTranslation()
   const isMobile = useMediaQuery('(max-width: 640px)')
+  useSystemConfigStore((state) => state.config.currency)
 
   const group = props.group?.trim() || ''
   if (group !== 'auto') {
     const ratio =
       group && typeof props.ratio === 'number' ? props.ratio : undefined
+    let ratioLabel: string | undefined
+    if (props.forcedPrice !== undefined) {
+      ratioLabel = formatBillingCurrencyFromUSD(props.forcedPrice, {
+        digitsLarge: 4,
+        digitsSmall: 4,
+        abbreviate: false,
+      })
+    } else if (!group) {
+      ratioLabel = t('Inherited')
+    }
     return (
       <TruncatedCell
         className={isMobile ? 'w-full' : 'max-w-50'}
@@ -56,7 +71,7 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
         <GroupBadge
           group={group}
           ratio={ratio}
-          ratioLabel={group ? undefined : t('Inherited')}
+          ratioLabel={ratioLabel}
           type='text'
           className='px-0'
           containerClassName={cn('gap-3', isMobile && 'w-full justify-between')}

@@ -20,7 +20,9 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { GroupBadge, GroupMultiplierBadge } from '@/components/group-badge'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { cn } from '@/lib/utils'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 export type GroupRatio = number | string | null | undefined
 
@@ -74,20 +76,43 @@ export function AutoGroupFrame(props: AutoGroupFrameProps) {
 type GroupRatioBadgeProps = {
   isAuto?: boolean
   ratio: GroupRatio
+  /** Flat per-request price the group charges instead of the ratio */
+  forcedPrice?: number
   shouldReduceMotion?: boolean
 }
 
 export function GroupRatioBadge(props: GroupRatioBadgeProps) {
   const { t } = useTranslation()
+  useSystemConfigStore((state) => state.config.currency)
 
-  if (props.ratio === undefined || props.ratio === null || props.ratio === '') {
+  const hasRatio =
+    props.ratio !== undefined && props.ratio !== null && props.ratio !== ''
+  if (props.forcedPrice === undefined && !hasRatio) {
     return null
+  }
+
+  // A forced price is the amount actually charged, so it replaces the ratio
+  // rather than being shown next to it.
+  let forcedLabel: string | undefined
+  if (props.forcedPrice !== undefined) {
+    forcedLabel = formatBillingCurrencyFromUSD(props.forcedPrice, {
+      digitsLarge: 4,
+      digitsSmall: 4,
+      abbreviate: false,
+    })
   }
 
   return (
     <GroupMultiplierBadge
-      ratio={typeof props.ratio === 'number' ? props.ratio : undefined}
-      label={typeof props.ratio === 'number' ? undefined : t('Auto')}
+      ratio={
+        forcedLabel === undefined && typeof props.ratio === 'number'
+          ? props.ratio
+          : undefined
+      }
+      label={
+        forcedLabel ??
+        (typeof props.ratio === 'number' ? undefined : t('Auto'))
+      }
       className={cn(
         props.isAuto &&
           'overflow-visible rounded-md border-primary/30 bg-primary/10 text-primary'

@@ -36,6 +36,11 @@ func GetUserGroups(c *gin.Context) {
 				"ratio": service.GetUserGroupRatio(userGroup, groupName),
 				"desc":  desc,
 			}
+			// A forced price replaces the ratio as the amount actually charged,
+			// so the console must not present the ratio alone as the price.
+			if forcedPrice, ok := ratio_setting.GetGroupForcedPrice(groupName); ok {
+				usableGroups[groupName]["forced_price"] = forcedPrice
+			}
 		}
 	}
 	if _, ok := userUsableGroups["auto"]; ok {

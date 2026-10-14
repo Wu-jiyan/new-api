@@ -44,6 +44,7 @@ await i18n.use(initReactI18next).init({
 function CellHarness(props: {
   group: string
   ratio?: number | string
+  forcedPrice?: number
   crossGroupRetry?: boolean
   shouldReduceMotion?: boolean
 }) {
@@ -53,6 +54,7 @@ function CellHarness(props: {
         <ApiKeyGroupCell
           group={props.group}
           ratio={props.ratio}
+          forcedPrice={props.forcedPrice}
           crossGroupRetry={props.crossGroupRetry ?? false}
           shouldReduceMotion={props.shouldReduceMotion ?? false}
         />
@@ -95,6 +97,14 @@ describe('API key group table cell', () => {
     render(<CellHarness group='auto' />)
     expect(screen.getByText('Cross-group')).toBeInTheDocument()
     expect(screen.queryByText('Auto')).not.toBeInTheDocument()
+  })
+
+  test('shows the flat price instead of the ratio for a forced-price group', () => {
+    render(<CellHarness group='image-gen' ratio={3} forcedPrice={0.02} />)
+
+    expect(screen.getByText('image-gen')).toBeInTheDocument()
+    expect(screen.getByText(/\$0\.02/)).toBeInTheDocument()
+    expect(screen.queryByText('3x')).not.toBeInTheDocument()
   })
 
   test.each([
