@@ -76,6 +76,11 @@ export default function ModelRatingPage() {
               'Score models across four independent dimensions. Each dimension syncs from its own source, keeps its own thresholds, and manual entries are never overwritten.'
             )}
           </p>
+          <p className='text-muted-foreground/80 text-xs'>
+            {t(
+              'Only models that can appear in the model square are listed here: a model needs an enabled channel providing it and must not be disabled in metadata. Add or enable a channel first, then it shows up here.'
+            )}
+          </p>
           <Tabs
             value={dimension}
             onValueChange={(value) => setDimension(value as RatingDimension)}

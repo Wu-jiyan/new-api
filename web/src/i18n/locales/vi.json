@@ -4041,6 +4041,7 @@
     "Only enter the site origin, for example https://api.example.com. Do not include any path such as /api/user/epay/notify. Leave blank to use the server address.": "Chỉ nhập origin của trang, ví dụ https://api.example.com. Không nhập đường dẫn như /api/user/epay/notify. Để trống để dùng địa chỉ máy chủ.",
     "Only exact model names are removed from enabled and disabled channels. Matching rules are not expanded, and channel records are retained.": "Chỉ xóa tên mô hình khớp chính xác khỏi các kênh đang bật và đã tắt. Không mở rộng quy tắc so khớp và vẫn giữ lại các kênh.",
     "Only Mine": "Chỉ của tôi",
+    "Only models that can appear in the model square are listed here: a model needs an enabled channel providing it and must not be disabled in metadata. Add or enable a channel first, then it shows up here.": "Ở đây chỉ liệt kê các mô hình có thể xuất hiện trong quảng trường mô hình: mô hình cần một kênh đang bật cung cấp và không bị vô hiệu hóa trong siêu dữ liệu. Hãy thêm hoặc bật kênh trước, mô hình sẽ xuất hiện ở đây.",
     "Only one catch-all route is allowed for the same incoming path": "Mỗi đường dẫn đầu vào chỉ được có một tuyến dự phòng",
     "Only one OpenAI Models route is allowed": "Chỉ được phép có một tuyến Mô hình OpenAI",
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "Chỉ các trường được chọn sẽ bị ghi đè. Bạn có thể chạy lại trình hướng dẫn đồng bộ hóa nếu có xung đột mới xuất hiện.",

@@ -4041,6 +4041,7 @@
     "Only enter the site origin, for example https://api.example.com. Do not include any path such as /api/user/epay/notify. Leave blank to use the server address.": "Only enter the site origin, for example https://api.example.com. Do not include any path such as /api/user/epay/notify. Leave blank to use the server address.",
     "Only exact model names are removed from enabled and disabled channels. Matching rules are not expanded, and channel records are retained.": "Only exact model names are removed from enabled and disabled channels. Matching rules are not expanded, and channel records are retained.",
     "Only Mine": "Only Mine",
+    "Only models that can appear in the model square are listed here: a model needs an enabled channel providing it and must not be disabled in metadata. Add or enable a channel first, then it shows up here.": "Only models that can appear in the model square are listed here: a model needs an enabled channel providing it and must not be disabled in metadata. Add or enable a channel first, then it shows up here.",
     "Only one catch-all route is allowed for the same incoming path": "Only one catch-all route is allowed for the same incoming path",
     "Only one OpenAI Models route is allowed": "Only one OpenAI Models route is allowed",
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.",

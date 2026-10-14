@@ -183,6 +183,33 @@ func FillModelSquareStates(rows []*Model, configured map[string][]int, connectio
 	return nil
 }
 
+// FilterSquareVisibleModels 只保留能在模型广场展示的模型。
+// 口径与 GET /api/pricing 一致：模型必须由启用渠道提供启用能力，且没有被元信息
+// 禁用。仅填了元信息、却没有渠道的模型不会出现在这里——给它们评分没有意义。
+func FilterSquareVisibleModels(rows []*Model) ([]*Model, error) {
+	if len(rows) == 0 {
+		return rows, nil
+	}
+	configured, err := GetConfiguredModelChannels()
+	if err != nil {
+		return nil, err
+	}
+	connections, err := GetModelConnections()
+	if err != nil {
+		return nil, err
+	}
+	if err := FillModelSquareStates(rows, configured, connections); err != nil {
+		return nil, err
+	}
+	visible := make([]*Model, 0, len(rows))
+	for _, row := range rows {
+		if row != nil && row.SquareState == ModelSquareVisible {
+			visible = append(visible, row)
+		}
+	}
+	return visible, nil
+}
+
 // GetConfiguredModelChannels includes disabled channels and reads no credentials.
 func GetConfiguredModelChannels() (map[string][]int, error) {
 	var channels []Channel

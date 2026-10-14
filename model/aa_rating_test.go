@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -231,4 +232,51 @@ func TestReloadModelSquareDefaultsIgnoresCorruptOption(t *testing.T) {
 	}
 	ReloadModelSquareDefaults()
 	require.Equal(t, DefaultModelSquareDefaults, GetModelSquareDefaults())
+}
+
+// 模型分级列表只应列出能上模型广场的模型：光有元信息、没有启用渠道的模型
+// 不该出现在评分列表里——给不会上架的模型打分没有意义。
+func TestFilterSquareVisibleModels(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&Model{}, &Channel{}, &Ability{}))
+
+	enabled := Channel{Type: 1, Key: "sk-sq-on", Status: common.ChannelStatusEnabled,
+		Name: "sq-enabled", Models: "sq-visible,sq-meta-disabled", Group: "default"}
+	off := Channel{Type: 1, Key: "sk-sq-off", Status: common.ChannelStatusManuallyDisabled,
+		Name: "sq-disabled", Models: "sq-channel-disabled", Group: "default"}
+	require.NoError(t, DB.Create(&enabled).Error)
+	require.NoError(t, DB.Create(&off).Error)
+	t.Cleanup(func() {
+		DB.Where("channel_id IN ?", []int{enabled.Id, off.Id}).Delete(&Ability{})
+		DB.Unscoped().Delete(&enabled)
+		DB.Unscoped().Delete(&off)
+	})
+	for _, ch := range []Channel{enabled, off} {
+		for _, name := range strings.Split(ch.Models, ",") {
+			require.NoError(t, DB.Create(&Ability{Group: "default", Model: name, ChannelId: ch.Id, Enabled: true}).Error)
+		}
+	}
+
+	rows := []*Model{
+		{ModelName: "sq-visible", Status: 1},          // 启用渠道提供，元信息启用
+		{ModelName: "sq-meta-only", Status: 1},        // 只有元信息，没有任何渠道
+		{ModelName: "sq-meta-disabled", Status: 0},    // 渠道启用，但元信息把它禁用了
+		{ModelName: "sq-channel-disabled", Status: 1}, // 只有被手动停用的渠道
+	}
+	for _, row := range rows {
+		require.NoError(t, DB.Create(row).Error)
+	}
+	t.Cleanup(func() { DB.Unscoped().Where("model_name LIKE 'sq-%'").Delete(&Model{}) })
+	// models.status 带 gorm:"default:1"，零值会在插入时被默认值顶掉，
+	// 因此「元信息禁用」这一档必须显式写回 0，否则测的其实是启用状态。
+	require.NoError(t, DB.Model(&Model{}).Where("model_name = ?", "sq-meta-disabled").
+		Update("status", 0).Error)
+
+	visible, err := FilterSquareVisibleModels(rows)
+	require.NoError(t, err)
+
+	names := make([]string, 0, len(visible))
+	for _, row := range visible {
+		names = append(names, row.ModelName)
+	}
+	require.Equal(t, []string{"sq-visible"}, names)
 }

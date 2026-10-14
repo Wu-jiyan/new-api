@@ -4041,6 +4041,7 @@
     "Only enter the site origin, for example https://api.example.com. Do not include any path such as /api/user/epay/notify. Leave blank to use the server address.": "只填寫站點根域名，例如 https://api.example.com。不要填寫 /api/user/epay/notify 這類路徑。留空則使用伺服器地址。",
     "Only exact model names are removed from enabled and disabled channels. Matching rules are not expanded, and channel records are retained.": "僅從所有啟用及停用的渠道中移除名稱完全相同的模型，不擴展比對規則，渠道本身會保留。",
     "Only Mine": "僅自己",
+    "Only models that can appear in the model square are listed here: a model needs an enabled channel providing it and must not be disabled in metadata. Add or enable a channel first, then it shows up here.": "這裡只列出能在模型廣場展示的模型：模型需要有啟用渠道提供，且未在元資訊中被停用。先新增或啟用渠道，模型就會出現在這裡。",
     "Only one catch-all route is allowed for the same incoming path": "同一入口路徑只允許一個兜底路由",
     "Only one OpenAI Models route is allowed": "僅允許設定一條 OpenAI 模型路由",
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "僅選定的欄位將會被覆蓋。如果出現新的衝突，您可以重新執行同步精靈。",

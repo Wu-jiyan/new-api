@@ -22,7 +22,8 @@ func ratingThresholdsResponse() map[model.RatingDimension]model.RatingThresholds
 	return out
 }
 
-// AdminListModelRatings 模型分级列表（keyword 可搜模型名，rating 可筛选 DeepSWE 档位）。
+// AdminListModelRatings 模型分级列表。只返回能在模型广场展示的模型
+// （由启用渠道提供且未被元信息禁用），keyword 可搜模型名，rating 可筛选 DeepSWE 档位。
 func AdminListModelRatings(c *gin.Context) {
 	keyword := c.Query("keyword")
 	rating := c.Query("rating")
@@ -36,19 +37,31 @@ func AdminListModelRatings(c *gin.Context) {
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
-	models, total, err := model.SearchModels(keyword, "", "", "", (page-1)*pageSize, pageSize)
+	// 先按模型广场口径过滤再分页：是否可见取决于实时渠道与元信息规则，无法下推到
+	// SQL，因此取出候选集过滤后按页切片，与模型管理页按广场状态筛选的做法一致。
+	candidates, _, err := model.SearchModels(keyword, "", "", "", 0, -1)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	visible, err := model.FilterSquareVisibleModels(candidates)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
 	if rating != "" {
-		filtered := models[:0]
-		for _, m := range models {
+		filtered := visible[:0]
+		for _, m := range visible {
 			if m.Rating == rating {
 				filtered = append(filtered, m)
 			}
 		}
-		models = filtered
+		visible = filtered
+	}
+	total := int64(len(visible))
+	models := visible
+	if start := (page - 1) * pageSize; start < len(visible) {
+		models = visible[start:min(start+pageSize, len(visible))]
 	}
 	lastSync, syncCount := service.GetGachaRatingSyncStatus()
 	aaLastSync, aaSyncCount, aaKeyConfigured, aaLastError := service.AARatingSyncStatus()

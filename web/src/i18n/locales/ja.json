@@ -4041,6 +4041,7 @@
     "Only enter the site origin, for example https://api.example.com. Do not include any path such as /api/user/epay/notify. Leave blank to use the server address.": "サイトのオリジンのみを入力してください。例: https://api.example.com。/api/user/epay/notify などのパスは含めないでください。空欄の場合はサーバーアドレスを使用します。",
     "Only exact model names are removed from enabled and disabled channels. Matching rules are not expanded, and channel records are retained.": "有効・無効を問わず、すべてのチャネルから完全に一致するモデル名のみを削除します。マッチングルールは展開せず、チャネル自体は保持します。",
     "Only Mine": "自分のみ",
+    "Only models that can appear in the model square are listed here: a model needs an enabled channel providing it and must not be disabled in metadata. Add or enable a channel first, then it shows up here.": "ここにはモデル広場に表示できるモデルのみ表示されます。モデルには有効なチャネルが必要で、メタデータで無効化されていない必要があります。先にチャネルを追加または有効にすると、ここに表示されます。",
     "Only one catch-all route is allowed for the same incoming path": "同じ入力パスではキャッチオールルートは1つだけ許可されます",
     "Only one OpenAI Models route is allowed": "OpenAI モデルルートは 1 つだけ設定できます",
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "選択されたフィールドのみが上書きされます。新しい競合が発生した場合は、同期ウィザードを再実行できます。",
