@@ -295,6 +295,7 @@ const SENSITIVE_FORM_FIELDS = [
   'advanced_custom',
   'is_enterprise_account',
   'vertex_key_type',
+  'vertex_project_id',
   'aws_key_type',
   'azure_responses_version',
   'force_format',
@@ -1292,9 +1293,13 @@ export function ChannelMutateDrawer({
       // Merge instead of replace: upstream only prices the models it knows, so
       // replacing the whole table would silently drop manual entries.
       const previous = form.getValues('cost_model_prices')
-      form.setValue('cost_model_prices', { ...previous, ...synced }, {
-        shouldDirty: true,
-      })
+      form.setValue(
+        'cost_model_prices',
+        { ...previous, ...synced },
+        {
+          shouldDirty: true,
+        }
+      )
 
       const added = Object.keys(synced).filter(
         (model) => !(model in (previous ?? {}))
@@ -1318,16 +1323,22 @@ export function ChannelMutateDrawer({
         )
         if (unpriced.length > 0) {
           parts.push(
-            t('{{count}} models have no upstream price and keep the global price', {
-              count: unpriced.length,
-            })
+            t(
+              '{{count}} models have no upstream price and keep the global price',
+              {
+                count: unpriced.length,
+              }
+            )
           )
         }
         if (expressionPriced.length > 0) {
           parts.push(
-            t('{{count}} expression-priced models use reverse-derivation cost', {
-              count: expressionPriced.length,
-            })
+            t(
+              '{{count}} expression-priced models use reverse-derivation cost',
+              {
+                count: expressionPriced.length,
+              }
+            )
           )
         }
       }
@@ -2192,7 +2203,9 @@ export function ChannelMutateDrawer({
                         <SelectItem value='discount'>
                           {t('Discount')}
                         </SelectItem>
-                        <SelectItem value='fixed'>{t('Fixed Price')}</SelectItem>
+                        <SelectItem value='fixed'>
+                          {t('Fixed Price')}
+                        </SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>
@@ -4175,6 +4188,29 @@ export function ChannelMutateDrawer({
                     </FormItem>
                   )}
                 />
+                {vertexKeyType === 'api_key' && (
+                  <FormField
+                    control={form.control}
+                    name='vertex_project_id'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Vertex AI Project ID')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder={t('e.g., my-project-123')}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Optional. Without it, Google picks the region; with it, requests go to the deployment region below.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
                 {vertexKeyType === 'json' && (
                   <FormItem>
                     <FormLabel>{t('Service account JSON file(s)')}</FormLabel>

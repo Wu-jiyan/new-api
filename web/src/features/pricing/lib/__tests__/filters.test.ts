@@ -68,7 +68,7 @@ describe('sortModels', () => {
     ]
 
     expect(
-      sortModels(models, SORT_OPTIONS.PRICE_LOW).map((m) => m.model_name)
+      sortModels(models, SORT_OPTIONS.INPUT_PRICE_LOW).map((m) => m.model_name)
     ).toEqual(['c-model', 'a-model', 'b-model'])
   })
 })
@@ -131,9 +131,12 @@ describe('sortGroups', () => {
       'enterprise',
       'vip',
     ])
-    expect(
-      sortGroups(GROUPS, 'auto', { autoGroups: ['default'] })
-    ).toEqual(['default', 'beta', 'enterprise', 'vip'])
+    expect(sortGroups(GROUPS, 'auto', { autoGroups: ['default'] })).toEqual([
+      'default',
+      'beta',
+      'enterprise',
+      'vip',
+    ])
   })
 
   it('orders by group name', () => {

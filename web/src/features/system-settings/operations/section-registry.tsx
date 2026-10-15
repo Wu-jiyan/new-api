@@ -98,13 +98,17 @@ const OPERATIONS_SECTIONS = [
     titleKey: 'Log Maintenance',
     build: (settings: OperationsSettings) => (
       <LogSettingsSection
-        defaultEnabled={Boolean(settings.LogConsumeEnabled)}
-        defaultAutoCleanupEnabled={
-          settings['log_cleanup_setting.enabled'] ?? false
-        }
-        defaultRetentionDays={
-          settings['log_cleanup_setting.retention_days'] ?? 0
-        }
+        defaultValues={{
+          LogConsumeEnabled: Boolean(settings.LogConsumeEnabled),
+          'log_setting.user_export_enabled':
+            settings['log_setting.user_export_enabled'] ?? true,
+          'log_setting.max_range_days':
+            settings['log_setting.max_range_days'] ?? 365,
+          'log_cleanup_setting.enabled':
+            settings['log_cleanup_setting.enabled'] ?? false,
+          'log_cleanup_setting.retention_days':
+            settings['log_cleanup_setting.retention_days'] ?? 0,
+        }}
       />
     ),
   },

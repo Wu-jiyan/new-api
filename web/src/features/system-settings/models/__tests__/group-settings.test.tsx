@@ -107,7 +107,48 @@ describe('group settings workspace', () => {
     expect(screen.getByText('No results found')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Add group' }))
     expect(search).toHaveValue('')
-    expect(screen.getByDisplayValue('group_1')).toBeVisible()
+    expect(
+      screen
+        .getAllByRole<HTMLInputElement>('textbox', { name: 'Group name' })
+        .map((input) => input.value)
+    ).toEqual(['group_1', 'default', 'vip'])
+    expect(screen.getAllByRole('spinbutton', { name: 'Ratio' })[2]).toHaveValue(
+      0.6
+    )
+  })
+
+  it('prepends consecutive new groups and saves them without changing existing settings', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn(async (_values: typeof defaults) => {})
+    render(<Fixture onSave={onSave} />)
+
+    await user.click(screen.getByRole('button', { name: 'Add group' }))
+    await user.click(screen.getByRole('button', { name: 'Add group' }))
+    expect(
+      screen
+        .getAllByRole<HTMLInputElement>('textbox', { name: 'Group name' })
+        .map((input) => input.value)
+    ).toEqual(['group_2', 'group_1', 'default', 'vip'])
+
+    await user.click(
+      screen.getByRole('button', { name: 'Save group settings' })
+    )
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    const saved = onSave.mock.calls[0][0]
+    expect(JSON.parse(saved.GroupRatio)).toEqual({
+      group_2: 1,
+      group_1: 1,
+      default: 1,
+      vip: 0.8,
+    })
+    expect(JSON.parse(saved.UserUsableGroups)).toEqual({
+      group_2: '',
+      group_1: '',
+      default: 'Standard access',
+      vip: 'Premium access',
+    })
+    expect(JSON.parse(saved.TopupGroupRatio)).toEqual({ vip: 1.2 })
+    expect(saved.AutoGroups).toBe(defaults.AutoGroups)
   })
 
   it('keeps unfinished visibility rules while switching sections and supports keyboard tabs', async () => {
@@ -164,7 +205,9 @@ describe('group settings workspace', () => {
     expect(screen.getByRole('button', { name: 'Move vip up' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Move vip down' })).toBeDisabled()
     await user.click(screen.getByRole('tab', { name: 'Pricing groups' }))
-    await user.click(screen.getByRole('button', { name: 'Save group settings' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Save group settings' })
+    )
     await waitFor(() => expect(onSave).toHaveBeenCalled())
     expect(onSave.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
@@ -207,7 +250,9 @@ describe('group settings workspace', () => {
     )
     expect(screen.getByText('Not in pricing table')).toBeVisible()
     await user.click(screen.getByRole('tab', { name: 'Pricing groups' }))
-    await user.click(screen.getByRole('button', { name: 'Save group settings' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Save group settings' })
+    )
     await waitFor(() => expect(onSave).toHaveBeenCalled())
     expect(JSON.parse(onSave.mock.calls[0][0].AutoGroups)).toEqual([
       'vip',
@@ -249,7 +294,9 @@ describe('group settings workspace', () => {
       { target: { value: '0' } }
     )
     await user.click(screen.getByRole('tab', { name: 'Pricing groups' }))
-    await user.click(screen.getByRole('button', { name: 'Save group settings' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Save group settings' })
+    )
     await waitFor(() =>
       expect(
         screen.getByRole('tab', { name: 'Auto group order' })
@@ -275,7 +322,9 @@ describe('group settings workspace', () => {
     await user.type(forcedPrice, '0.02')
     // A second group, where the forced price is set to zero: zero would make
     // the whole group free, which the Ratio column is for.
-    const second = screen.getAllByRole('spinbutton', { name: 'Forced price' })[1]
+    const second = screen.getAllByRole('spinbutton', {
+      name: 'Forced price',
+    })[1]
     await user.type(second, '0')
 
     await user.click(

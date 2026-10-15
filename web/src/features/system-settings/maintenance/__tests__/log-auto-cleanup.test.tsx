@@ -48,9 +48,14 @@ function renderSection(
     <QueryClientProvider client={client}>
       <SettingsPageProvider actionsContainer={actionsContainer}>
         <LogSettingsSection
-          defaultEnabled={false}
-          defaultAutoCleanupEnabled={overrides.autoCleanupEnabled ?? false}
-          defaultRetentionDays={overrides.retentionDays ?? 0}
+          defaultValues={{
+            LogConsumeEnabled: false,
+            'log_setting.user_export_enabled': true,
+            'log_setting.max_range_days': 365,
+            'log_cleanup_setting.enabled':
+              overrides.autoCleanupEnabled ?? false,
+            'log_cleanup_setting.retention_days': overrides.retentionDays ?? 0,
+          }}
         />
       </SettingsPageProvider>
     </QueryClientProvider>

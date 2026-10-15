@@ -1,3 +1,4 @@
+import type { CaptchaPayload } from '@/lib/captcha'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,8 +18,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { AuthBundle } from '@/stores/auth-store'
-
-import type { CaptchaPayload } from '@/lib/captcha'
 
 import type { LoginResult } from './secure-verification/types'
 
@@ -200,6 +199,8 @@ export interface SystemStatus {
   custom_oauth_providers?: CustomOAuthProviderInfo[]
   /** Whether the site system notice pops up for visitors. */
   notice_popup_enabled?: boolean
+  log_export_enabled?: boolean
+  log_max_range_days?: number
   [key: string]: unknown
 }
 

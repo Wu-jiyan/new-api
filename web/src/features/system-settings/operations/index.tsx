@@ -49,6 +49,8 @@ const defaultOperationsSettings: OperationsSettings = {
   'conversation_archive_setting.push_secret': '',
   'conversation_archive_setting.pull_token': '',
   'conversation_archive_setting.retention_hours': 0,
+  'log_setting.user_export_enabled': true,
+  'log_setting.max_range_days': 365,
   'performance_setting.disk_cache_enabled': false,
   'performance_setting.disk_cache_threshold_mb': 10,
   'performance_setting.disk_cache_max_size_mb': 1024,
