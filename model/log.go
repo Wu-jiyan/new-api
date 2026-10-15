@@ -74,7 +74,7 @@ type Log struct {
 	ChannelName       string  `json:"channel_name" gorm:"->"`
 	TokenId           int     `json:"token_id" gorm:"default:0;index"`
 	Group             string  `json:"group" gorm:"index"`
-	Ip                string  `json:"ip" gorm:"index;default:''"`
+	Ip                string  `json:"ip" gorm:"default:''"`
 	RequestId         string  `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	UpstreamRequestId string  `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
 	CostQuota         float64 `json:"cost_quota" gorm:"default:0"` // 本次调用成本（额度单位，与 Quota 同量纲，可为小数）
@@ -586,8 +586,6 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	return logs, total, err
 }
 
-const logSearchCountLimit = 10000
-
 func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
@@ -617,7 +615,7 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	if group != "" {
 		tx = tx.Where("logs."+logGroupCol+" = ?", group)
 	}
-	err = tx.Model(&Log{}).Limit(logSearchCountLimit).Count(&total).Error
+	err = tx.Model(&Log{}).Count(&total).Error
 	if err != nil {
 		common.SysError(common.LogText("failed to count user logs: %s", err.Error()))
 		return nil, 0, common.NewMessage("Failed to query logs")
