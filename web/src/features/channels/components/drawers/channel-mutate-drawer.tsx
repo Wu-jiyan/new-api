@@ -304,6 +304,7 @@ const SENSITIVE_FORM_FIELDS = [
   'http_protocol',
   'http2_connection_shards',
   'tls_insecure_skip_verify',
+  'request_body_gzip',
   'pass_through_body_enabled',
   'responses_websocket_enabled',
   'system_prompt',
@@ -2441,6 +2442,32 @@ export function ChannelMutateDrawer({
             <FormDescription>
               {t(
                 'Accept upstream certificates that fail validation, such as self-signed ones. Only enable for trusted internal upstreams.'
+              )}
+            </FormDescription>
+          </div>
+          <FormControl>
+            <Switch
+              disabled={sensitiveLocked}
+              checked={field.value}
+              onCheckedChange={field.onChange}
+            />
+          </FormControl>
+        </FormItem>
+      )}
+    />
+  )
+
+  const requestBodyGzipFields = (
+    <FormField
+      control={form.control}
+      name='request_body_gzip'
+      render={({ field }) => (
+        <FormItem className='flex items-center justify-between px-4 py-3'>
+          <div className='space-y-0.5'>
+            <FormLabel>{t('Compress Request Body')}</FormLabel>
+            <FormDescription>
+              {t(
+                'Send outbound JSON requests gzip-compressed. Helps when a large prompt travels over a slow or lossy uplink. Only enable for upstreams known to accept a gzipped request body.'
               )}
             </FormDescription>
           </div>
@@ -5011,6 +5038,7 @@ export function ChannelMutateDrawer({
                 {httpProtocolFields}
                 {httpShardsFields}
                 {tlsInsecureSkipVerifyFields}
+                {requestBodyGzipFields}
               </fieldset>
             </div>
             {upstreamModelDetectionFields}

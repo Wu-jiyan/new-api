@@ -2,6 +2,7 @@ package channel
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -602,4 +604,156 @@ func TestUpstreamGetBody_HTTP2CannotRetryWithoutGetBody(t *testing.T) {
 	assert.Equal(t, 1, srv.streamCount)
 	require.Len(t, srv.attemptBodies, 1)
 	assert.Equal(t, payload, srv.attemptBodies[0])
+}
+
+// gzipOutboundBody builds a large, compressible JSON relay body.
+func gzipOutboundBody(t *testing.T) ([]byte, common.ReplayableBody, io.Closer) {
+	t.Helper()
+	// Large enough to clear requestBodyGzipMinBytes and compressible enough that
+	// compression actually shrinks it.
+	plain := []byte(`{"model":"deepseek-v4.1-flash","messages":[{"role":"user","content":"` +
+		strings.Repeat("The quick brown fox jumps over the lazy dog. ", 4000) + `"}]}`)
+	body, closer, err := relaycommon.NewOutboundJSONBody(plain)
+	require.NoError(t, err)
+	return plain, body, closer
+}
+
+func newGzipRelayContext(contentType string) *gin.Context {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader("{}"))
+	c.Request.Header.Set("Content-Type", contentType)
+	return c
+}
+
+// TestMaybeCompressOutboundBody_ChannelEnabled covers the production case: a
+// channel that opted in must have its outbound JSON body gzipped, with a
+// Content-Length and replayable GetBody that describe the compressed bytes, so
+// a retry resends exactly what was sent.
+func TestMaybeCompressOutboundBody_ChannelEnabled(t *testing.T) {
+	t.Parallel()
+
+	plain, body, closer := gzipOutboundBody(t)
+	defer closer.Close()
+
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelSetting: dto.ChannelSettings{RequestBodyGzip: true},
+		},
+	}
+	c := newGzipRelayContext("application/json")
+
+	compressedBody, storage, compressed := maybeCompressOutboundBody(c, info, body)
+	require.True(t, compressed)
+	require.NotNil(t, storage)
+	defer storage.Close()
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/v1/chat/completions", compressedBody)
+	require.NoError(t, err)
+	ApplyUpstreamBodyMetadata(req, compressedBody)
+	require.NotNil(t, req.GetBody)
+
+	sent, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+	assert.Less(t, len(sent), len(plain), "the gzipped body must be smaller than the original")
+	assert.EqualValues(t, len(sent), req.ContentLength, "Content-Length must describe the compressed body")
+
+	reader, err := gzip.NewReader(bytes.NewReader(sent))
+	require.NoError(t, err)
+	decoded, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	require.NoError(t, reader.Close())
+	assert.Equal(t, plain, decoded, "the upstream must be able to recover the original body")
+
+	replay, err := req.GetBody()
+	require.NoError(t, err)
+	replayed, err := io.ReadAll(replay)
+	require.NoError(t, err)
+	require.NoError(t, replay.Close())
+	assert.Equal(t, sent, replayed, "a retry must resend the same compressed bytes")
+}
+
+// TestMaybeCompressOutboundBody_DisabledByDefault guards the conservative
+// default: without an explicit opt-in the body must reach the upstream
+// unchanged, because an upstream that cannot decode gzip would reject it.
+func TestMaybeCompressOutboundBody_DisabledByDefault(t *testing.T) {
+	t.Parallel()
+
+	plain, body, closer := gzipOutboundBody(t)
+	defer closer.Close()
+
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+	c := newGzipRelayContext("application/json")
+
+	gotBody, storage, compressed := maybeCompressOutboundBody(c, info, body)
+	assert.False(t, compressed)
+	assert.Nil(t, storage)
+	assert.Equal(t, body, gotBody)
+
+	sent, err := io.ReadAll(gotBody)
+	require.NoError(t, err)
+	assert.Equal(t, plain, sent)
+}
+
+// TestMaybeCompressOutboundBody_SkipsUnsafeCases pins the guards that keep the
+// optimization from corrupting bodies whose exact bytes matter.
+func TestMaybeCompressOutboundBody_SkipsUnsafeCases(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		setting     dto.ChannelSettings
+		contentType string
+	}{
+		{
+			name:        "pass-through body forwards client bytes",
+			setting:     dto.ChannelSettings{RequestBodyGzip: true, PassThroughBodyEnabled: true},
+			contentType: "application/json",
+		},
+		{
+			name:        "non-JSON body such as multipart upload",
+			setting:     dto.ChannelSettings{RequestBodyGzip: true},
+			contentType: "multipart/form-data; boundary=abc",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, body, closer := gzipOutboundBody(t)
+			defer closer.Close()
+
+			info := &relaycommon.RelayInfo{
+				ChannelMeta: &relaycommon.ChannelMeta{ChannelSetting: tt.setting},
+			}
+			c := newGzipRelayContext(tt.contentType)
+
+			gotBody, storage, compressed := maybeCompressOutboundBody(c, info, body)
+			assert.False(t, compressed)
+			assert.Nil(t, storage)
+			assert.Equal(t, body, gotBody)
+		})
+	}
+}
+
+// TestMaybeCompressOutboundBody_SmallBodyUntouched keeps small requests on the
+// plain path, where gzip framing would cost more than it saves.
+func TestMaybeCompressOutboundBody_SmallBodyUntouched(t *testing.T) {
+	t.Parallel()
+
+	plain := []byte(`{"model":"test-model","messages":[{"role":"user","content":"hi"}]}`)
+	body, closer, err := relaycommon.NewOutboundJSONBody(plain)
+	require.NoError(t, err)
+	defer closer.Close()
+
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelSetting: dto.ChannelSettings{RequestBodyGzip: true},
+		},
+	}
+	c := newGzipRelayContext("application/json")
+
+	gotBody, storage, compressed := maybeCompressOutboundBody(c, info, body)
+	assert.False(t, compressed)
+	assert.Nil(t, storage)
+	assert.Equal(t, body, gotBody)
 }

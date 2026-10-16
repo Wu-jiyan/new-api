@@ -1,10 +1,12 @@
 {
   "translation": {
     "All group names live here. Ratio applies when calls are billed as this group; top-up ratio applies to users whose account is in this group. A forced price replaces every model price in the group with one flat amount per request.": "すべてのグループ名はここにあります。比率はそのグループとして課金されるときに適用され、チャージ比率はアカウントがそのグループに属するユーザーに適用されます。固定価格はグループ内のすべてのモデル価格を、リクエストごとの単一金額に置き換えます。",
+    "Compress Request Body": "リクエストボディを圧縮",
     "Forced price": "固定価格",
     "Group forced prices": "グループ固定価格",
     "Groups with a forced price charge one flat amount per request: {{groups}}": "固定価格を設定したグループはリクエストごとに単一金額を課金します：{{groups}}",
     "Optional JSON map of group → USD price per request. A listed group charges exactly that amount for every request, ignoring the model price, the group ratio and the image count.": "任意の JSON マップ（グループ → リクエストあたりの米ドル価格）。指定したグループでは、モデル価格・グループ倍率・画像枚数にかかわらず、リクエストごとにこの金額だけが課金されます。",
+    "Send outbound JSON requests gzip-compressed. Helps when a large prompt travels over a slow or lossy uplink. Only enable for upstreams known to accept a gzipped request body.": "送信する JSON リクエストを gzip 圧縮します。長いプロンプトが遅い・損失の多い回線を渡るときに有効です。gzip 化されたボディを受け取れる上流でのみ有効にしてください。",
     "{{count}} models total": "全 {{count}} モデル",
     "360": "360",
     "1000": "1000",

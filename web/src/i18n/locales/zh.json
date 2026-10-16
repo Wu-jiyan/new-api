@@ -1,10 +1,12 @@
 {
   "translation": {
     "All group names live here. Ratio applies when calls are billed as this group; top-up ratio applies to users whose account is in this group. A forced price replaces every model price in the group with one flat amount per request.": "所有分组名称都在这里。分组倍率在按该分组计费时生效；充值倍率作用于账号属于该分组的用户。强制价格会把分组内所有模型价格替换为统一的单次价格。",
+    "Compress Request Body": "压缩请求体",
     "Forced price": "强制价格",
     "Group forced prices": "分组强制价格",
     "Groups with a forced price charge one flat amount per request: {{groups}}": "设置了强制价格的分组每次请求只收取固定金额：{{groups}}",
     "Optional JSON map of group → USD price per request. A listed group charges exactly that amount for every request, ignoring the model price, the group ratio and the image count.": "可选的 JSON 映射：分组 → 每次请求的美元价格。列出的分组中，每次请求都只收取该金额，忽略模型价格、分组倍率和图片数量。",
+    "Send outbound JSON requests gzip-compressed. Helps when a large prompt travels over a slow or lossy uplink. Only enable for upstreams known to accept a gzipped request body.": "以 gzip 压缩转发到上游的 JSON 请求体。当超长提示词经过慢速或丢包链路时可改善延迟。仅在上游确定支持 gzip 请求体时开启。",
     "{{count}} models total": "共 {{count}} 个模型",
     "360": "360",
     "1000": "1000",

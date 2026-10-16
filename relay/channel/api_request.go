@@ -1,6 +1,8 @@
 package channel
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
@@ -18,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -63,6 +66,70 @@ func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Hea
 }
 
 const clientHeaderPlaceholderPrefix = "{client_header:"
+
+// requestBodyGzipMinBytes is the smallest outbound JSON body worth compressing.
+// Below it the gzip header, framing and CPU cost outweigh the saved bytes on a
+// path where the whole body fits in a few TCP windows anyway.
+const requestBodyGzipMinBytes = 64 << 10
+
+// maybeCompressOutboundBody gzips the outbound request body when the channel or
+// the global setting enables it. It returns the body to send plus whether the
+// caller must set Content-Encoding: gzip.
+//
+// Compression happens before the body is handed to http.NewRequest, so
+// ApplyUpstreamBodyMetadata derives ContentLength and GetBody from the
+// compressed reader and retries replay the exact bytes that were sent.
+func maybeCompressOutboundBody(c *gin.Context, info *common.RelayInfo, body io.Reader) (io.Reader, io.Closer, bool) {
+	replayable, ok := body.(common2.ReplayableBody)
+	if !ok || replayable.Size() < requestBodyGzipMinBytes {
+		return body, nil, false
+	}
+	if !info.ChannelSetting.RequestBodyGzip &&
+		!model_setting.GetGlobalSettings().RequestBodyGzip {
+		return body, nil, false
+	}
+	// Passthrough forwards the client's exact bytes, so re-encoding them would
+	// change the semantics of an already-negotiated payload.
+	if info.ChannelSetting.PassThroughBodyEnabled ||
+		model_setting.GetGlobalSettings().PassThroughRequestEnabled {
+		return body, nil, false
+	}
+	if !strings.HasPrefix(c.Request.Header.Get("Content-Type"), "application/json") {
+		return body, nil, false
+	}
+
+	reader, err := replayable.NewReader()
+	if err != nil {
+		logger.LogError(c, common2.LogText("reopen outbound body for gzip failed: %s", err.Error()))
+		return body, nil, false
+	}
+	defer reader.Close()
+
+	// Stream through gzip rather than buffering the plaintext first: a large
+	// prompt must not be copied a second time just to be compressed.
+	var compressed bytes.Buffer
+	writer := gzip.NewWriter(&compressed)
+	if _, err := io.Copy(writer, reader); err != nil {
+		_ = writer.Close()
+		logger.LogError(c, common2.LogText("gzip outbound body failed: %s", err.Error()))
+		return body, nil, false
+	}
+	if err := writer.Close(); err != nil {
+		logger.LogError(c, common2.LogText("finish gzip outbound body failed: %s", err.Error()))
+		return body, nil, false
+	}
+	if int64(compressed.Len()) >= replayable.Size() {
+		return body, nil, false
+	}
+
+	storage, err := common2.CreateBodyStorage(compressed.Bytes())
+	if err != nil {
+		logger.LogError(c, common2.LogText("store gzip outbound body failed: %s", err.Error()))
+		return body, nil, false
+	}
+	logger.LogDebug(c, "gzip outbound body: %d -> %d bytes", replayable.Size(), compressed.Len())
+	return common2.NewReplayableBodyReader(storage), storage, true
+}
 
 const (
 	headerPassthroughAllKey        = "*"
@@ -316,11 +383,20 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
 	logger.LogDebug(c, "fullRequestURL: %s", common.SanitizeURLForLog(fullRequestURL))
+	bodyGzipped := false
+	if compressedBody, closer, compressed := maybeCompressOutboundBody(c, info, requestBody); compressed {
+		defer closer.Close()
+		requestBody = compressedBody
+		bodyGzipped = true
+	}
 	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
 	ApplyUpstreamBodyMetadata(req, requestBody)
+	if bodyGzipped {
+		req.Header.Set("Content-Encoding", "gzip")
+	}
 	headers := req.Header
 	err = a.SetupRequestHeader(c, &headers, info)
 	if err != nil {

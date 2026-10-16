@@ -35,6 +35,12 @@ type ChannelSettings struct {
 	// TLSInsecureSkipVerify accepts upstream certificates that fail
 	// verification, such as self-signed ones, for this channel only.
 	TLSInsecureSkipVerify bool `json:"tls_insecure_skip_verify,omitempty"`
+	// RequestBodyGzip compresses the outbound JSON request body with gzip and
+	// sets Content-Encoding, for upstreams reached over a slow or lossy uplink
+	// where a multi-megabyte prompt body dominates time-to-first-token. Off by
+	// default: an upstream that cannot decode an encoded body would reject the
+	// request, so only channels known to accept gzip should enable it.
+	RequestBodyGzip bool `json:"request_body_gzip,omitempty"`
 }
 
 // BindsTaskPlugin reports whether the channel is bound to the task plugin,
