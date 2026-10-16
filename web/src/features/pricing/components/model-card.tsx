@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { StoryPlayer } from '@/features/character/components/story-player'
 import type { CharacterView } from '@/features/character/types'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
@@ -33,6 +34,11 @@ import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { DEFAULT_TOKEN_UNIT } from '../constants'
 import { useBillingTime } from '../hooks/use-billing-time'
+import {
+  CATALOG_MODALITY_LABELS,
+  collectModalities,
+  formatCatalogTokenCount,
+} from '../lib/catalog-metadata'
 import {
   getCardExamplePrice,
   getDynamicDisplayGroupRatio,
@@ -88,6 +94,12 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const tags = parseTags(props.model.tags)
   const groups = props.model.enable_groups || []
   const endpoints = props.model.supported_endpoint_types || []
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const contextLabel = formatCatalogTokenCount(
+    props.model.context_length,
+    locale
+  )
+  const modalities = collectModalities(props.model)
   const modelIconKey = props.model.icon || props.model.vendor_icon
   const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 28) : null
   const initial = props.model.model_name?.charAt(0).toUpperCase() || '?'
@@ -309,10 +321,9 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     props.selectedGroup
   )
   if (forcedPrice !== undefined) {
-    const displayPrice =
-      showRechargePrice
-        ? (forcedPrice * priceRate) / usdExchangeRate
-        : forcedPrice
+    const displayPrice = showRechargePrice
+      ? (forcedPrice * priceRate) / usdExchangeRate
+      : forcedPrice
     priceSummary = (
       <div className='col-span-full flex min-w-0 flex-col gap-1'>
         <span className='text-muted-foreground text-xs'>{t('Price')}</span>
@@ -480,7 +491,10 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             {priceSummary}
           </div>
         </div>
-        {(groups.length > 0 || endpoints.length > 0) && (
+        {(groups.length > 0 ||
+          endpoints.length > 0 ||
+          contextLabel !== '' ||
+          modalities.length > 0) && (
           <dl
             className={cn(
               'grid min-w-0 grid-cols-2 gap-3 text-xs',
@@ -524,6 +538,33 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                       +{endpoints.length - 2}
                     </span>
                   )}
+                </dd>
+              </div>
+            )}
+            {contextLabel !== '' && (
+              <div className='flex min-w-0 items-baseline gap-1.5'>
+                <dt className='text-muted-foreground shrink-0'>
+                  {t('Context')}
+                </dt>
+                <dd className='min-w-0 truncate'>{contextLabel}</dd>
+              </div>
+            )}
+            {modalities.length > 0 && (
+              <div className='flex min-w-0 items-baseline gap-1.5'>
+                <dt className='text-muted-foreground shrink-0'>
+                  {t('Modalities')}
+                </dt>
+                <dd
+                  className='min-w-0 truncate'
+                  title={modalities
+                    .map((m) => CATALOG_MODALITY_LABELS[m] ?? m)
+                    .join(', ')}
+                >
+                  {modalities
+                    .slice(0, 3)
+                    .map((m) => CATALOG_MODALITY_LABELS[m] ?? m)
+                    .join(', ')}
+                  {modalities.length > 3 && ` +${modalities.length - 3}`}
                 </dd>
               </div>
             )}

@@ -253,6 +253,8 @@ func SetApiRouter(router *gin.Engine) {
 			characterAdminRoute.POST("/characters/:id/stages/:index/generate", controller.AdminGenerateCharacterImage)
 			characterAdminRoute.POST("/characters/:id/stages/:index/image", controller.AdminUploadCharacterImage)
 			characterAdminRoute.POST("/characters/:id/stages/:index/script", controller.AdminSaveCharacterScript)
+			characterAdminRoute.POST("/characters/:id/pet/image", controller.AdminUploadCharacterPetImage)
+			characterAdminRoute.POST("/characters/:id/pet/generate", controller.AdminGenerateCharacterPetImage)
 			characterAdminRoute.PUT("/thresholds", controller.AdminUpdateCharacterThresholds)
 			characterAdminRoute.GET("/backgrounds", controller.AdminListCharacterBackgrounds)
 			characterAdminRoute.POST("/backgrounds/upload", controller.AdminUploadCharacterBackground)
@@ -276,6 +278,9 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			characterRoute.GET("/characters", controller.ListCharacters)
 			characterRoute.GET("/backgrounds", controller.ListCharacterBackgrounds)
+			characterRoute.GET("/pet", controller.GetCharacterPet)
+			characterRoute.POST("/pet", controller.SetCharacterPet)
+			characterRoute.GET("/pet/status", controller.GetCharacterPetStatus)
 			characterRoute.GET("/:modelName", controller.GetCharacter)
 			characterRoute.POST("/:modelName/unlock", controller.UnlockCharacter)
 			characterRoute.GET("/:modelName/script/:stageIndex", controller.GetCharacterScript)

@@ -26,6 +26,7 @@ import {
   SORT_OPTIONS,
   QUOTA_TYPES,
   ENDPOINT_TYPES,
+  MODEL_MODALITIES,
   DEFAULT_TOKEN_UNIT,
   VIEW_MODES,
   type ViewMode,
@@ -51,6 +52,7 @@ type FilterState = {
   group?: string
   quotaType?: string
   endpointType?: string
+  modality?: string
   tag?: string
   rating?: string
   dimension?: string
@@ -87,6 +89,7 @@ export function useFilters(
     group: search.group,
     quotaType: search.quotaType,
     endpointType: search.endpointType,
+    modality: search.modality,
     tag: search.tag,
     rating: search.rating,
     dimension: search.dimension,
@@ -109,6 +112,7 @@ export function useFilters(
   const groupFilter = filterState.group || FILTER_ALL
   const quotaTypeFilter = filterState.quotaType || QUOTA_TYPES.ALL
   const endpointTypeFilter = filterState.endpointType || ENDPOINT_TYPES.ALL
+  const modalityFilter = filterState.modality || MODEL_MODALITIES.ALL
   const tagFilter = filterState.tag || FILTER_ALL
   const ratingFilter = filterState.rating || FILTER_ALL
   const configuredDimension = isScoreDimension(defaults?.dimension)
@@ -169,6 +173,12 @@ export function useFilters(
       }),
     [updateFilters]
   )
+  const setModalityFilter = useCallback(
+    // 与 vendor/tag 同样的哨兵纪律：'all' 不是值，映射回 undefined。
+    (v: string) =>
+      updateFilters({ modality: v === MODEL_MODALITIES.ALL ? undefined : v }),
+    [updateFilters]
+  )
   const setTagFilter = useCallback(
     (v: string) => updateFilters({ tag: v === FILTER_ALL ? undefined : v }),
     [updateFilters]
@@ -217,6 +227,7 @@ export function useFilters(
       group: groupFilter,
       quotaType: quotaTypeFilter,
       endpointType: endpointTypeFilter,
+      modality: modalityFilter,
       tag: tagFilter,
       rating: ratingFilter,
       sortBy,
@@ -230,6 +241,7 @@ export function useFilters(
     groupFilter,
     quotaTypeFilter,
     endpointTypeFilter,
+    modalityFilter,
     tagFilter,
     ratingFilter,
     sortBy,
@@ -242,6 +254,7 @@ export function useFilters(
       groupFilter !== FILTER_ALL ||
       quotaTypeFilter !== QUOTA_TYPES.ALL ||
       endpointTypeFilter !== ENDPOINT_TYPES.ALL ||
+      modalityFilter !== MODEL_MODALITIES.ALL ||
       tagFilter !== FILTER_ALL ||
       ratingFilter !== FILTER_ALL,
     [
@@ -249,6 +262,7 @@ export function useFilters(
       groupFilter,
       quotaTypeFilter,
       endpointTypeFilter,
+      modalityFilter,
       tagFilter,
       ratingFilter,
     ]
@@ -260,6 +274,7 @@ export function useFilters(
       (groupFilter !== FILTER_ALL ? 1 : 0) +
       (quotaTypeFilter !== QUOTA_TYPES.ALL ? 1 : 0) +
       (endpointTypeFilter !== ENDPOINT_TYPES.ALL ? 1 : 0) +
+      (modalityFilter !== MODEL_MODALITIES.ALL ? 1 : 0) +
       (tagFilter !== FILTER_ALL ? 1 : 0) +
       (ratingFilter !== FILTER_ALL ? 1 : 0),
     [
@@ -267,6 +282,7 @@ export function useFilters(
       groupFilter,
       quotaTypeFilter,
       endpointTypeFilter,
+      modalityFilter,
       tagFilter,
       ratingFilter,
     ]
@@ -278,6 +294,7 @@ export function useFilters(
       group: undefined,
       quotaType: undefined,
       endpointType: undefined,
+      modality: undefined,
       tag: undefined,
       rating: undefined,
     })
@@ -295,6 +312,7 @@ export function useFilters(
     groupFilter,
     quotaTypeFilter,
     endpointTypeFilter,
+    modalityFilter,
     tagFilter,
     ratingFilter,
     scoreDimension,
@@ -308,6 +326,7 @@ export function useFilters(
     setGroupFilter,
     setQuotaTypeFilter,
     setEndpointTypeFilter,
+    setModalityFilter,
     setTagFilter,
     setRatingFilter,
     setScoreDimension,

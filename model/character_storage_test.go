@@ -130,3 +130,33 @@ func TestSaveCharacterImageWithSilhouette(t *testing.T) {
 	_, err = EnsureSilhouette("/uploads/characters/missing/0/nope.png")
 	require.Error(t, err)
 }
+
+// Pet image lives at a stage-independent path and deliberately has no silhouette
+// counterpart: silhouettes exist to stand in for locked portraits, and a pet
+// image is only ever exposed for already-unlocked characters.
+func TestSaveCharacterPetImage(t *testing.T) {
+	oldDir := characterUploadDir
+	characterUploadDir = filepath.Join(t.TempDir(), "uploads")
+	t.Cleanup(func() { characterUploadDir = oldDir })
+
+	url, err := SaveCharacterPetImage("char-pet-store", []byte("fake-png-bytes"))
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(url, "/uploads/characters/char-pet-store/pet/"))
+	require.True(t, strings.HasSuffix(url, ".png"))
+
+	rel := strings.TrimPrefix(url, "/uploads/")
+	stored, err := os.ReadFile(filepath.Join(characterUploadDir, rel))
+	require.NoError(t, err)
+	require.Equal(t, []byte("fake-png-bytes"), stored)
+
+	// No silhouette is written next to a pet image.
+	entries, err := os.ReadDir(filepath.Join(characterUploadDir, "characters", "char-pet-store", "pet"))
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.NotContains(t, entries[0].Name(), silhouetteSuffix)
+
+	// Two saves of the same character do not collide.
+	second, err := SaveCharacterPetImage("char-pet-store", []byte("other"))
+	require.NoError(t, err)
+	require.NotEqual(t, url, second, "each pet image gets a random path segment")
+}

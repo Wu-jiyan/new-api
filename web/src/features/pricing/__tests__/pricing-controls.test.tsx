@@ -54,6 +54,7 @@ function toolbarProps(): PricingToolbarProps {
     viewMode: 'card',
     quotaTypeFilter: 'all',
     endpointTypeFilter: 'all',
+    modalityFilter: 'all',
     vendorFilter: 'all',
     groupFilter: 'all',
     tagFilter: 'all',
@@ -64,6 +65,7 @@ function toolbarProps(): PricingToolbarProps {
     onViewModeChange: vi.fn(),
     onQuotaTypeChange: vi.fn(),
     onEndpointTypeChange: vi.fn(),
+    onModalityChange: vi.fn(),
     onVendorChange: vi.fn(),
     onGroupChange: vi.fn(),
     onTagChange: vi.fn(),
@@ -437,5 +439,62 @@ describe('free group ratio', () => {
 
     expect(screen.getByText('$0.02')).toBeVisible()
     expect(screen.queryByText('x1')).not.toBeInTheDocument()
+  })
+})
+describe('pricing modality filter', () => {
+  const base: PricingModel = {
+    id: 1,
+    model_name: 'text-only',
+    quota_type: 0,
+    model_ratio: 1,
+    completion_ratio: 1,
+    enable_groups: ['default'],
+    input_modalities: ['text'],
+  }
+
+  function build() {
+    const props = toolbarProps()
+    const models: PricingModel[] = [
+      base,
+      {
+        ...base,
+        id: 2,
+        model_name: 'vision-model',
+        input_modalities: ['text', 'image'],
+        output_modalities: ['text'],
+      },
+    ]
+    return { props, models }
+  }
+
+  it('counts a modality once per model even when declared in both directions', () => {
+    const { props, models } = build()
+    render(<PricingSidebar {...props} models={models} tags={[]} vendors={[]} />)
+
+    expect(
+      screen.getByRole('button', { name: /^All Modalities\s*2$/ })
+    ).toBeVisible()
+    // Both models accept text input; vision-model also emits it, which must not
+    // double-count the same model.
+    expect(screen.getByRole('button', { name: /^Text\s*2$/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: /^Image\s*1$/ })).toBeVisible()
+  })
+
+  it('reports the chosen modality to the caller', async () => {
+    const { props, models } = build()
+    const onModalityChange = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <PricingSidebar
+        {...props}
+        onModalityChange={onModalityChange}
+        models={models}
+        tags={[]}
+        vendors={[]}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /^Image\s*1$/ }))
+    expect(onModalityChange).toHaveBeenCalledWith('image')
   })
 })

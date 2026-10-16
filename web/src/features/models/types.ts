@@ -35,6 +35,21 @@ export interface BoundChannel {
  */
 export type ModelSquareState = 'visible' | 'unavailable' | 'hidden' | 'partial'
 
+/**
+ * Catalog modalities, mirroring the backend's closed set in model/model_catalog_fields.go.
+ * Anything outside this list is rejected on write, and the pricing UI falls back to
+ * rendering unknown values verbatim, so both sides must stay in step.
+ */
+export const CATALOG_MODALITIES = [
+  'text',
+  'image',
+  'audio',
+  'video',
+  'file',
+] as const
+
+export type CatalogModality = (typeof CATALOG_MODALITIES)[number]
+
 export interface Model {
   square_state?: ModelSquareState
   has_metadata?: boolean
@@ -46,6 +61,12 @@ export interface Model {
   tags?: string
   vendor_id?: number
   endpoints?: string
+  /** Catalog display fields. Stored as raw JSON text; the form edits arrays. */
+  context_length?: number
+  max_input_tokens?: number
+  max_output_tokens?: number
+  input_modalities?: string
+  output_modalities?: string
   supported_endpoints?: string[]
   status: number
   sync_official: number
@@ -261,24 +282,6 @@ export interface PrefillGroupsResponse {
 // ============================================================================
 // Form Data Types
 // ============================================================================
-
-/**
- * Model form schema
- */
-export const modelFormSchema = z.object({
-  id: z.number().optional(),
-  model_name: z.string().min(1, 'Model name is required'),
-  description: z.string().default(''),
-  icon: z.string().default(''),
-  tags: z.array(z.string()).default([]),
-  vendor_id: z.number().optional(),
-  endpoints: z.string().default(''),
-  name_rule: z.number().min(0).max(3).default(0),
-  status: z.boolean().default(true),
-  sync_official: z.boolean().default(true),
-})
-
-export type ModelFormValues = z.infer<typeof modelFormSchema>
 
 /**
  * Vendor form schema

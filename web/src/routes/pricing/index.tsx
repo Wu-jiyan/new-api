@@ -32,6 +32,7 @@ const pricingSearchSchema = z.object({
   group: z.string().optional(),
   quotaType: z.string().optional(),
   endpointType: z.string().optional(),
+  modality: z.string().optional(),
   tag: z.string().optional(),
   rating: z.string().optional(),
   dimension: z

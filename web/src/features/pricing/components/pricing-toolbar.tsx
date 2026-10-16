@@ -82,12 +82,14 @@ export interface PricingToolbarProps {
   onViewModeChange: (value: ViewMode) => void
   quotaTypeFilter: string
   endpointTypeFilter: string
+  modalityFilter: string
   vendorFilter: string
   groupFilter: string
   tagFilter: string
   ratingFilter: string
   onQuotaTypeChange: (value: string) => void
   onEndpointTypeChange: (value: string) => void
+  onModalityChange: (value: string) => void
   onVendorChange: (value: string) => void
   onGroupChange: (value: string) => void
   onTagChange: (value: string) => void
@@ -337,6 +339,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
             <PricingSidebar
               quotaTypeFilter={props.quotaTypeFilter}
               endpointTypeFilter={props.endpointTypeFilter}
+              modalityFilter={props.modalityFilter}
               vendorFilter={props.vendorFilter}
               groupFilter={props.groupFilter}
               tagFilter={props.tagFilter}
@@ -344,6 +347,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
               dimension={props.dimension}
               onQuotaTypeChange={props.onQuotaTypeChange}
               onEndpointTypeChange={props.onEndpointTypeChange}
+              onModalityChange={props.onModalityChange}
               onVendorChange={props.onVendorChange}
               onGroupChange={props.onGroupChange}
               onTagChange={props.onTagChange}

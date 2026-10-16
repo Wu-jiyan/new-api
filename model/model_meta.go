@@ -57,6 +57,13 @@ type Model struct {
 	AACodingScore       float64 `json:"aa_coding_score,omitempty" gorm:"default:0"`
 	AAAgenticScore      float64 `json:"aa_agentic_score,omitempty" gorm:"default:0"`
 	AASource            string  `json:"aa_source,omitempty" gorm:"size:32;default:''"` // 来源：artificialanalysis / manual
+	// 展示用目录字段：只影响前台呈现，不参与计费与转发判定。
+	// 模态存 JSON 数组文本（与 Endpoints 同一形态）；token 限额 0 = 未配置。
+	ContextLength    int    `json:"context_length,omitempty" gorm:"default:0"`
+	MaxInputTokens   int    `json:"max_input_tokens,omitempty" gorm:"default:0"`
+	MaxOutputTokens  int    `json:"max_output_tokens,omitempty" gorm:"default:0"`
+	InputModalities  string `json:"input_modalities,omitempty" gorm:"type:text"`
+	OutputModalities string `json:"output_modalities,omitempty" gorm:"type:text"`
 
 	BoundChannels []BoundChannel `json:"bound_channels,omitempty" gorm:"-"`
 	EnableGroups  []string       `json:"enable_groups,omitempty" gorm:"-"`
@@ -276,6 +283,9 @@ func (mi *Model) Insert() error {
 		if err := validateModelVendor(tx, mi.VendorID); err != nil {
 			return err
 		}
+		if err := mi.ValidateCatalogFields(); err != nil {
+			return err
+		}
 		now := common.GetTimestamp()
 		mi.CreatedTime, mi.UpdatedTime = now, now
 		status, syncOfficial := mi.Status, mi.SyncOfficial
@@ -301,12 +311,17 @@ func (mi *Model) Update() error {
 		if err := validateModelVendor(tx, mi.VendorID); err != nil {
 			return err
 		}
+		if err := mi.ValidateCatalogFields(); err != nil {
+			return err
+		}
 		mi.UpdatedTime = common.GetTimestamp()
 		// 使用 Select 强制更新所有字段，包括零值
 		return tx.Model(&Model{}).Where("id = ?", mi.Id).
 			Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule",
 				"rating", "rating_score", "rating_source",
 				"aa_intelligence_score", "aa_coding_score", "aa_agentic_score", "aa_source",
+				"context_length", "max_input_tokens", "max_output_tokens",
+				"input_modalities", "output_modalities",
 				"updated_time").
 			Updates(mi).Error
 	})

@@ -65,6 +65,7 @@ export function Pricing() {
     groupFilter,
     quotaTypeFilter,
     endpointTypeFilter,
+    modalityFilter,
     tagFilter,
     ratingFilter,
     scoreDimension,
@@ -78,6 +79,7 @@ export function Pricing() {
     setGroupFilter,
     setQuotaTypeFilter,
     setEndpointTypeFilter,
+    setModalityFilter,
     setTagFilter,
     setRatingFilter,
     setScoreDimension,
@@ -223,6 +225,7 @@ export function Pricing() {
             <PricingSidebar
               quotaTypeFilter={quotaTypeFilter}
               endpointTypeFilter={endpointTypeFilter}
+              modalityFilter={modalityFilter}
               vendorFilter={vendorFilter}
               groupFilter={groupFilter}
               tagFilter={tagFilter}
@@ -230,6 +233,7 @@ export function Pricing() {
               dimension={scoreDimension}
               onQuotaTypeChange={setQuotaTypeFilter}
               onEndpointTypeChange={setEndpointTypeFilter}
+              onModalityChange={setModalityFilter}
               onVendorChange={setVendorFilter}
               onGroupChange={setGroupFilter}
               onTagChange={setTagFilter}
@@ -266,12 +270,14 @@ export function Pricing() {
                 onViewModeChange={setViewMode}
                 quotaTypeFilter={quotaTypeFilter}
                 endpointTypeFilter={endpointTypeFilter}
+                modalityFilter={modalityFilter}
                 vendorFilter={vendorFilter}
                 groupFilter={groupFilter}
                 tagFilter={tagFilter}
                 ratingFilter={ratingFilter}
                 onQuotaTypeChange={setQuotaTypeFilter}
                 onEndpointTypeChange={setEndpointTypeFilter}
+                onModalityChange={setModalityFilter}
                 onVendorChange={setVendorFilter}
                 onGroupChange={setGroupFilter}
                 onTagChange={setTagFilter}

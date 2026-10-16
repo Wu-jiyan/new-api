@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -326,62 +327,9 @@ func AdminGenerateCharacterImage(c *gin.Context) {
 	if assetType == "background" {
 		imgSize = "1536x1024"
 	}
-	baseURL := fmt.Sprintf("http://127.0.0.1:%d", *common.Port)
-	payload, _ := common.Marshal(map[string]interface{}{
-		"model":  imgModel,
-		"prompt": prompt,
-		"n":      1,
-		"size":   imgSize,
-	})
-	httpReq, err := http.NewRequest(http.MethodPost, baseURL+"/v1/images/generations", bytes.NewReader(payload))
+	imageData, err := generateCharacterImageBytes(token, imgModel, prompt, imgSize)
 	if err != nil {
 		c.JSON(200, gin.H{"success": false, "message": err.Error()})
-		return
-	}
-	httpReq.Header.Set("Authorization", "Bearer "+token)
-	httpReq.Header.Set("Content-Type", "application/json")
-	client := &http.Client{Timeout: 120 * time.Second}
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		c.JSON(200, gin.H{"success": false, "message": "生图请求失败: " + err.Error()})
-		return
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
-	if err != nil {
-		c.JSON(200, gin.H{"success": false, "message": err.Error()})
-		return
-	}
-	if resp.StatusCode != http.StatusOK {
-		c.JSON(200, gin.H{"success": false, "message": "生图失败(" + strconv.Itoa(resp.StatusCode) + "): " + string(body)})
-		return
-	}
-	var gen struct {
-		Data []struct {
-			URL     string `json:"url"`
-			B64JSON string `json:"b64_json"`
-		} `json:"data"`
-	}
-	if err := common.Unmarshal(body, &gen); err != nil || len(gen.Data) == 0 {
-		c.JSON(200, gin.H{"success": false, "message": "生图响应解析失败"})
-		return
-	}
-	var imageData []byte
-	switch {
-	case gen.Data[0].B64JSON != "":
-		imageData, err = base64.StdEncoding.DecodeString(gen.Data[0].B64JSON)
-		if err != nil {
-			c.JSON(200, gin.H{"success": false, "message": "生图数据解码失败"})
-			return
-		}
-	case gen.Data[0].URL != "":
-		imageData, err = downloadImage(gen.Data[0].URL)
-		if err != nil {
-			c.JSON(200, gin.H{"success": false, "message": "下载生图结果失败: " + err.Error()})
-			return
-		}
-	default:
-		c.JSON(200, gin.H{"success": false, "message": "生图响应缺少图片数据"})
 		return
 	}
 	switch assetType {
@@ -478,6 +426,65 @@ func updateCharacterStageImage(ch *model.Character, stage int, url string) error
 	}
 	return model.DB.Model(&model.Character{}).Where("id = ?", ch.Id).
 		Updates(map[string]interface{}{"stages_json": ch.StagesJSON, "updated_at": common.GetTimestamp()}).Error
+}
+
+// generateCharacterImageBytes 用配置的生图渠道出一张图，返回图片二进制。
+// 平台自身同时是请求方与网关：请求打回 127.0.0.1 的 /v1/images/generations，走完整 relay 与计费链路。
+func generateCharacterImageBytes(token, imgModel, prompt, size string) ([]byte, error) {
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d", *common.Port)
+	payload, err := common.Marshal(map[string]interface{}{
+		"model":  imgModel,
+		"prompt": prompt,
+		"n":      1,
+		"size":   size,
+	})
+	if err != nil {
+		return nil, err
+	}
+	httpReq, err := http.NewRequest(http.MethodPost, baseURL+"/v1/images/generations", bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+token)
+	httpReq.Header.Set("Content-Type", "application/json")
+	client := &http.Client{Timeout: 120 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, errors.New("生图请求失败: " + err.Error())
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New("生图失败(" + strconv.Itoa(resp.StatusCode) + "): " + string(body))
+	}
+	var gen struct {
+		Data []struct {
+			URL     string `json:"url"`
+			B64JSON string `json:"b64_json"`
+		} `json:"data"`
+	}
+	if err := common.Unmarshal(body, &gen); err != nil || len(gen.Data) == 0 {
+		return nil, errors.New("生图响应解析失败")
+	}
+	switch {
+	case gen.Data[0].B64JSON != "":
+		data, err := base64.StdEncoding.DecodeString(gen.Data[0].B64JSON)
+		if err != nil {
+			return nil, errors.New("生图数据解码失败")
+		}
+		return data, nil
+	case gen.Data[0].URL != "":
+		data, err := downloadImage(gen.Data[0].URL)
+		if err != nil {
+			return nil, errors.New("下载生图结果失败: " + err.Error())
+		}
+		return data, nil
+	default:
+		return nil, errors.New("生图响应缺少图片数据")
+	}
 }
 
 // buildCharacterImagePrompt 按素材类型组装生图提示词

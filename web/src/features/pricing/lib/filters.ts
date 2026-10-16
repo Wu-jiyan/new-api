@@ -22,9 +22,10 @@ import {
   QUOTA_TYPES,
   QUOTA_TYPE_VALUES,
   ENDPOINT_TYPES,
+  MODEL_MODALITIES,
   type SortOption,
 } from '../constants'
-import type { PricingModel } from '../types'
+import type { Modality, PricingModel } from '../types'
 import {
   getCardExamplePrice,
   getDynamicPricingSummary,
@@ -152,6 +153,24 @@ export function filterByEndpointType(
   )
 }
 
+/**
+ * Filter models by input or output modality. A model matches when the modality
+ * appears in either direction, because a user asking for "image" cares about
+ * vision input and image output alike.
+ */
+export function filterByModality(
+  models: PricingModel[],
+  modality: string
+): PricingModel[] {
+  if (modality === MODEL_MODALITIES.ALL) return models
+  const wanted = modality as Modality
+  return models.filter(
+    (m) =>
+      m.input_modalities?.includes(wanted) ||
+      m.output_modalities?.includes(wanted)
+  )
+}
+
 type SortPriceKind = 'input' | 'output' | 'request'
 
 const PRICE_SORTS: Partial<
@@ -252,6 +271,23 @@ export function sortModels(
     case SORT_OPTIONS.NAME:
       sorted.sort(compareModelDisplayName)
       break
+    case SORT_OPTIONS.CONTEXT_HIGH:
+    case SORT_OPTIONS.CONTEXT_LOW: {
+      const direction = sortBy === SORT_OPTIONS.CONTEXT_HIGH ? -1 : 1
+      // Models with no configured window sink to the bottom in both directions:
+      // "unknown" is not the same as "smallest".
+      sorted.sort((a, b) => {
+        const contextA = a.context_length ?? 0
+        const contextB = b.context_length ?? 0
+        if (contextA === 0 || contextB === 0) {
+          return Number(contextA === 0) - Number(contextB === 0)
+        }
+        return (
+          direction * (contextA - contextB) || compareModelDisplayName(a, b)
+        )
+      })
+      break
+    }
     case SORT_OPTIONS.SCORE_HIGH:
       sorted.sort((a, b) => {
         const scoreA = scoreForDimension(a, dimension)
@@ -280,6 +316,7 @@ export function filterAndSortModels(
     group: string
     quotaType: string
     endpointType: string
+    modality: string
     tag: string
     rating: string
     sortBy: string
@@ -292,6 +329,7 @@ export function filterAndSortModels(
   result = filterByGroup(result, filters.group)
   result = filterByQuotaType(result, filters.quotaType)
   result = filterByEndpointType(result, filters.endpointType)
+  result = filterByModality(result, filters.modality)
   result = filterByTag(result, filters.tag)
   result = filterByRating(result, filters.rating, dimension)
   result = sortModels(result, filters.sortBy, dimension)

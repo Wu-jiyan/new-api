@@ -20,7 +20,12 @@ import { describe, expect, it } from 'vitest'
 
 import { SORT_OPTIONS } from '../../constants'
 import type { PricingModel } from '../../types'
-import { filterBySearch, parseSearchScopes, sortModels } from '../filters'
+import {
+  filterByModality,
+  filterBySearch,
+  parseSearchScopes,
+  sortModels,
+} from '../filters'
 import { sortGroups } from '../group-sort'
 
 function pricingModel(model: Partial<PricingModel>): PricingModel {
@@ -168,5 +173,79 @@ describe('sortGroups', () => {
     expect(
       sortGroups(['a', 'b'], 'ratio-desc', { groupRatios: { a: 2 } })
     ).toEqual(['a', 'b'])
+  })
+})
+describe('filterByModality', () => {
+  const cases: PricingModel[] = [
+    pricingModel({ model_name: 'text-only', input_modalities: ['text'] }),
+    pricingModel({
+      model_name: 'vision',
+      input_modalities: ['text', 'image'],
+      output_modalities: ['text'],
+    }),
+    pricingModel({ model_name: 'painter', output_modalities: ['image'] }),
+    pricingModel({ model_name: 'unknown' }),
+  ]
+  const names = (models: PricingModel[]) => models.map((m) => m.model_name)
+
+  it('returns every model when no modality is selected', () => {
+    expect(filterByModality(cases, 'all')).toHaveLength(cases.length)
+  })
+
+  it('matches a modality declared as input', () => {
+    expect(names(filterByModality(cases, 'image'))).toEqual([
+      'vision',
+      'painter',
+    ])
+  })
+
+  it('matches a modality declared only as output', () => {
+    expect(names(filterByModality(cases, 'image'))).toContain('painter')
+  })
+
+  it('excludes models that never declare the modality', () => {
+    expect(names(filterByModality(cases, 'audio'))).toEqual([])
+  })
+
+  it('does not treat a missing modality list as matching everything', () => {
+    expect(names(filterByModality(cases, 'text'))).toEqual([
+      'text-only',
+      'vision',
+    ])
+  })
+})
+
+describe('sortModels by context window', () => {
+  const models: PricingModel[] = [
+    pricingModel({ model_name: 'small', context_length: 8000 }),
+    pricingModel({ model_name: 'unknown' }),
+    pricingModel({ model_name: 'large', context_length: 200000 }),
+  ]
+  const names = (list: PricingModel[]) => list.map((m) => m.model_name)
+
+  it('puts the largest window first when sorting high to low', () => {
+    expect(names(sortModels(models, SORT_OPTIONS.CONTEXT_HIGH))[0]).toBe(
+      'large'
+    )
+  })
+
+  it('puts the smallest window first when sorting low to high', () => {
+    expect(names(sortModels(models, SORT_OPTIONS.CONTEXT_LOW))[0]).toBe('small')
+  })
+
+  it('sinks models without a configured window in both directions', () => {
+    // "unknown" is not the same as "smallest", so it must not lead either way.
+    expect(names(sortModels(models, SORT_OPTIONS.CONTEXT_HIGH)).at(-1)).toBe(
+      'unknown'
+    )
+    expect(names(sortModels(models, SORT_OPTIONS.CONTEXT_LOW)).at(-1)).toBe(
+      'unknown'
+    )
+  })
+
+  it('leaves the input array untouched', () => {
+    const original = [...models]
+    sortModels(models, SORT_OPTIONS.CONTEXT_HIGH)
+    expect(models).toEqual(original)
   })
 })

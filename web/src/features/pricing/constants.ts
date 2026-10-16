@@ -35,6 +35,8 @@ export const SORT_OPTIONS = {
   REQUEST_PRICE_LOW: 'request-price-low',
   REQUEST_PRICE_HIGH: 'request-price-high',
   SCORE_HIGH: 'score-high',
+  CONTEXT_HIGH: 'context-high',
+  CONTEXT_LOW: 'context-low',
 } as const
 
 export type SortOption = (typeof SORT_OPTIONS)[keyof typeof SORT_OPTIONS]
@@ -50,6 +52,9 @@ export function getSortLabels(t: TFunction): Record<SortOption, string> {
     [SORT_OPTIONS.REQUEST_PRICE_HIGH]: t('Per-request Price: High to Low'),
     // 排序用的分数来自当前选中的评分维度，因此这里不写死维度名。
     [SORT_OPTIONS.SCORE_HIGH]: t('Score: High to Low'),
+    // 上下文窗口是展示字段，未配置的模型会被排到末尾而不是当成 0。
+    [SORT_OPTIONS.CONTEXT_HIGH]: t('Context: High to Low'),
+    [SORT_OPTIONS.CONTEXT_LOW]: t('Context: Low to High'),
   }
 }
 
@@ -72,6 +77,30 @@ export type RatingTier = (typeof RATING_TIERS)[number]
 
 /** Filter values */
 export const FILTER_ALL = 'all'
+/** 模态筛选选项。闭集与后端 model/model_catalog_fields.go 保持一致。 */
+export const MODEL_MODALITIES = {
+  ALL: 'all',
+  TEXT: 'text',
+  IMAGE: 'image',
+  AUDIO: 'audio',
+  VIDEO: 'video',
+  FILE: 'file',
+} as const
+
+export type ModelModality =
+  (typeof MODEL_MODALITIES)[keyof typeof MODEL_MODALITIES]
+
+/** 模态筛选器的文案 */
+export function getModalityLabels(t: TFunction): Record<string, string> {
+  return {
+    [MODEL_MODALITIES.ALL]: t('All Modalities'),
+    [MODEL_MODALITIES.TEXT]: t('Text'),
+    [MODEL_MODALITIES.IMAGE]: t('Image'),
+    [MODEL_MODALITIES.AUDIO]: t('Audio'),
+    [MODEL_MODALITIES.VIDEO]: t('Video'),
+    [MODEL_MODALITIES.FILE]: t('File'),
+  }
+}
 
 /** Quota type options */
 export const QUOTA_TYPES = {

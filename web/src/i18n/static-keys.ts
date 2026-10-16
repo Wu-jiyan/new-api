@@ -903,4 +903,18 @@ export const STATIC_I18N_KEYS = [
   'Verification method',
   'Admin permissions updated',
   'Provider ID',
+  // Desk pet idle lines: picked at random through a key array, so the literal
+  // t('...') scanner cannot see them.
+  'character.pet.line.1',
+  'character.pet.line.2',
+  'character.pet.line.3',
+  'character.pet.line.4',
+  'character.pet.line.5',
+  'character.pet.line.6',
+  // Catalog modality labels resolved through a lookup table rather than inline.
+  'Text',
+  'Image',
+  'Audio',
+  'Video',
+  'File',
 ] as const

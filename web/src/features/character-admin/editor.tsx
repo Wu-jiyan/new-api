@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { ArrowLeft, Loader2, Plus, Sparkles, Upload } from 'lucide-react'
+import { ArrowLeft, Loader2, PawPrint, Plus, Sparkles, Upload } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -18,8 +18,10 @@ import {
   fetchAdminCharacters,
   fetchBackgroundLibrary,
   generateCharacterImage,
+  generateCharacterPetImage,
   updateCharacter,
   uploadCharacterImage,
+  uploadCharacterPetImage,
 } from './api'
 import { ScriptLineEditor } from './components/script-line'
 import { StoryAssetsEditor } from './components/story-assets'
@@ -174,6 +176,9 @@ export default function CharacterEditorPage() {
   const [generating, setGenerating] = useState<number | null>(null)
   const [assetsGenerating, setAssetsGenerating] = useState<string | null>(null)
   const fileRefs = useRef<(HTMLInputElement | null)[]>([])
+  const [petImageUrl, setPetImageUrl] = useState('')
+  const [petGenerating, setPetGenerating] = useState(false)
+  const petFileRef = useRef<HTMLInputElement | null>(null)
 
   const { data: list = [] } = useQuery({
     queryKey: ['character-admin', ''],
@@ -320,6 +325,36 @@ export default function CharacterEditorPage() {
     }
   }
 
+  useEffect(() => {
+    setPetImageUrl(item?.pet_image_url ?? '')
+  }, [item?.id, item?.pet_image_url])
+
+  const onGeneratePet = async () => {
+    if (!item || petGenerating) return
+    setPetGenerating(true)
+    try {
+      const { pet_image_url } = await generateCharacterPetImage(item.id)
+      if (pet_image_url) setPetImageUrl(pet_image_url)
+      qc.invalidateQueries({ queryKey: ['character-admin'] })
+      toast.success(t('character.admin.generateDone'))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t('character.admin.generateFailed'))
+    } finally {
+      setPetGenerating(false)
+    }
+  }
+
+  const onUploadPet = async (file?: File) => {
+    if (!item || !file) return
+    try {
+      const { pet_image_url } = await uploadCharacterPetImage(item.id, file)
+      if (pet_image_url) setPetImageUrl(pet_image_url)
+      qc.invalidateQueries({ queryKey: ['character-admin'] })
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t('character.admin.generateFailed'))
+    }
+  }
+
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>
@@ -457,6 +492,66 @@ export default function CharacterEditorPage() {
                     }))
                   }
                 />
+              </div>
+
+              <div className='space-y-3 rounded-lg border p-4'>
+                <div className='flex items-center justify-between'>
+                  <span className='flex items-center gap-2 font-medium'>
+                    <PawPrint className='h-4 w-4' />
+                    {t('character.admin.petImage')}
+                  </span>
+                  <div className='flex items-center gap-2'>
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      disabled={!item || petGenerating}
+                      onClick={onGeneratePet}
+                    >
+                      {petGenerating ? (
+                        <Loader2 className='h-4 w-4 animate-spin' />
+                      ) : (
+                        <Sparkles className='h-4 w-4' />
+                      )}
+                      {petGenerating
+                        ? t('character.admin.generating')
+                        : t('character.admin.generate')}
+                    </Button>
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      disabled={!item}
+                      onClick={() => petFileRef.current?.click()}
+                    >
+                      <Upload className='h-4 w-4' />
+                      {t('character.admin.upload')}
+                    </Button>
+                    <input
+                      ref={petFileRef}
+                      type='file'
+                      accept='image/*'
+                      className='hidden'
+                      onChange={(e) => onUploadPet(e.target.files?.[0])}
+                    />
+                  </div>
+                </div>
+                <div className='flex items-center gap-4'>
+                  <div className='bg-muted flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-md border'>
+                    {petImageUrl ? (
+                      <img
+                        src={petImageUrl}
+                        alt={t('character.admin.petImage')}
+                        className='h-full w-full object-contain'
+                      />
+                    ) : (
+                      <div className='text-muted-foreground px-2 text-center text-xs'>
+                        {t('character.admin.noImage')}
+                      </div>
+                    )}
+                  </div>
+                  <p className='text-muted-foreground text-xs'>
+                    {t('character.admin.petImageHint')}
+                  </p>
+                </div>
               </div>
 
               {drafts.map((stage, i) => (

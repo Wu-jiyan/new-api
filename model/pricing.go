@@ -57,6 +57,11 @@ type Pricing struct {
 	AACodingRating         string                               `json:"aa_coding_rating,omitempty"`
 	AAAgenticRating        string                               `json:"aa_agentic_rating,omitempty"`
 	AASource               string                               `json:"aa_source,omitempty"`
+	ContextLength          int                                  `json:"context_length,omitempty"`
+	MaxInputTokens         int                                  `json:"max_input_tokens,omitempty"`
+	MaxOutputTokens        int                                  `json:"max_output_tokens,omitempty"`
+	InputModalities        []string                             `json:"input_modalities,omitempty"`
+	OutputModalities       []string                             `json:"output_modalities,omitempty"`
 }
 
 type PricingVendor struct {
@@ -357,6 +362,11 @@ func updatePricing() {
 			pricing.AACodingScore = meta.AACodingScore
 			pricing.AAAgenticScore = meta.AAAgenticScore
 			pricing.AASource = meta.AASource
+			pricing.ContextLength = meta.ContextLength
+			pricing.MaxInputTokens = meta.MaxInputTokens
+			pricing.MaxOutputTokens = meta.MaxOutputTokens
+			pricing.InputModalities = ParseModelModalities(meta.InputModalities)
+			pricing.OutputModalities = ParseModelModalities(meta.OutputModalities)
 			// AA 档位不入库，按各维度当前阈值实时推导，阈值改动即时生效。
 			if meta.AAIntelligenceScore > 0 {
 				pricing.AAIntelligenceRating = MapScoreToRatingWith(meta.AAIntelligenceScore, RatingThresholdsFor(RatingDimensionAAIntelligence))

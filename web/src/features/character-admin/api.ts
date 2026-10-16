@@ -151,3 +151,36 @@ export async function updateCharacterThresholds(stage2: number, stage3: number):
     stage3_tokens: stage3,
   })
 }
+
+export type CharacterPetImageResult = {
+  pet_image_url?: string
+}
+
+export async function generateCharacterPetImage(
+  id: number,
+  prompt?: string,
+  style?: string
+): Promise<CharacterPetImageResult> {
+  const res = await api.post<{ success: boolean; message?: string; data: CharacterPetImageResult }>(
+    `/api/character/admin/characters/${id}/pet/generate`,
+    { prompt, style },
+    { skipErrorHandler: true }
+  )
+  if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to generate pet image')
+  return res.data?.data ?? {}
+}
+
+export async function uploadCharacterPetImage(
+  id: number,
+  file: File
+): Promise<CharacterPetImageResult> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await api.post<{ success: boolean; message?: string; data: CharacterPetImageResult }>(
+    `/api/character/admin/characters/${id}/pet/image`,
+    form,
+    { skipErrorHandler: true }
+  )
+  if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to upload pet image')
+  return res.data?.data ?? {}
+}

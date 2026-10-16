@@ -41,6 +41,8 @@ func ListCharacters(c *gin.Context) {
 		TotalTokens int64       `json:"total_tokens"`
 		TotalCalls  int64       `json:"total_calls"`
 		Stages      []stageView `json:"stages"`
+		// 遮蔽内嵌的 Character.PetImageURL：未解锁角色不外泄桌宠图，与阶段素材同一套锁策略。
+		PetImageURL string `json:"pet_image_url,omitempty"`
 	}
 	views := make([]charView, 0, len(list))
 	for _, ch := range list {
@@ -68,9 +70,14 @@ func ListCharacters(c *gin.Context) {
 			}
 			sv = append(sv, v)
 		}
+		petImageURL := ""
+		if state.MaxStage >= 0 && state.Calls >= 1 {
+			petImageURL = ch.PetImageURL
+		}
 		views = append(views, charView{
 			Character: ch, MaxStage: state.MaxStage, Affinity: state.Affinity,
 			TotalTokens: state.Tokens, TotalCalls: state.Calls, Stages: sv,
+			PetImageURL: petImageURL,
 		})
 	}
 	c.JSON(200, gin.H{"success": true, "data": views})
@@ -126,8 +133,10 @@ func GetCharacter(c *gin.Context) {
 		views = append(views, v)
 	}
 	systemPrompt := ""
+	petImageURL := ""
 	if state.Calls >= 1 {
 		systemPrompt = ch.SystemPrompt
+		petImageURL = ch.PetImageURL
 	}
 	var backgrounds []model.CharacterBackground
 	if state.Calls >= 1 {
@@ -137,6 +146,7 @@ func GetCharacter(c *gin.Context) {
 		"id": ch.Id, "model_name": ch.ModelName, "display_name": ch.DisplayName,
 		"title": ch.Title, "description": ch.Description, "tags": ch.Tags,
 		"system_prompt": systemPrompt,
+		"pet_image_url": petImageURL,
 		"max_stage":     state.MaxStage, "affinity": state.Affinity, "affinity_required": ch.AffinityRequired,
 		"total_tokens": state.Tokens, "total_calls": state.Calls,
 		"stages": views, "backgrounds": backgrounds,

@@ -25,7 +25,7 @@ import { api } from '@/lib/api'
 
 import CharacterGalleryPage from '../gallery'
 import CharacterDetailPage from '../index'
-import type { CharacterView } from '../types'
+import type { CharacterPetView, CharacterView } from '../types'
 
 const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }))
 
@@ -49,6 +49,7 @@ const character: CharacterView = {
   affinity_required: 60,
   total_tokens: 1200,
   total_calls: 3,
+  pet_image_url: '/images/aria-pet.png',
   stages: [
     {
       index: 0,
@@ -101,10 +102,16 @@ function mockDetailApi(characterData: CharacterView | null) {
   })
 }
 
-function mockGalleryApi(list: CharacterView[]) {
+function mockGalleryApi(
+  list: CharacterView[],
+  pet: CharacterPetView = { active: false }
+) {
   return vi.spyOn(api, 'get').mockImplementation(async (url) => {
     if (url === '/api/character/characters') {
       return { data: { success: true, data: list } }
+    }
+    if (url === '/api/character/pet') {
+      return { data: { success: true, data: pet } }
     }
     throw new Error(`Unexpected GET ${url}`)
   })
@@ -224,5 +231,86 @@ describe('character gallery page shell', () => {
     expect(
       screen.getByRole('heading', { level: 2, name: 'character.gallery.title' })
     ).toBeVisible()
+  })
+})
+
+describe('character gallery desk pet activation', () => {
+  it('offers the activate control for a claimed character that has a pet image', async () => {
+    mockGalleryApi([character])
+    renderPage(<CharacterGalleryPage />)
+
+    expect(
+      await screen.findByRole('button', { name: 'character.pet.activate' })
+    ).toBeVisible()
+  })
+
+  it('omits the activate control for a claimed character without a pet image', async () => {
+    mockGalleryApi([{ ...character, pet_image_url: undefined }])
+    renderPage(<CharacterGalleryPage />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Aria the Cartographer' })
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'character.pet.activate' })
+    ).toBeNull()
+  })
+
+  it('posts the chosen character and shows it as the active desk pet', async () => {
+    mockGalleryApi([character], {
+      active: true,
+      model_name: MODEL_NAME,
+      display_name: 'Aria the Cartographer',
+      image_url: '/images/aria-pet.png',
+    })
+    const post = vi.spyOn(api, 'post').mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          active: true,
+          model_name: MODEL_NAME,
+          display_name: 'Aria the Cartographer',
+          image_url: '/images/aria-pet.png',
+        },
+      },
+    })
+    const user = userEvent.setup()
+    renderPage(<CharacterGalleryPage />)
+
+    const deactivate = await screen.findByRole('button', {
+      name: 'character.pet.deactivate',
+    })
+    expect(deactivate).toHaveAttribute('aria-pressed', 'true')
+
+    await user.click(deactivate)
+    expect(post).toHaveBeenCalledWith(
+      '/api/character/pet',
+      { model_name: '' },
+      { skipErrorHandler: true }
+    )
+  })
+
+  it('sends the model name when activating a character', async () => {
+    mockGalleryApi([character])
+    const post = vi.spyOn(api, 'post').mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          active: true,
+          model_name: MODEL_NAME,
+          display_name: 'Aria the Cartographer',
+          image_url: '/images/aria-pet.png',
+        },
+      },
+    })
+    const user = userEvent.setup()
+    renderPage(<CharacterGalleryPage />)
+
+    await user.click(
+      await screen.findByRole('button', { name: 'character.pet.activate' })
+    )
+    expect(post).toHaveBeenCalledWith('/api/character/pet', {
+      model_name: MODEL_NAME,
+    }, { skipErrorHandler: true })
   })
 })

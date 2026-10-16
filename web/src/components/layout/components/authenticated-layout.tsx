@@ -21,6 +21,7 @@ import { SkipToMain } from '@/components/skip-to-main'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { LayoutProvider } from '@/context/layout-provider'
 import { SearchProvider } from '@/context/search-provider'
+import { CharacterPetWidget } from '@/features/character/components/pet-widget'
 import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'
 
@@ -53,6 +54,8 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
               {props.children ?? <AnimatedOutlet />}
             </SidebarInset>
           </div>
+          {/* 桌宠用 fixed 定位，必须挂在 SidebarInset 之外，否则会被其 overflow-hidden 裁掉 */}
+          <CharacterPetWidget />
         </SidebarProvider>
       </SearchProvider>
     </LayoutProvider>

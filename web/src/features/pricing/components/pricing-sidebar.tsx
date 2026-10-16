@@ -20,7 +20,6 @@ import { ChevronDown, RotateCcw } from 'lucide-react'
 import { memo, useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { isFreeGroupRatio } from '@/lib/group-ratio'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -29,15 +28,18 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
+import { isFreeGroupRatio } from '@/lib/group-ratio'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 
 import {
   ENDPOINT_TYPES,
+  MODEL_MODALITIES,
   FILTER_ALL,
   QUOTA_TYPES,
   RATING_TIERS,
   getEndpointTypeLabels,
+  getModalityLabels,
   getQuotaTypeLabels,
 } from '../constants'
 import { hasTaskUsageSchema } from '../lib/dynamic-price'
@@ -68,6 +70,7 @@ type FilterSectionProps = {
 export interface PricingSidebarProps {
   quotaTypeFilter: string
   endpointTypeFilter: string
+  modalityFilter: string
   vendorFilter: string
   groupFilter: string
   tagFilter: string
@@ -76,6 +79,7 @@ export interface PricingSidebarProps {
   dimension: ScoreDimension
   onQuotaTypeChange: (value: string) => void
   onEndpointTypeChange: (value: string) => void
+  onModalityChange: (value: string) => void
   onVendorChange: (value: string) => void
   onGroupChange: (value: string) => void
   onTagChange: (value: string) => void
@@ -254,10 +258,7 @@ export const PricingSidebar = memo(function PricingSidebar(
                 digitsSmall: 4,
                 abbreviate: false,
               })
-            : formatGroupRatio(
-                props.groupRatios?.[group],
-                t('Free of charge')
-              ),
+            : formatGroupRatio(props.groupRatios?.[group], t('Free of charge')),
       }
     }),
   ]
@@ -310,6 +311,37 @@ export const PricingSidebar = memo(function PricingSidebar(
         value,
         label,
         count: counts.endpoints.get(value) ?? 0,
+      })),
+  ]
+
+  // 模态计数单独统计，避免改动主 counts memo 的内部结构。
+  const modalityCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const model of props.models) {
+      for (const modality of new Set([
+        ...(model.input_modalities ?? []),
+        ...(model.output_modalities ?? []),
+      ])) {
+        counts.set(modality, (counts.get(modality) ?? 0) + 1)
+      }
+    }
+    return counts
+  }, [props.models])
+
+  const modalityTypeLabels = getModalityLabels(t)
+
+  const modalityOptions: FilterOption[] = [
+    {
+      value: MODEL_MODALITIES.ALL,
+      label: modalityTypeLabels[MODEL_MODALITIES.ALL],
+      count: props.models.length,
+    },
+    ...Object.entries(modalityTypeLabels)
+      .filter(([value]) => value !== MODEL_MODALITIES.ALL)
+      .map(([value, label]) => ({
+        value,
+        label,
+        count: modalityCounts.get(value) ?? 0,
       })),
   ]
 
@@ -394,6 +426,12 @@ export const PricingSidebar = memo(function PricingSidebar(
           value={props.endpointTypeFilter}
           options={endpointOptions}
           onChange={props.onEndpointTypeChange}
+        />
+        <FilterSection
+          title={t('Modality')}
+          value={props.modalityFilter}
+          options={modalityOptions}
+          onChange={props.onModalityChange}
         />
         {hasAnyRating && (
           <FilterSection

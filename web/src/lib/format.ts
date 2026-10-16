@@ -50,6 +50,22 @@ export function formatCompactNumber(
   }).format(value as number)
 }
 
+/**
+ * Token and context-window counts such as `128K` or `1.5M`. Callers must pass the
+ * resolved Intl locale so the grouping follows the active language instead of
+ * staying frozen at whatever locale the module was first loaded with.
+ */
+export function formatTokenCount(
+  tokens: number | null | undefined,
+  locales?: Intl.LocalesArgument
+): string {
+  if (tokens == null || Number.isNaN(tokens) || tokens <= 0) return '-'
+  if (tokens < 1000) return String(tokens)
+  return new Intl.NumberFormat(locales, {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(tokens)
+}
 export function formatPercent(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value as number)) return '-'
   return Intl.NumberFormat(undefined, {

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -36,6 +36,7 @@ import { ErrorState } from '@/components/error-state'
 import { JsonEditor } from '@/components/json-editor'
 import { LoadingState } from '@/components/loading-state'
 import { LobeIconField } from '@/components/lobe-icon-field'
+import { MultiSelect } from '@/components/multi-select'
 import { TagInput } from '@/components/tag-input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -79,8 +80,19 @@ import {
   transformFormDataToModelPayload,
   type ModelFormValues,
 } from '../../lib/model-form'
+import { CATALOG_MODALITIES, type CatalogModality } from '../../types'
 import type { Model } from '../../types'
 import { ModelConnections } from '../model-connections'
+
+/** Label vocabulary shared with the pricing view so one model never shows two
+ *  different names for the same modality. */
+const CATALOG_MODALITY_LABELS: Record<CatalogModality, string> = {
+  text: 'Text',
+  image: 'Image',
+  audio: 'Audio',
+  video: 'Video',
+  file: 'File',
+}
 
 export function ModelMutateDrawer(props: {
   open: boolean
@@ -89,6 +101,14 @@ export function ModelMutateDrawer(props: {
   initialSection?: 'metadata' | 'pricing'
 }) {
   const { t } = useTranslation()
+  const modalityOptions = useMemo(
+    () =>
+      CATALOG_MODALITIES.map((modality) => ({
+        value: modality as string,
+        label: t(CATALOG_MODALITY_LABELS[modality]),
+      })),
+    [t]
+  )
   const queryClient = useQueryClient()
   const [createdModel, setCreatedModel] = useState<{
     source: Model | null | undefined
@@ -536,6 +556,127 @@ export function ModelMutateDrawer(props: {
                       />
                     </SideDrawerSection>
 
+                    {/* Catalog information: display-only metadata surfaced on the
+                        pricing card and model detail view. */}
+                    <SideDrawerSection>
+                      <h3 className='text-sm font-semibold'>
+                        {t('Catalog information')}
+                      </h3>
+                      <FormDescription>
+                        {t(
+                          'Display metadata for the pricing card and model detail view. Leave a field empty when the value is unknown.'
+                        )}
+                      </FormDescription>
+                      <div className='grid gap-4 sm:grid-cols-3'>
+                        <FormField
+                          control={form.control}
+                          name='context_length'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Context window')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type='number'
+                                  min={0}
+                                  value={field.value ?? 0}
+                                  onChange={(e) =>
+                                    field.onChange(Number(e.target.value))
+                                  }
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {t('Tokens. 0 means not configured.')}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='max_input_tokens'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Maximum input window')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type='number'
+                                  min={0}
+                                  value={field.value ?? 0}
+                                  onChange={(e) =>
+                                    field.onChange(Number(e.target.value))
+                                  }
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='max_output_tokens'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>
+                                {t('Maximum tokens per response')}
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  type='number'
+                                  min={0}
+                                  value={field.value ?? 0}
+                                  onChange={(e) =>
+                                    field.onChange(Number(e.target.value))
+                                  }
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <div className='grid gap-4 sm:grid-cols-2'>
+                        <FormField
+                          control={form.control}
+                          name='input_modalities'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Input modalities')}</FormLabel>
+                              <FormControl>
+                                <MultiSelect
+                                  options={modalityOptions}
+                                  selected={field.value ?? []}
+                                  onChange={(values) =>
+                                    field.onChange(values as CatalogModality[])
+                                  }
+                                  emptyText={t('No modalities selected')}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='output_modalities'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Output modalities')}</FormLabel>
+                              <FormControl>
+                                <MultiSelect
+                                  options={modalityOptions}
+                                  selected={field.value ?? []}
+                                  onChange={(values) =>
+                                    field.onChange(values as CatalogModality[])
+                                  }
+                                  emptyText={t('No modalities selected')}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </SideDrawerSection>
                     {/* Status & Sync */}
                     <SideDrawerSection>
                       <h3 className='text-sm font-semibold'>

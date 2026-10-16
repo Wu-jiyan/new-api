@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   BookOpen,
@@ -6,6 +6,7 @@ import {
   Loader2,
   Lock,
   LockKeyhole,
+  PawPrint,
   Play,
   ZoomIn,
 } from 'lucide-react'
@@ -18,7 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
-import { fetchCharacters, unlockCharacter } from './api'
+import { fetchCharacterPet, fetchCharacters, setCharacterPet, unlockCharacter } from './api'
 import { Lightbox } from './components/lightbox'
 import { StoryPlayer } from './components/story-player'
 import type { CharacterStageView, CharacterView } from './types'
@@ -66,15 +67,20 @@ function getProgress(character: CharacterView): number {
 interface CharacterCardProps {
   character: CharacterView
   onClick: () => void
+  /** 该角色是否已是当前桌宠 */
+  isPet: boolean
+  onTogglePet: (modelName: string, activate: boolean) => void
+  petPending: boolean
 }
 
-function CharacterCard({ character, onClick }: CharacterCardProps) {
+function CharacterCard(props: CharacterCardProps) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [storyOpen, setStoryOpen] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [unlocking, setUnlocking] = useState(false)
   const [unlockFx, setUnlockFx] = useState(false)
+  const character = props.character
   const claimed = isClaimed(character)
   const currentStage = claimed ? getCurrentStage(character) : undefined
   const eligibleStage = getEligibleStage(character)
@@ -83,6 +89,8 @@ function CharacterCard({ character, onClick }: CharacterCardProps) {
     : (character.stages[0]?.silhouette_url ?? undefined)
   const nextStage = getNextStage(character)
   const progress = getProgress(character)
+  // 只有已解锁且站点配置了桌宠图的角色才可放置，服务端同样会校验这两条。
+  const canBePet = claimed && !!character.pet_image_url
 
   const handleUnlock = async () => {
     if (!eligibleStage || unlocking) return
@@ -107,11 +115,11 @@ function CharacterCard({ character, onClick }: CharacterCardProps) {
       <div
         role='button'
         tabIndex={0}
-        onClick={onClick}
+        onClick={props.onClick}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            onClick()
+            props.onClick()
           }
         }}
         className='group bg-background hover:bg-muted/20 relative flex cursor-pointer flex-col overflow-hidden rounded-xl border text-left transition-colors'
@@ -224,11 +232,11 @@ function CharacterCard({ character, onClick }: CharacterCardProps) {
         </div>
 
         {claimed && (
-          <div className='border-t p-2'>
+          <div className='flex items-center gap-1 border-t p-2'>
             <Button
               variant='ghost'
               size='sm'
-              className='w-full'
+              className='flex-1'
               onClick={(e) => {
                 e.stopPropagation()
                 setStoryOpen(true)
@@ -237,6 +245,30 @@ function CharacterCard({ character, onClick }: CharacterCardProps) {
               <Play className='mr-1.5 h-4 w-4' />
               {t('character.story.enter')}
             </Button>
+            {canBePet && (
+              <Button
+                variant={props.isPet ? 'default' : 'ghost'}
+                size='sm'
+                disabled={props.petPending}
+                aria-pressed={props.isPet}
+                title={
+                  props.isPet
+                    ? t('character.pet.deactivate')
+                    : t('character.pet.activate')
+                }
+                onClick={(e) => {
+                  e.stopPropagation()
+                  props.onTogglePet(character.model_name, !props.isPet)
+                }}
+              >
+                {props.petPending ? (
+                  <Loader2 className='mr-1.5 h-4 w-4 animate-spin' />
+                ) : (
+                  <PawPrint className='mr-1.5 h-4 w-4' />
+                )}
+                {props.isPet ? t('character.pet.deactivate') : t('character.pet.activate')}
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -258,12 +290,37 @@ function CharacterCard({ character, onClick }: CharacterCardProps) {
 export default function CharacterGalleryPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const qc = useQueryClient()
 
   const { data: characters, isLoading } = useQuery({
     queryKey: ['characters'],
     queryFn: fetchCharacters,
     staleTime: 60 * 1000,
   })
+
+  const { data: pet } = useQuery({
+    queryKey: ['character-pet'],
+    queryFn: fetchCharacterPet,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+
+  const [petPending, setPetPending] = useState(false)
+  const petMutation = useMutation({
+    mutationFn: ({ modelName }: { modelName: string }) => setCharacterPet(modelName),
+    onMutate: () => setPetPending(true),
+    onSettled: () => setPetPending(false),
+    onSuccess: (next) => {
+      qc.setQueryData(['character-pet'], next)
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : t('Request failed'))
+    },
+  })
+
+  const togglePet = (modelName: string, activate: boolean) => {
+    petMutation.mutate({ modelName: activate ? modelName : '' })
+  }
 
   const stats = useMemo(() => {
     const list = characters ?? []
@@ -352,6 +409,9 @@ export default function CharacterGalleryPage() {
                 <CharacterCard
                   key={character.id}
                   character={character}
+                  isPet={pet?.active === true && pet.model_name === character.model_name}
+                  petPending={petPending}
+                  onTogglePet={togglePet}
                   onClick={() =>
                     navigate({
                       to: '/character/$modelName',

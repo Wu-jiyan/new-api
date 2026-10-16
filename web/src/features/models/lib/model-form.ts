@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
 
-import type { Model } from '../types'
+import { CATALOG_MODALITIES, type CatalogModality, type Model } from '../types'
 import { parseModelTags as parseTagsFromUtils } from './model-utils'
 
 // ============================================================================
@@ -36,6 +36,11 @@ export const modelFormSchema = z.object({
   tags: z.array(z.string()).default([]),
   vendor_id: z.number().optional(),
   endpoints: z.string().default(''),
+  context_length: z.number().int().min(0).default(0),
+  max_input_tokens: z.number().int().min(0).default(0),
+  max_output_tokens: z.number().int().min(0).default(0),
+  input_modalities: z.array(z.enum(CATALOG_MODALITIES)).default([]),
+  output_modalities: z.array(z.enum(CATALOG_MODALITIES)).default([]),
   name_rule: z.number().min(0).max(3).default(0),
   status: z.boolean().default(true),
   sync_official: z.boolean().default(true),
@@ -78,6 +83,11 @@ export function transformModelToFormDefaults(model: Model): ModelFormValues {
     tags: parseTagsFromUtils(model.tags),
     vendor_id: model.vendor_id,
     endpoints: model.endpoints || '',
+    context_length: model.context_length || 0,
+    max_input_tokens: model.max_input_tokens || 0,
+    max_output_tokens: model.max_output_tokens || 0,
+    input_modalities: parseModelModalities(model.input_modalities),
+    output_modalities: parseModelModalities(model.output_modalities),
     name_rule: model.name_rule || 0,
     status: model.status === 1,
     sync_official: model.sync_official === 1,
@@ -100,6 +110,11 @@ export function transformFormDataToModelPayload(
     tags: formatTagsArray(formData.tags),
     vendor_id: formData.vendor_id,
     endpoints: formData.endpoints || '',
+    context_length: formData.context_length,
+    max_input_tokens: formData.max_input_tokens,
+    max_output_tokens: formData.max_output_tokens,
+    input_modalities: formatModelModalities(formData.input_modalities),
+    output_modalities: formatModelModalities(formData.output_modalities),
     name_rule: formData.name_rule,
     status: formData.status ? 1 : 0,
     sync_official: formData.sync_official ? 1 : 0,
@@ -112,6 +127,29 @@ export function transformFormDataToModelPayload(
 // Parsing and Formatting Helpers
 // ============================================================================
 
+/**
+ * Modalities travel as a JSON array string over the API, the same way `tags`
+ * travels as a comma-separated string. The form works on arrays; conversion
+ * lives here so the drawer never sees the wire shape. Unknown entries are
+ * dropped rather than rendered, because the backend only accepts this closed
+ * set and the pricing UI would otherwise print the raw value.
+ */
+export function parseModelModalities(raw?: string): CatalogModality[] {
+  if (!raw) return []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((value): value is CatalogModality =>
+      CATALOG_MODALITIES.includes(value as CatalogModality)
+    )
+  } catch {
+    return []
+  }
+}
+
+export function formatModelModalities(values: CatalogModality[]): string {
+  return values.length > 0 ? JSON.stringify(values) : ''
+}
 /**
  * Format tags array to string
  */

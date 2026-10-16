@@ -23,6 +23,25 @@ func SaveCharacterAsset(modelName string, stage int, sub string, data []byte) (s
 	return saveCharacterImage(modelName, stage, sub, data)
 }
 
+// SaveCharacterPetImage 将桌宠小图落盘到 {characterUploadDir}/characters/{model}/pet/{rand}.png，
+// 返回相对 URL（/uploads/characters/.../pet/...）。
+// 桌宠图与阶段无关，故不生成剪影：剪影只服务于未解锁阶段的展示立绘，而未解锁角色无法被放置为桌宠。
+func SaveCharacterPetImage(modelName string, data []byte) (string, error) {
+	randBytes := make([]byte, 6)
+	if _, err := rand.Read(randBytes); err != nil {
+		return "", err
+	}
+	randStr := hex.EncodeToString(randBytes)
+	dir := filepath.Join(characterUploadDir, "characters", modelName, "pet")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(filepath.Join(dir, randStr+".png"), data, 0o644); err != nil {
+		return "", err
+	}
+	return "/uploads/" + filepath.ToSlash(filepath.Join("characters", modelName, "pet", randStr+".png")), nil
+}
+
 // SaveGlobalBackground 保存系统级全局背景图到 {characterUploadDir}/backgrounds/{rand}.png，
 // 返回相对 URL（/uploads/backgrounds/...）。
 func SaveGlobalBackground(data []byte) (string, error) {
