@@ -33,6 +33,9 @@ import {
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { toIntlLocale } from '@/i18n/languages'
+import { formatCatalogTokenCount } from '../lib/catalog-metadata'
+
 import { CopyButton } from '@/components/copy-button'
 import { StaticDataTable } from '@/components/data-table'
 import { sideDrawerContentClassName } from '@/components/drawer-layout'
@@ -242,21 +245,7 @@ const MODALITY_LABEL_KEYS: Record<string, string> = {
   file: 'File',
 }
 
-const TOKEN_FORMAT = new Intl.NumberFormat(undefined, {
-  maximumFractionDigits: 1,
-})
 const MODEL_DETAILS_SKELETON_KEYS = ['first', 'second', 'third', 'fourth']
-
-function formatCatalogTokenCount(tokens: number): string {
-  if (!Number.isFinite(tokens) || tokens <= 0) return ''
-  if (tokens >= 1_000_000) {
-    return `${TOKEN_FORMAT.format(tokens / 1_000_000)}M`
-  }
-  if (tokens >= 1_000) {
-    return `${TOKEN_FORMAT.format(tokens / 1_000)}K`
-  }
-  return TOKEN_FORMAT.format(tokens)
-}
 
 function formatCatalogYearMonth(value?: string): string {
   if (!value) return ''
@@ -387,7 +376,8 @@ function ModalityLabels(props: { items: string[] }) {
 }
 
 function ModelBackendQuickStats(props: { model: PricingModel }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const model = props.model
   const inputModalities = normalizeCatalogItems(model.input_modalities)
   const outputModalities = normalizeCatalogItems(model.output_modalities)
@@ -409,7 +399,7 @@ function ModelBackendQuickStats(props: { model: PricingModel }) {
       key: 'context',
       icon: Layers,
       label: t('Context'),
-      value: formatCatalogTokenCount(contextLength),
+      value: formatCatalogTokenCount(contextLength, locale),
       hint: t('Maximum input window'),
     })
   }
@@ -419,7 +409,7 @@ function ModelBackendQuickStats(props: { model: PricingModel }) {
       key: 'max-output',
       icon: Maximize2,
       label: t('Max output'),
-      value: formatCatalogTokenCount(maxOutput),
+      value: formatCatalogTokenCount(maxOutput, locale),
       hint: t('Maximum tokens per response'),
     })
   }

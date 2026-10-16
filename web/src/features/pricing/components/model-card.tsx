@@ -557,12 +557,12 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                 <dd
                   className='min-w-0 truncate'
                   title={modalities
-                    .map((m) => CATALOG_MODALITY_LABELS[m] ?? m)
+                    .map((m) => CATALOG_MODALITY_LABELS[m])
                     .join(', ')}
                 >
                   {modalities
                     .slice(0, 3)
-                    .map((m) => CATALOG_MODALITY_LABELS[m] ?? m)
+                    .map((m) => CATALOG_MODALITY_LABELS[m])
                     .join(', ')}
                   {modalities.length > 3 && ` +${modalities.length - 3}`}
                 </dd>

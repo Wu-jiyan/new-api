@@ -35,21 +35,6 @@ export interface BoundChannel {
  */
 export type ModelSquareState = 'visible' | 'unavailable' | 'hidden' | 'partial'
 
-/**
- * Catalog modalities, mirroring the backend's closed set in model/model_catalog_fields.go.
- * Anything outside this list is rejected on write, and the pricing UI falls back to
- * rendering unknown values verbatim, so both sides must stay in step.
- */
-export const CATALOG_MODALITIES = [
-  'text',
-  'image',
-  'audio',
-  'video',
-  'file',
-] as const
-
-export type CatalogModality = (typeof CATALOG_MODALITIES)[number]
-
 export interface Model {
   square_state?: ModelSquareState
   has_metadata?: boolean

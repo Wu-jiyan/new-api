@@ -18,7 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
 
-import { CATALOG_MODALITIES, type CatalogModality, type Model } from '../types'
+import {
+  CATALOG_MODALITIES,
+  type CatalogModality,
+} from '@/lib/catalog-modalities'
+
+import type { Model } from '../types'
 import { parseModelTags as parseTagsFromUtils } from './model-utils'
 
 // ============================================================================

@@ -16,23 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { formatTokenCount } from '@/lib/format'
+import {
+  CATALOG_MODALITIES,
+  CATALOG_MODALITY_LABELS,
+  type CatalogModality,
+} from '@/lib/catalog-modalities'
+import { formatNumber } from '@/lib/format'
 
 import type { PricingModel } from '../types'
 
-/**
- * Label vocabulary for catalog modalities. Mirrors the closed set the backend
- * accepts in `model/model_catalog_fields.go`; the pricing view and the admin
- * form both resolve names through here so one model never shows two spellings
- * of the same modality.
- */
-export const CATALOG_MODALITY_LABELS: Record<string, string> = {
-  text: 'Text',
-  image: 'Image',
-  audio: 'Audio',
-  video: 'Video',
-  file: 'File',
-}
+export { CATALOG_MODALITY_LABELS }
 
 export function normalizeCatalogItems(items?: string[]): string[] {
   return items ?? []
@@ -45,16 +38,27 @@ export function normalizeCatalogItems(items?: string[]): string[] {
  */
 export function formatCatalogTokenCount(
   tokens: number | undefined,
-  locale?: Intl.LocalesArgument
+  // Required on purpose. An omitted locale makes Intl fall back to the operating
+  // system locale, which is not the interface language: a Chinese Windows with an
+  // English interface would render "12,8" instead of "12.8".
+  locale: Intl.LocalesArgument
 ): string {
-  return formatTokenCount(tokens, locale)
+  // Context windows and output limits are quoted in K/M tokens across the whole
+  // industry and in every provider's own documentation, so the unit suffix stays
+  // fixed and only the decimal separator follows the interface language. Compact
+  // notation would render the same window as "12.8万" here, which is not how a
+  // context window is ever described.
+  if (tokens === undefined || !Number.isFinite(tokens) || tokens <= 0) return ''
+  if (tokens >= 1_000_000) return `${formatNumber(tokens / 1_000_000, locale)}M`
+  if (tokens >= 1_000) return `${formatNumber(tokens / 1_000, locale)}K`
+  return formatNumber(tokens, locale)
 }
 
-/** Distinct modalities across both directions, in stable catalog order. */
-export function collectModalities(model: PricingModel): string[] {
+/** Distinct modalities across both directions, in catalogue order. */
+export function collectModalities(model: PricingModel): CatalogModality[] {
   const merged = new Set([
     ...normalizeCatalogItems(model.input_modalities),
     ...normalizeCatalogItems(model.output_modalities),
   ])
-  return Object.keys(CATALOG_MODALITY_LABELS).filter((key) => merged.has(key))
+  return CATALOG_MODALITIES.filter((key) => merged.has(key))
 }

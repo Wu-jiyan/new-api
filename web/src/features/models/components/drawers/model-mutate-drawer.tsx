@@ -66,6 +66,11 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { ModelPricingPanel } from '@/features/model-pricing/model-pricing-panel'
 import {
+  CATALOG_MODALITIES,
+  CATALOG_MODALITY_LABELS,
+  type CatalogModality,
+} from '@/lib/catalog-modalities'
+import {
   requireServerSuccess,
   createServerError,
   getServerErrorMessage,
@@ -80,19 +85,8 @@ import {
   transformFormDataToModelPayload,
   type ModelFormValues,
 } from '../../lib/model-form'
-import { CATALOG_MODALITIES, type CatalogModality } from '../../types'
 import type { Model } from '../../types'
 import { ModelConnections } from '../model-connections'
-
-/** Label vocabulary shared with the pricing view so one model never shows two
- *  different names for the same modality. */
-const CATALOG_MODALITY_LABELS: Record<CatalogModality, string> = {
-  text: 'Text',
-  image: 'Image',
-  audio: 'Audio',
-  video: 'Video',
-  file: 'File',
-}
 
 export function ModelMutateDrawer(props: {
   open: boolean
