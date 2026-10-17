@@ -3,6 +3,8 @@ package setting
 import (
 	"fmt"
 	"math"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
@@ -18,12 +20,24 @@ const maxRateLimitDurationSeconds = 24 * 60 * 60
 // window of at most 24 hours.
 const maxModelRequestRateLimitCount int64 = math.MaxInt64 / maxRateLimitDurationSeconds
 
+// maxModelRequestConcurrencyLimit bounds the per-user in-flight request cap so a
+// mistyped value cannot turn the limiter into a permanent ban.
+const maxModelRequestConcurrencyLimit = 100000
+
 var ModelRequestRateLimitEnabled = false
 var ModelRequestRateLimitDurationMinutes = 1
 var ModelRequestRateLimitCount = 0
 var ModelRequestRateLimitSuccessCount = 1000
 var ModelRequestRateLimitGroup = map[string][2]int{}
 var ModelRequestRateLimitMutex sync.RWMutex
+
+// ModelRequestConcurrencyLimitEnabled turns the per-user in-flight request cap
+// on; ModelRequestConcurrencyLimit is the cap applied to every user unless a
+// group below overrides it. 0 means unlimited.
+var ModelRequestConcurrencyLimitEnabled = false
+var ModelRequestConcurrencyLimit = 0
+var ModelRequestConcurrencyLimitGroup = map[string]int{}
+var ModelRequestConcurrencyLimitMutex sync.RWMutex
 
 func ModelRequestRateLimitGroup2JSONString() string {
 	ModelRequestRateLimitMutex.RLock()
@@ -74,5 +88,63 @@ func CheckModelRequestRateLimitGroup(jsonStr string) error {
 		}
 	}
 
+	return nil
+}
+
+func ModelRequestConcurrencyLimitGroup2JSONString() string {
+	ModelRequestConcurrencyLimitMutex.RLock()
+	defer ModelRequestConcurrencyLimitMutex.RUnlock()
+
+	jsonBytes, err := common.Marshal(ModelRequestConcurrencyLimitGroup)
+	if err != nil {
+		common.SysLog(common.LogText("error marshalling model request concurrency limit group: %s", err.Error()))
+	}
+	return string(jsonBytes)
+}
+
+func UpdateModelRequestConcurrencyLimitGroupByJSONString(jsonStr string) error {
+	limits := make(map[string]int)
+	if strings.TrimSpace(jsonStr) != "" {
+		if err := common.Unmarshal([]byte(jsonStr), &limits); err != nil {
+			return err
+		}
+	}
+
+	ModelRequestConcurrencyLimitMutex.Lock()
+	defer ModelRequestConcurrencyLimitMutex.Unlock()
+	ModelRequestConcurrencyLimitGroup = limits
+	return nil
+}
+
+func GetGroupConcurrencyLimit(group string) (limit int, found bool) {
+	ModelRequestConcurrencyLimitMutex.RLock()
+	defer ModelRequestConcurrencyLimitMutex.RUnlock()
+
+	limit, found = ModelRequestConcurrencyLimitGroup[group]
+	return limit, found
+}
+
+func CheckModelRequestConcurrencyLimitGroup(jsonStr string) error {
+	if strings.TrimSpace(jsonStr) == "" {
+		return nil
+	}
+	limits := make(map[string]int)
+	if err := common.Unmarshal([]byte(jsonStr), &limits); err != nil {
+		return err
+	}
+	for group, limit := range limits {
+		if limit < 0 || limit > maxModelRequestConcurrencyLimit {
+			return fmt.Errorf("group %s concurrency limit must be between 0 and %d", group, maxModelRequestConcurrencyLimit)
+		}
+	}
+
+	return nil
+}
+
+func ValidateModelRequestConcurrencyLimit(value string) error {
+	limit, err := strconv.Atoi(value)
+	if err != nil || limit < 0 || limit > maxModelRequestConcurrencyLimit {
+		return fmt.Errorf("model request concurrency limit must be between 0 and %d", maxModelRequestConcurrencyLimit)
+	}
 	return nil
 }

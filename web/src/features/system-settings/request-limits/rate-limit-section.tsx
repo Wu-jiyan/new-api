@@ -45,6 +45,7 @@ import {
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { safeNumberFieldProps } from '../utils/numeric-field'
 import { RateLimitVisualEditor } from './rate-limit-visual-editor'
 
 const isValidJSON = (value: string | undefined) => {
@@ -66,6 +67,28 @@ const isValidJSON = (value: string | undefined) => {
   }
 }
 
+const isValidConcurrencyLimitJSON = (value: string | undefined) => {
+  if (!value || value.trim() === '') return true
+  try {
+    const parsed = JSON.parse(value)
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      return false
+    }
+    for (const limit of Object.values(parsed)) {
+      if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 0) {
+        return false
+      }
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
 const createRateLimitSchema = (t: (key: string) => string) =>
   z.object({
     ModelRequestRateLimitEnabled: z.boolean(),
@@ -76,6 +99,14 @@ const createRateLimitSchema = (t: (key: string) => string) =>
       .string()
       .optional()
       .refine(isValidJSON, {
+        message: t('Invalid JSON format or values out of allowed range'),
+      }),
+    ModelRequestConcurrencyLimitEnabled: z.boolean(),
+    ModelRequestConcurrencyLimit: z.number().min(0),
+    ModelRequestConcurrencyLimitGroup: z
+      .string()
+      .optional()
+      .refine(isValidConcurrencyLimitJSON, {
         message: t('Invalid JSON format or values out of allowed range'),
       }),
   })
@@ -313,6 +344,84 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                     </div>
                   </FormDescription>
                 )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='ModelRequestConcurrencyLimitEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>
+                    {t('Enable per-user concurrency limit')}
+                  </FormLabel>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='ModelRequestConcurrencyLimit'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Max concurrent requests per user')}</FormLabel>
+                <div className='flex items-center gap-2'>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      step={1}
+                      {...safeNumberFieldProps(field)}
+                    />
+                  </FormControl>
+                  <span className='text-muted-foreground text-sm'>
+                    {t('times')}
+                  </span>
+                </div>
+                <FormDescription>
+                  {t(
+                    "Rejects a user's new request with 429 once that many of their requests are still running upstream. 0 = unlimited."
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='ModelRequestConcurrencyLimitGroup'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Group concurrency overrides')}</FormLabel>
+                <FormControl>
+                  <JsonCodeEditor
+                    value={field.value || ''}
+                    onChange={field.onChange}
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    textareaRef={field.ref}
+                    placeholder={`{\n  "default": 8,\n  "vip": 32\n}`}
+                    aria-invalid={Boolean(
+                      form.formState.errors.ModelRequestConcurrencyLimitGroup
+                    )}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'JSON object mapping group name to max concurrent requests, e.g. {"default": 8, "vip": 32}. A group entry overrides the global per-user limit; 0 = unlimited.'
+                  )}
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
