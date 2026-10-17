@@ -23,6 +23,8 @@
     "Send outbound JSON requests gzip-compressed. Helps when a large prompt travels over a slow or lossy uplink. Only enable for upstreams known to accept a gzipped request body.": "Gửi yêu cầu JSON ra ngoài ở dạng nén gzip. Hữu ích khi prompt dài đi qua đường truyền chậm hoặc nhiều mất gói. Chỉ bật cho những thượng nguồn đã biết chấp nhận thân yêu cầu nén.",
     "Show less": "Thu gọn",
     "Show more": "Hiển thị thêm",
+    "Show the compact token count": "Hiển thị số token rút gọn",
+    "Show the exact token count": "Hiển thị số token chính xác",
     "Tokens. 0 means not configured.": "Token. 0 nghĩa là chưa cấu hình.",
     "character.admin.petImage": "Ảnh thú cưng",
     "character.admin.petImageHint": "Tranh chibi nền trong suốt. Người dùng đã mở khóa nhân vật này có thể đặt làm thú cưng nổi trên mọi trang.",

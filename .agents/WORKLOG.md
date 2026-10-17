@@ -450,4 +450,61 @@ text+image+audio+video+file 等抽查通过）。
 `models` 表里填好，等对应渠道上架后自动生效。直接改库绕过了 `ValidateCatalogFields`，
 所以脚本在生成阶段就按同一套契约自检过（模态闭集、token 上限 100M、非负）。
 
+---
+
+## 第五轮：详情页元信息位置/尺寸 + token 计数可点击切换
+
+### 位置：搬到描述下方、Tab 之上
+
+原来 `ModelBackendQuickStats` + `ModelBackendSignalsSection` 在「概览」Tab 的最底部
+（价格表之后、模型信息之前），要滚到底才看得到；而它们恰恰是判断「这个模型能不能用」
+的第一手信息。现在渲染进 `ModelHeader`，紧跟描述之后；`ModelBackendDetailsSection`
+只剩 `ModelBackendProviderSection`（供应商/分组/端点/标签仍在概览页，用户没要求动）。
+
+### 空列：固定 5 列改成按数量铺开
+
+`@md/details:grid-cols-3 @2xl/details:grid-cols-5` 在只有 3 个指标时会留下 2 个空 track，
+看起来像加载失败。改成
+`@md/details:grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]`：有几个指标铺几列，
+移动端仍是 `grid-cols-2`。
+
+### 字号
+
+快照条标签 `text-[10px]` → `text-[11px]`、取值 `text-sm` → `text-base`、
+提示 `text-[10px]` → `text-[11px]`、内边距 `px-3 py-2.5` → `px-3.5 py-3`；
+模态行 `px-3 py-2.5` → `px-3.5 py-3`，取值显式 `text-sm`。整块不再比周围小一圈。
+
+### 点击 1M / 128K ↔ 1,000,000 / 128,000
+
+- 新组件 `features/pricing/components/token-count-value.tsx`：默认紧凑写法，
+  点击切换为带千分位的精确值；`aria-pressed` 反映状态，`title` 说明下一步动作。
+- 状态放在 `stores/token-count-display-store.ts`（Zustand）**全局共享**，
+  不是每个数字各自 `useState` —— 同屏同时有上下文窗口和最大输出，各点各的会出现
+  「1M 与 128,000 并存」，读者无法判断是不是同一口径。刷新回到紧凑写法（纯展示偏好，
+  不落 localStorage）。
+- 已接入 `model-details.tsx` 的上下文/最大输出两格，以及 `model-card.tsx` 的 `Context`。
+- 精确值走 `formatNumber(value, locale)`，locale 经 `toIntlLocale`，语言切换后格式跟着变。
+
+### 顺带修掉的 Intl 违规（既有缺陷）
+
+`formatCatalogYearMonth` 原来用 `toLocaleString(undefined, …)`，跟随的是**系统语言**
+而不是界面语言；而且日期按 `Date.UTC` 构造却按本地时区渲染，UTC- 时区会把 `2026-01`
+显示成「2025年12月」。现在接收 `locale` 参数并固定 `timeZone: 'UTC'`。
+
+### 新增 i18n（每语言 2 条，原始行插入）
+
+`Show the exact token count` / `Show the compact token count`。
+
+### 测试
+
+`__tests__/model-details-layout.test.tsx` 4 → **7** 例，新增：
+元信息在描述之后、Tab 之前；快照条使用 auto-fit 且不含 `grid-cols-5`；
+点击后两个计数一起从 `1M`/`128K` 变成 `1,000,000`/`128,000`。
+
+### 验证
+
+`tsgo -b` exit 0；`oxlint` 改动文件 0/0；`oxfmt --check` 通过；
+`pricing + i18n` **18 files / 335 tests** 通过；`rsbuild build` exit 0。
+
+
 

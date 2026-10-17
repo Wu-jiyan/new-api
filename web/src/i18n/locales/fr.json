@@ -23,6 +23,8 @@
     "Send outbound JSON requests gzip-compressed. Helps when a large prompt travels over a slow or lossy uplink. Only enable for upstreams known to accept a gzipped request body.": "Envoyer les requêtes JSON sortantes compressées en gzip. Utile quand un long prompt transite par une liaison lente ou avec pertes. À activer uniquement pour les amont connus pour accepter un corps gzip.",
     "Show less": "Afficher moins",
     "Show more": "Afficher plus",
+    "Show the compact token count": "Afficher le nombre compact de tokens",
+    "Show the exact token count": "Afficher le nombre exact de tokens",
     "Tokens. 0 means not configured.": "Jetons. 0 signifie non configuré.",
     "character.admin.petImage": "Image de mascotte",
     "character.admin.petImageHint": "Illustration chibi sur fond transparent. Les utilisateurs ayant débloqué ce personnage peuvent l'afficher comme mascotte flottante sur n'importe quelle page.",

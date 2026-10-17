@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createJSONStorage } from 'zustand/middleware'
 
@@ -26,6 +27,7 @@ import {
   DEFAULT_CURRENCY_CONFIG,
   useSystemConfigStore,
 } from '@/stores/system-config-store'
+import { useTokenCountDisplayStore } from '@/stores/token-count-display-store'
 
 import { ModelDetailsContent } from '../components/model-details'
 import type { PricingModel } from '../types'
@@ -36,6 +38,7 @@ function catalogueModel(overrides: Partial<PricingModel> = {}): PricingModel {
   return {
     id: 1,
     model_name: 'catalogue-model',
+    description: 'Catalogue model description',
     quota_type: 0,
     model_ratio: 1,
     completion_ratio: 3,
@@ -103,6 +106,7 @@ beforeEach(() => {
   useSystemConfigStore.getState().setConfig({
     currency: { ...DEFAULT_CURRENCY_CONFIG, quotaDisplayType: 'USD' },
   })
+  useTokenCountDisplayStore.setState({ expanded: false })
   vi.spyOn(api, 'get').mockResolvedValue({
     data: {
       success: true,
@@ -165,5 +169,63 @@ describe('catalogue metadata layout', () => {
 
     expect(value).toHaveClass('flex-wrap')
     expect(value.className).not.toContain('truncate')
+  })
+
+  // 上下文窗口 / 输出上限 / 模态是判断能不能用这个模型的第一手信息，必须和描述
+  // 一起在标题区出现，而不是埋在「概览」页底部。
+  it('puts the catalogue metadata in the header, below the description and above the tabs', () => {
+    renderDetails(catalogueModel())
+
+    const header = document.querySelector('header')
+    if (!header) throw new Error('Missing model header')
+    const description = within(header).getByText('Catalogue model description')
+    const contextLabel = within(header).getByText('Context')
+    const tabs = screen.getByRole('tablist')
+
+    expect(
+      Boolean(
+        description.compareDocumentPosition(contextLabel) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+      )
+    ).toBe(true)
+    expect(
+      Boolean(
+        contextLabel.compareDocumentPosition(tabs) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+      )
+    ).toBe(true)
+  })
+
+  // 固定 5 列时只有 3 个指标会空出两格，看起来像加载失败。
+  it('lays the quick stats out for however many metrics exist, leaving no empty track', () => {
+    renderDetails(catalogueModel())
+
+    const grid = screen.getByText('Context').closest('.grid')
+    if (!grid) throw new Error('Missing quick stats grid')
+
+    expect(grid.className).toContain('repeat(auto-fit,minmax(9rem,1fr))')
+    expect(grid.className).not.toContain('grid-cols-5')
+  })
+
+  it('switches token counts between compact and exact notation when clicked', async () => {
+    const user = userEvent.setup()
+    renderDetails(
+      catalogueModel({ context_length: 1_000_000, max_output_tokens: 128_000 })
+    )
+
+    const header = document.querySelector('header')
+    if (!header) throw new Error('Missing model header')
+    const compact = within(header).getByRole('button', { name: '1M' })
+    expect(compact).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(compact)
+
+    // 所有计数一起切换，否则同一屏上会同时出现两种口径。
+    expect(
+      within(header).getByRole('button', { name: '1,000,000' })
+    ).toHaveAttribute('aria-pressed', 'true')
+    expect(
+      within(header).getByRole('button', { name: '128,000' })
+    ).toBeVisible()
   })
 })

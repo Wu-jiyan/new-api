@@ -63,6 +63,7 @@ import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
 import { ModelScores } from './model-scores'
 import { RatingBadge } from './rating-badge'
+import { TokenCountValue } from './token-count-value'
 
 export interface ModelCardProps {
   model: PricingModel
@@ -546,7 +547,9 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                 <dt className='text-muted-foreground shrink-0'>
                   {t('Context')}
                 </dt>
-                <dd className='min-w-0 truncate'>{contextLabel}</dd>
+                <dd className='min-w-0 truncate'>
+                  <TokenCountValue tokens={props.model.context_length} />
+                </dd>
               </div>
             )}
             {modalities.length > 0 && (

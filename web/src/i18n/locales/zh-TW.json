@@ -23,6 +23,8 @@
     "Send outbound JSON requests gzip-compressed. Helps when a large prompt travels over a slow or lossy uplink. Only enable for upstreams known to accept a gzipped request body.": "以 gzip 壓縮轉送到上游的 JSON 請求內容。當超長提示詞經過緩慢或遺失的鏈路時可改善延遲。僅在上游確定支援 gzip 請求內容時開啟。",
     "Show less": "收合",
     "Show more": "展開更多",
+    "Show the compact token count": "顯示緊湊 Token 數",
+    "Show the exact token count": "顯示精確 Token 數",
     "Tokens. 0 means not configured.": "單位為 token，0 表示未設定。",
     "character.admin.petImage": "桌寵圖",
     "character.admin.petImageHint": "透明底 Q 版小圖。使用者解鎖該角色後，可在任意頁面把它作為懸浮桌寵放出。",

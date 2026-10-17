@@ -23,6 +23,8 @@
     "Send outbound JSON requests gzip-compressed. Helps when a large prompt travels over a slow or lossy uplink. Only enable for upstreams known to accept a gzipped request body.": "Отправлять исходящие JSON-запросы в gzip. Помогает, когда длинный промпт проходит по медленному каналу с потерями. Включайте только для провайдеров, которые принимают сжатое тело запроса.",
     "Show less": "Свернуть",
     "Show more": "Показать ещё",
+    "Show the compact token count": "Показать сокращённое число токенов",
+    "Show the exact token count": "Показать точное число токенов",
     "Tokens. 0 means not configured.": "Токены. 0 означает, что не задано.",
     "character.admin.petImage": "Изображение питомца",
     "character.admin.petImageHint": "Chibi-иллюстрация на прозрачном фоне. Пользователи, открывшие этого персонажа, могут показывать его как плавающего питомца на любой странице.",

@@ -23,6 +23,8 @@
     "Send outbound JSON requests gzip-compressed. Helps when a large prompt travels over a slow or lossy uplink. Only enable for upstreams known to accept a gzipped request body.": "送信する JSON リクエストを gzip 圧縮します。長いプロンプトが遅い・損失の多い回線を渡るときに有効です。gzip 化されたボディを受け取れる上流でのみ有効にしてください。",
     "Show less": "折りたたむ",
     "Show more": "さらに表示",
+    "Show the compact token count": "省略したトークン数を表示",
+    "Show the exact token count": "正確なトークン数を表示",
     "Tokens. 0 means not configured.": "トークン数。0 は未設定です。",
     "character.admin.petImage": "デスクトップペット画像",
     "character.admin.petImageHint": "透明背景のQ版イラスト。このキャラクターを解放したユーザーは、どのページでもフローティングペットとして表示できます。",

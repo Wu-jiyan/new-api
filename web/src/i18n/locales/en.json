@@ -23,6 +23,8 @@
     "Send outbound JSON requests gzip-compressed. Helps when a large prompt travels over a slow or lossy uplink. Only enable for upstreams known to accept a gzipped request body.": "Send outbound JSON requests gzip-compressed. Helps when a large prompt travels over a slow or lossy uplink. Only enable for upstreams known to accept a gzipped request body.",
     "Show less": "Show less",
     "Show more": "Show more",
+    "Show the compact token count": "Show the compact token count",
+    "Show the exact token count": "Show the exact token count",
     "Tokens. 0 means not configured.": "Tokens. 0 means not configured.",
     "character.admin.petImage": "Desk pet image",
     "character.admin.petImageHint": "Chibi art on a transparent background. Users who unlocked this character can place it as a floating desk pet on any page.",

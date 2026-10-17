@@ -70,7 +70,6 @@ import { useBillingTime } from '../hooks/use-billing-time'
 import { usePricingData } from '../hooks/use-pricing-data'
 import type { ParsedTaskTier } from '../lib/billing-expr'
 import { formatBillingCondition } from '../lib/billing-expression/condition-display'
-import { formatCatalogTokenCount } from '../lib/catalog-metadata'
 import {
   formatTaskUsageUnitPrice,
   getDynamicPriceEntries,
@@ -124,6 +123,7 @@ import { ModelDetailsApi } from './model-details-api'
 import { ModelDetailsPerformance } from './model-details-performance'
 import { ModelScores } from './model-scores'
 import { RatingBadge } from './rating-badge'
+import { TokenCountValue } from './token-count-value'
 
 // ----------------------------------------------------------------------------
 // Local UI helpers
@@ -236,14 +236,23 @@ const CAPABILITY_LABEL_KEYS: Record<ModelCapability, string> = {
 
 const MODEL_DETAILS_SKELETON_KEYS = ['first', 'second', 'third', 'fourth']
 
-function formatCatalogYearMonth(value?: string): string {
+function formatCatalogYearMonth(
+  value: string | undefined,
+  locale: Intl.LocalesArgument
+): string {
   if (!value) return ''
   const [yearStr, monthStr] = value.split('-')
   const year = Number(yearStr)
   const month = Number(monthStr)
   if (!Number.isFinite(year) || !Number.isFinite(month)) return value
   const date = new Date(Date.UTC(year, month - 1, 1))
-  return date.toLocaleString(undefined, { year: 'numeric', month: 'short' })
+  // 用 UTC 格式化：日期是按 UTC 构造的，按本地时区渲染时 UTC- 的时区会把
+  // 1 月 1 日显示成上一年的 12 月。
+  return date.toLocaleString(locale, {
+    year: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  })
 }
 
 function normalizeCatalogItems(items?: readonly string[]): string[] {
@@ -376,8 +385,8 @@ function ModelBackendQuickStats(props: { model: PricingModel }) {
   const outputModalities = normalizeCatalogItems(model.output_modalities)
   const contextLength = model.context_length ?? 0
   const maxOutput = model.max_output_tokens ?? 0
-  const knowledgeCutoff = formatCatalogYearMonth(model.knowledge_cutoff)
-  const releaseDate = formatCatalogYearMonth(model.release_date)
+  const knowledgeCutoff = formatCatalogYearMonth(model.knowledge_cutoff, locale)
+  const releaseDate = formatCatalogYearMonth(model.release_date, locale)
 
   const stats: {
     key: string
@@ -394,7 +403,7 @@ function ModelBackendQuickStats(props: { model: PricingModel }) {
       key: 'context',
       icon: Layers,
       label: t('Context'),
-      value: formatCatalogTokenCount(contextLength, locale),
+      value: <TokenCountValue tokens={contextLength} />,
       hint: t('Maximum input window'),
     })
   }
@@ -404,7 +413,7 @@ function ModelBackendQuickStats(props: { model: PricingModel }) {
       key: 'max-output',
       icon: Maximize2,
       label: t('Max output'),
-      value: formatCatalogTokenCount(maxOutput, locale),
+      value: <TokenCountValue tokens={maxOutput} />,
       hint: t('Maximum tokens per response'),
     })
   }
@@ -448,21 +457,23 @@ function ModelBackendQuickStats(props: { model: PricingModel }) {
   if (stats.length === 0) return null
 
   return (
-    <div className='bg-muted/20 grid grid-cols-2 gap-px overflow-hidden rounded-lg border @md/details:grid-cols-3 @2xl/details:grid-cols-5'>
+    // auto-fit：指标有几项就铺几列。固定 grid-cols-5 会在只有 3 项时留下两格空白，
+    // 看起来像「加载失败」而不是「这个模型没配那么多字段」。
+    <div className='bg-muted/20 grid grid-cols-2 gap-px overflow-hidden rounded-lg border @md/details:grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]'>
       {stats.map((stat) => {
         const Icon = stat.icon
         return (
           <div
             key={stat.key}
-            className='bg-background flex min-w-0 flex-col gap-0.5 px-3 py-2.5'
+            className='bg-background flex min-w-0 flex-col gap-1 px-3.5 py-3'
           >
-            <span className='text-muted-foreground inline-flex min-w-0 items-center gap-1 text-[10px] font-medium tracking-wider uppercase'>
-              <Icon className='size-3 shrink-0' />
+            <span className='text-muted-foreground inline-flex min-w-0 items-center gap-1.5 text-[11px] font-medium tracking-wider uppercase'>
+              <Icon className='size-3.5 shrink-0' />
               <span className='truncate'>{stat.label}</span>
             </span>
             <span
               className={cn(
-                'text-foreground text-sm font-semibold tabular-nums',
+                'text-foreground text-base font-semibold tabular-nums',
                 stat.wrap
                   ? 'flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5'
                   : 'truncate'
@@ -471,7 +482,7 @@ function ModelBackendQuickStats(props: { model: PricingModel }) {
               {stat.value}
             </span>
             {stat.hint && (
-              <span className='text-muted-foreground/60 truncate text-[10px]'>
+              <span className='text-muted-foreground/60 truncate text-[11px]'>
                 {stat.hint}
               </span>
             )}
@@ -542,12 +553,12 @@ function ModelBackendSignalsSection(props: { model: PricingModel }) {
         {rows.map((row) => (
           <div
             key={row.key}
-            className='bg-background grid gap-x-3 gap-y-1 px-3 py-2.5 @md/details:grid-cols-[auto_minmax(0,1fr)] @md/details:items-baseline'
+            className='bg-background grid gap-x-4 gap-y-1 px-3.5 py-3 @md/details:grid-cols-[auto_minmax(0,1fr)] @md/details:items-baseline'
           >
             <span className='text-muted-foreground text-xs font-medium'>
               {row.label}
             </span>
-            <div className='min-w-0'>{row.value}</div>
+            <div className='min-w-0 text-sm'>{row.value}</div>
           </div>
         ))}
       </div>
@@ -622,13 +633,7 @@ function ModelBackendProviderSection(props: { model: PricingModel }) {
 }
 
 function ModelBackendDetailsSection(props: { model: PricingModel }) {
-  return (
-    <>
-      <ModelBackendQuickStats model={props.model} />
-      <ModelBackendSignalsSection model={props.model} />
-      <ModelBackendProviderSection model={props.model} />
-    </>
-  )
+  return <ModelBackendProviderSection model={props.model} />
 }
 
 // ----------------------------------------------------------------------------
@@ -680,6 +685,12 @@ function ModelHeader(props: {
           {description}
         </p>
       )}
+      {/* 目录元信息紧跟描述、Tab 之前：上下文窗口 / 输出上限 / 模态是判断一个模型能
+          不能用的第一手信息，放进「概览」页底部要滚到底才看得到。 */}
+      <div className='mt-3 space-y-3'>
+        <ModelBackendQuickStats model={model} />
+        <ModelBackendSignalsSection model={model} />
+      </div>
     </header>
   )
 }
