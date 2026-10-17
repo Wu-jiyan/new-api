@@ -400,3 +400,54 @@ aa_intelligence_score, aa_coding_score, aa_agentic_score, aa_source`）。
 - 本次改动尚未部署到生产（生产仍在 `831941a0`，对应 `7e6370b75`）。
 - 上一轮遗留：`useFilters` 不写回 URL；`model-details-apps.tsx` 死文件。
 
+---
+
+## 第四轮：模型目录参数回填（数据变更，非代码）
+
+生产库 74 个模型里只有 `gemini-4-argon` 有目录字段，其余 73 个全空。已回填
+`context_length` / `max_input_tokens` / `max_output_tokens` / `input_modalities` /
+`output_modalities`（能填的 5 个列，表里没有 `capabilities` / `knowledge_cutoff` 等列）。
+
+**取数来源（按可信度排序，不靠猜）：**
+
+1. **models.dev**（`https://models.dev/api.json`，5.7MB 公共元数据库，含 `limit.context` /
+   `limit.input` / `limit.output` / `modalities.input` / `modalities.output`）—— 精确匹配到 **64/74**。
+   匹配键：`provider/modelId` 的尾段、display name 归一化、以及 `-5-5` ↔ `5.5` 这类后缀变体。
+   同一模型跨供应商有多个条目时，优先第一方 provider（openai/anthropic/google/…），再取最大窗口。
+2. **站内 curated 描述 + tags** —— 用于 10 个 models.dev 无此模型的别名/隐身模型
+   （`exo`、`fledge-alpha`、`space-bunny`、`jimmy-8b-free`、`step-5-flash`、
+   `qwen3.8-27b-nonthinking`、`gpt-image-2.5`、`ernie-image-turbo`、
+   `deepseek-webchat`、`auto-china`、`jev-1.13`）。
+
+**两处必须人工裁决的坑：**
+
+1. **`max_output >= 0.5 * context` 一律视为元数据填充值**（供应商不公布最大输出时，
+   抓取方常把窗口原样复制过来）。若不剔除，页面上会出现 grok「500K 最大输出」这类
+   明显错误的数字。剔除后回退到同族其他供应商的合理值；仍无解则写 0（UI 不显示该指标），
+   而不是编一个数。例外：`space-bunny` 描述里明确写了 524,288，按描述写。
+2. **站内 tags 对 Anthropic / OpenAI / xAI 过度声明了 `视频输入` / `音频输入`**
+   （例如 `claude-opus-4-8` tags 标了视频+音频输入，models.dev 与该模型实际能力均为
+   `text+image+file`）。**模态以 models.dev 为准**，否则用户按「视频输入」筛到 Claude 会失败。
+   反向例外只有一处：`deepseek-v4-flash` 基础版按站内产品结构应为纯文本
+   （`vision-exp` 的描述明确写「V4 系列首个支持图片输入的模型」），而 models.dev 给两者
+   都标了 image —— 这里按站内结构走。
+
+**落库方式：** 生成 74 条 `UPDATE ... SET x = CASE WHEN COALESCE(x,0)=0 THEN :v ELSE x END`，
+**只填空值、绝不覆盖已有值**（所以 `gemini-4-argon` 原值全部保留）。整体单事务执行，
+执行前用 `\copy` 备份到
+`/www/wwwroot/new-api/backup-catalog-20261017/models-catalog-before.csv`（74 行）。
+
+**结果：** 74/74 有输入与输出模态；66 有上下文窗口；15 有最大输入；60 有最大输出。
+8 个没有上下文的是图像生成 / 路由别名 / 决策模型（`auto-china`、`gpt-image-2*`、
+`ernie-image-turbo`、`jev-1.13`、`deepseek-webchat`），本就没有文本窗口概念；
+2 个 prompt-guard 是分类头、2 个 whisper 是 ASR，最大输出 token 无意义，故留 0。
+
+**校验：** `max_output >= context` 0 条、`max_input > context` 0 条、`context > 2M` 0 条、
+模态 JSON 非法 0 条；`GET /api/pricing` 已下发新值（`gemini-3.8-flash` 1048576 /
+text+image+audio+video+file 等抽查通过）。
+
+**注意：** `/api/pricing` 只返回 52 个模型（其余 22 个没有可用渠道分组），但 74 个都已在
+`models` 表里填好，等对应渠道上架后自动生效。直接改库绕过了 `ValidateCatalogFields`，
+所以脚本在生成阶段就按同一套契约自检过（模态闭集、token 上限 100M、非负）。
+
+
