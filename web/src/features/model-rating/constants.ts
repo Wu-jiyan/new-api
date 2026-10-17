@@ -61,3 +61,15 @@ export const DEFAULT_SQUARE_DEFAULTS = {
   sort: 'name',
   dimension: 'deepswe',
 } as const
+
+/** 与后端 model.DefaultModelSquareFilter 保持一致。 */
+export const DEFAULT_SQUARE_FILTER = {
+  collapsible: true,
+  visibleOptions: 8,
+} as const
+
+/** 与后端 SetModelSquareFilter 的取值范围保持一致。 */
+export const SQUARE_FILTER_VISIBLE_OPTIONS_RANGE = {
+  min: 1,
+  max: 50,
+} as const

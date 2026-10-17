@@ -28,7 +28,10 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { PricingSidebar } from '../components/pricing-sidebar'
+import {
+  PricingSidebar,
+  type FilterCollapseConfig,
+} from '../components/pricing-sidebar'
 import {
   PricingToolbar,
   type PricingToolbarProps,
@@ -496,5 +499,91 @@ describe('pricing modality filter', () => {
 
     await user.click(screen.getByRole('button', { name: /^Image\s*1$/ }))
     expect(onModalityChange).toHaveBeenCalledWith('image')
+  })
+})
+
+describe('filter option collapsing', () => {
+  // 零填充让字母序与数字序一致：Groups 分组按名称排序后再截断。
+  const manyGroups = Array.from(
+    { length: 10 },
+    (_, index) => `g${String(index + 1).padStart(2, '0')}`
+  )
+
+  function sidebarProps(collapse: FilterCollapseConfig, groupFilter = 'all') {
+    return {
+      ...toolbarProps(),
+      groups: manyGroups,
+      groupRatios: Object.fromEntries(manyGroups.map((group) => [group, 1])),
+      models: [] as PricingModel[],
+      groupFilter,
+      collapse,
+    }
+  }
+
+  const groupChip = (name: string) =>
+    screen.getByRole('button', { name: new RegExp(`^${name}\\s*`) })
+  const groupChipQuery = (name: string) =>
+    screen.queryByRole('button', { name: new RegExp(`^${name}\\s*`) })
+  // 侧栏第一个分组就是 Groups，折叠开关的 DOM 顺序也以它开头。
+  const moreToggles = () =>
+    screen.queryAllByRole('button', { name: 'Show more' })
+
+  it('shows only the configured number of options in a long filter group', () => {
+    render(
+      <PricingSidebar {...sidebarProps({ enabled: true, visibleOptions: 8 })} />
+    )
+
+    expect(groupChip('g01')).toBeVisible()
+    expect(groupChip('g07')).toBeVisible()
+    expect(groupChipQuery('g08')).not.toBeInTheDocument()
+    expect(moreToggles().length).toBeGreaterThan(0)
+    expect(moreToggles()[0]).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('reveals the remaining options after choosing Show more', async () => {
+    const user = userEvent.setup()
+    render(
+      <PricingSidebar {...sidebarProps({ enabled: true, visibleOptions: 8 })} />
+    )
+
+    const [groupsToggle] = moreToggles()
+    await user.click(groupsToggle)
+
+    expect(groupChip('g10')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Show less' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
+  })
+
+  it('keeps a selected option visible when it falls past the limit', () => {
+    render(
+      <PricingSidebar
+        {...sidebarProps({ enabled: true, visibleOptions: 8 }, 'g10')}
+      />
+    )
+
+    expect(groupChip('g10')).toHaveAttribute('aria-pressed', 'true')
+    expect(groupChipQuery('g08')).not.toBeInTheDocument()
+  })
+
+  it('shows every option when collapsing is turned off', () => {
+    render(
+      <PricingSidebar
+        {...sidebarProps({ enabled: false, visibleOptions: 8 })}
+      />
+    )
+
+    expect(groupChip('g10')).toBeVisible()
+    expect(moreToggles()).toHaveLength(0)
+  })
+
+  it('does not collapse when the configured option count is zero', () => {
+    render(
+      <PricingSidebar {...sidebarProps({ enabled: true, visibleOptions: 0 })} />
+    )
+
+    expect(groupChip('g10')).toBeVisible()
+    expect(moreToggles()).toHaveLength(0)
   })
 })

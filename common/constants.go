@@ -302,4 +302,6 @@ const (
 	OptionKeyAAApiKey = "ArtificialAnalysisApiKey"
 	// OptionKeyModelSquareDefaults 保存模型广场的默认排序与默认评分维度。
 	OptionKeyModelSquareDefaults = "ModelSquareDefaults"
+	// OptionKeyModelSquareFilter 保存模型广场筛选侧栏的折叠显示配置。
+	OptionKeyModelSquareFilter = "ModelSquareFilter"
 )

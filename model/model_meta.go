@@ -315,11 +315,14 @@ func (mi *Model) Update() error {
 			return err
 		}
 		mi.UpdatedTime = common.GetTimestamp()
-		// 使用 Select 强制更新所有字段，包括零值
+		// 使用 Select 强制更新所有字段，包括零值。
+		// 评分列（rating / rating_score / rating_source / aa_*）刻意不在列表里：
+		// PUT /api/models 把请求体绑定到一个全新的 Model 上，而管理员元信息表单从不
+		// 提交评分字段。一旦列进白名单，保存元信息就会用零值覆盖掉这些分数，表现为
+		// 「改了元信息，模型分级的分数全丢了」。评分只由 model-rating 的专用写入路径
+		// （UpdateModelRating / UpdateModelAAScores）修改。
 		return tx.Model(&Model{}).Where("id = ?", mi.Id).
 			Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule",
-				"rating", "rating_score", "rating_source",
-				"aa_intelligence_score", "aa_coding_score", "aa_agentic_score", "aa_source",
 				"context_length", "max_input_tokens", "max_output_tokens",
 				"input_modalities", "output_modalities",
 				"updated_time").

@@ -27,6 +27,7 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { StoryPlayer } from '@/features/character/components/story-player'
 import type { CharacterView } from '@/features/character/types'
 import { toIntlLocale } from '@/i18n/languages'
+import { catalogModalityLabelKey } from '@/lib/catalog-modalities'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
@@ -35,7 +36,6 @@ import { useSystemConfigStore } from '@/stores/system-config-store'
 import { DEFAULT_TOKEN_UNIT } from '../constants'
 import { useBillingTime } from '../hooks/use-billing-time'
 import {
-  CATALOG_MODALITY_LABELS,
   collectModalities,
   formatCatalogTokenCount,
 } from '../lib/catalog-metadata'
@@ -557,12 +557,12 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                 <dd
                   className='min-w-0 truncate'
                   title={modalities
-                    .map((m) => CATALOG_MODALITY_LABELS[m])
+                    .map((m) => t(catalogModalityLabelKey(m)))
                     .join(', ')}
                 >
                   {modalities
                     .slice(0, 3)
-                    .map((m) => CATALOG_MODALITY_LABELS[m])
+                    .map((m) => t(catalogModalityLabelKey(m)))
                     .join(', ')}
                   {modalities.length > 3 && ` +${modalities.length - 3}`}
                 </dd>

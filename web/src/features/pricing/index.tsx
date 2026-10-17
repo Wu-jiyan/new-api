@@ -53,6 +53,7 @@ export function Pricing() {
     endpointMap,
     autoGroups,
     defaults,
+    filterDefaults,
     isLoading,
     priceRate,
     usdExchangeRate,
@@ -118,6 +119,15 @@ export function Pricing() {
         (g) => !EXCLUDED_GROUPS.includes(g)
       ),
     [usableGroup]
+  )
+
+  // 侧栏折叠配置来自后台。开关关闭或数量非正时不折叠，退回「一次显示全部」。
+  const filterCollapse = useMemo(
+    () => ({
+      enabled: filterDefaults?.collapsible === true,
+      visibleOptions: filterDefaults?.visible_options ?? 0,
+    }),
+    [filterDefaults]
   )
 
   const handleClearAll = useCallback(() => {
@@ -249,6 +259,7 @@ export function Pricing() {
               models={models || []}
               hasActiveFilters={hasActiveFilters}
               onClearFilters={clearFilters}
+              collapse={filterCollapse}
               className='hover-scrollbar sticky top-20 hidden max-h-[calc(100dvh-6rem)] self-start overflow-y-auto xl:block'
             />
 
@@ -293,6 +304,7 @@ export function Pricing() {
                 hasActiveFilters={hasActiveFilters}
                 activeFilterCount={activeFilterCount}
                 onClearFilters={clearFilters}
+                collapse={filterCollapse}
               />
 
               {renderPricingContent()}

@@ -268,3 +268,135 @@ agent 工具要写执行循环：`BuildChatCompletionsBody` 目前只发
 - `model-details.tsx` 里模块级 `TOKEN_FORMAT` 与裸 `toLocaleString(undefined, …)`
   的 Intl 违规仍在（新写的 `catalog-metadata.ts` 没有沿用）。
 - `model-details-apps.tsx` 仍是无人 import 的死文件。
+
+---
+
+## 第三轮：UI 修复 + 侧栏折叠 + 模型分数丢失（本次）
+
+用户报的四件事，全部已修并各有回归测试。
+
+### 1. 模型详情「能力 / 支持的模态」排版错乱（截图 1）
+
+**根因（两条叠加）：**
+
+1. `ModelBackendSignalsSection` 的外层用 `@2xl/details:grid-cols-[minmax(0,1.5fr)_minmax(260px,1fr)]`，
+   但**能力为空时渲染了 `<div />` 占位**，于是左侧 1.5fr 整列留白、两个模态框被塞进右侧 1fr（约 265px）。
+2. 内层用 **`sm:grid-cols-2`（视口断点）**——抽屉/详情页的容器只有 300~700px，而视口 >640px，
+   于是「两列」永远成立，单格仅约 105px 内容宽：`输入` 被挤成逐字竖排，四个模态词溢出到边框外。
+
+**修法：** 每一行一格，**容器查询** `@md/details:grid-cols-[auto_minmax(0,1fr)]`（`@md`=448px，
+窄容器自动落成上下两行）；标签不再参与压缩，取值放在 `min-w-0` 容器内 `flex-wrap`；
+能力为空时不再渲染占位列，标题也随内容改成只有「支持的模态」。
+
+同时 `ModelBackendQuickStats` 的「模态」格原本 `truncate` 会把最后一个词切半个字 → 改为
+`flex flex-wrap`（新增 `stat.wrap`），其余标量指标仍截断。
+
+**视觉验证：** 用真实构建产物 `dist` 里的 Tailwind CSS + Chrome `--headless` 渲染
+「修复前 / 修复后」双栏对比（容器 700px，即抽屉内容宽）。修复前精确复现用户截图的
+「竖排 输入 + 视频被切 + 左侧整块留白」，修复后单行完整。
+注：旧类 `@2xl/details:grid-cols-[…]` 在修复后已不存在于源码，对比页里用等效
+`@container details (width >= 42rem)` 规则还原，否则旧的会退化成单列、看不出问题。
+
+回归测试：`__tests__/model-details-layout.test.tsx`（4 例，锁定容器查询契约、
+取值可换行、无占位列、快照条不截断）。
+
+### 2. 模态漏翻译（截图 2 的 `Text, Image, Audio +1`）
+
+**根因：模态标签有 3 份所有者，其中一份漏了 `t()`。**
+
+| 位置 | 状态 |
+| --- | --- |
+| `lib/catalog-modalities.ts` → `CATALOG_MODALITY_LABELS` | 正主（键为英文源串） |
+| `model-details.tsx` → 局部 `MODALITY_LABEL_KEYS` | 重复定义（有 `t()`） |
+| `pricing/constants.ts` → `getModalityLabels(t)` | 第二份重复（有 `t()`） |
+| `model-card.tsx:559,565` | **直接用 `CATALOG_MODALITY_LABELS[m]`，没有 `t()`** ← 用户看到的那个 |
+
+**修法：收敛成单一所有者**，而不是只把那两行补上 `t()`：
+- `catalog-modalities.ts` 新增 `catalogModalityLabelKey(value)`，集中处理「集合外的值原样显示」；
+- 删掉 `model-details.tsx` 的 `MODALITY_LABEL_KEYS`；
+- `getModalityLabels(t)` 改为从 `CATALOG_MODALITIES` 派生（`MODEL_MODALITIES` 只留 `ALL` 哨兵，
+  删掉与闭集重复的 `TEXT/IMAGE/…` 和已无人用的 `ModelModality` 类型）；
+- `model-card.tsx` 两处都走 `t(catalogModalityLabelKey(m))`。
+
+回归测试：`model-cards.test.tsx` 新增「切到 zhCN 后显示 `文本, 图片`、不再出现 `Text, Image`」。
+（测试环境的 i18n 资源是空的，需 `addResourceBundle` 装载真实 `zh.json`。）
+
+### 3. 侧栏筛选分组折叠（新功能）
+
+**决策：挂在既有 `ModelSquareDefaults` 旁的独立 option key，不新建路由、不新建页面。**
+
+- 后端 `ModelSquareFilter{Collapsible, VisibleOptions}` + `OptionKeyModelSquareFilter`；
+  `Get/Set/Reload` 与 `ModelSquareDefaults` 完全对称；越界（<1 或 >50）拒绝写入，
+  加载时缺失/乱码/越界一律回落默认（`true` / `8`）。
+- **为什么独立 key 而不是塞进 `ModelSquareDefaults`：** 老站点已存了
+  `{"sort":…,"dimension":…}`，给结构体加 `bool` 字段后旧 JSON 反序列化得到 `false`，
+  等于升级后功能默认关闭。独立 key 让「没配过」与「配成 false」可区分。
+- 对外：`GET /api/pricing` 增加 `filter_defaults`（匿名可见）；后台沿用**已注册**的
+  `GET/PUT /api/admin/model-rating/square-defaults`（PUT 新增可选 `filter` 字段，
+  不传时行为不变），因此 **`middleware/access_token_routes.go` 无需改动**。
+- 后台 UI 在「模型分级 → 设置 → 模型广场默认设置」卡片内：开关 + 数量输入（`1..50`）。
+- 前端 `FilterSection` 内实现：`可折叠 && 选项数 > N` 时只渲染前 N 个 + 「展开更多 / 收起」
+  （`aria-expanded`）。**选中项即使排在第 N 个之后也强制保留可见**，否则用户会以为筛选没生效。
+  状态是组件内 `useState`（纯展示态，不进 URL，与既有 `groupSort` 一致）。
+- 「行数」按**可见选项个数**计，不按视觉行：chip 是 `flex-wrap`，一行放几个随标签宽度变化，
+  视觉行数无法在 CSS 里稳定计数。
+- 桌面侧栏与移动端筛选抽屉都生效（toolbar 里的 `PricingSidebar` 透传同一份配置）。
+
+回归测试：`pricing-controls.test.tsx` 新增 5 例（截断数量、展开后可见、选中项保活、
+关闭开关后全量、配置为 0 时不折叠）；Go 侧 `aa_rating_test.go` 新增 2 例
+（越界拒绝且不污染生效值 / 加载时对缺失-乱码-越界全部回落）。
+
+### 4. 改模型元信息导致「模型分级分数全丢」���严重，已在生产造成数据丢失）
+
+**根因（与最初猜测相反：不是白名单漏了列，而是白名单多了列）：**
+
+`PUT /api/models/` 把请求体绑定到**全新的** `model.Model`（`controller/model_meta.go:143`
+不读库），而 `Model.Update()` 的 `Select(...)` 白名单里**包含**评分列
+（`model/model_meta.go:321-322`：`rating, rating_score, rating_source,
+aa_intelligence_score, aa_coding_score, aa_agentic_score, aa_source`）。
+`Select` 的语义就是「连零值也写」，管理员元信息表单又从不提交评分字段，
+于是每次保存元信息都会 `UPDATE` 成 `rating=''`、`*=0`。
+
+`Model.Update()` 只有 `controller/model_meta.go:181` 一个生产调用点；
+评分真正的写入路径是 `UpdateModelRating` / `UpdateModelAAScores`（独立函数，不经过它）。
+
+**修法：** 从 `Select` 白名单里移除那 7 个评分列（并加注释说明为什么不能加回来），
+元信息路径再也碰不到评分。**不要**改成「先读库再合并」——`Select` 强制写零值是
+目录字段（`context_length` 等）**刻意的契约**，`model_catalog_fields_test.go` 有用例守着。
+
+回归测试：`gacha_rating_test.go` 新增 `TestModelUpdatePreservesRatingScores`
+（先写入 SSR/61.5/manual + 三个 AA 分数，再用「对齐 PUT 形状的零值结构体」调 `Update()`，
+断言 7 个评分列原样保留、同时元信息正常写入）。**先确认它在修复前失败**（`rating` 由
+`SSR` 变空）再改代码。
+
+⚠️ **生产影响：已被清零的分数不可从行内恢复。** 需要重跑
+`POST /api/admin/model-rating/sync/deepswe` 与 `/sync/aa`，或到「模型分级」页手工重录。
+另外 `rating_source`/`aa_source` 被清空后，「手工分数不被同步覆盖」的保护标记也丢了，
+这些模型重录后要确保 source 回到 `manual`。受影响起点：DeepSWE 列自 `5218cc8154`
+（2026-09-12）进入白名单，AA 列自 `bc92c3ccb5`（2026-10-13）。
+
+### 本轮验证（实际执行）
+
+| 项 | 结果 |
+| --- | --- |
+| `tsgo -b` | exit 0 |
+| `oxlint`（改动文件 16 个） | 0 warning / 0 error |
+| `oxfmt --check`（改动文件） | 全部通过 |
+| 前端全量 `vitest run` | **210 files / 2427 tests，exit 0**（基线 208/2414） |
+| Go `gofmt` / `go vet ./...` | 干净 / exit 0 |
+| `go test ./model/ ./controller/ ./router/ ./middleware/` | 全部 ok |
+| 视觉核对 | Chrome headless 截图确认修复前后差异（见第 1 节） |
+
+说明：仓库全量 `oxlint` 仍有 **198 个 src 既有 error + 66 warning**（1416 文件），
+与本次改动无关（改动文件为零）；`oxfmt` 只对 `model-details.tsx` 做了既有超长行的换行归一，
+本就不在 HEAD 的格式合规状态。
+
+### 本次仍未做 / 待办
+
+- **生产库删除 OpenCode 订阅仍待操作者确认**（`user_subscriptions` id 2–6 +
+  对应 `subscription_pre_consume_records`；备份已落在
+  `/www/wwwroot/new-api/backup-subscription-20261017/`）。该 DELETE 被安全闸拦截，
+  只能由操作者在右侧终端执行，**不要重试或绕过**。
+- 本次改动尚未部署到生产（生产仍在 `831941a0`，对应 `7e6370b75`）。
+- 上一轮遗留：`useFilters` 不写回 URL；`model-details-apps.tsx` 死文件。
+

@@ -205,3 +205,51 @@ func TestApplyDeepSweScoresDetailedAndReset(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, res3.Updated)
 }
+
+// PUT /api/models 把请求体绑定到一个全新的 Model 上，而管理员表单从不提交评分字段。
+// 评分列只要留在 Model.Update 的 Select 白名单里，保存元信息就会用零值覆盖它们 ——
+// 现象就是「改了模型元信息，模型分级的分数全丢了」。元信息更新不得触碰评分列，
+// 评分只能由 model-rating 的专用写入路径修改。
+func TestModelUpdatePreservesRatingScores(t *testing.T) {
+	setupCharacterChatModelDB(t)
+	require.NoError(t, DB.AutoMigrate(&Model{}, &Option{}))
+
+	scored := &Model{
+		ModelName:           "metadata-edit-keeps-scores",
+		Status:              1,
+		Rating:              "SSR",
+		RatingScore:         61.5,
+		RatingSource:        "manual",
+		AAIntelligenceScore: 48,
+		AACodingScore:       41,
+		AAAgenticScore:      33,
+		AASource:            "manual",
+	}
+	require.NoError(t, DB.Create(scored).Error)
+
+	// 完全对齐 PUT /api/models 的形状：一个没有从数据库读过的 Model，
+	// 除元信息外全部是零值。
+	edit := &Model{
+		Id:              scored.Id,
+		ModelName:       scored.ModelName,
+		Status:          1,
+		ContextLength:   200000,
+		MaxOutputTokens: 8192,
+		InputModalities: `["text","image"]`,
+	}
+	require.NoError(t, edit.Update())
+
+	var got Model
+	require.NoError(t, DB.First(&got, scored.Id).Error)
+	require.Equal(t, "SSR", got.Rating)
+	require.Equal(t, 61.5, got.RatingScore)
+	require.Equal(t, "manual", got.RatingSource)
+	require.Equal(t, 48.0, got.AAIntelligenceScore)
+	require.Equal(t, 41.0, got.AACodingScore)
+	require.Equal(t, 33.0, got.AAAgenticScore)
+	require.Equal(t, "manual", got.AASource)
+	// 元信息本身照常写入：修复不能把这条路径一起废掉。
+	require.Equal(t, 200000, got.ContextLength)
+	require.Equal(t, 8192, got.MaxOutputTokens)
+	require.Equal(t, []string{"text", "image"}, ParseModelModalities(got.InputModalities))
+}

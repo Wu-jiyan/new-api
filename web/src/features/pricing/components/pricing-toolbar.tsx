@@ -61,7 +61,7 @@ import {
 import type { GroupSortMode } from '../lib/group-sort'
 import type { ScoreDimension } from '../lib/scores'
 import type { PricingModel, PricingVendor, TokenUnit } from '../types'
-import { PricingSidebar } from './pricing-sidebar'
+import { PricingSidebar, type FilterCollapseConfig } from './pricing-sidebar'
 
 export interface PricingToolbarProps {
   filteredCount: number
@@ -105,6 +105,8 @@ export interface PricingToolbarProps {
   hasActiveFilters: boolean
   activeFilterCount: number
   onClearFilters: () => void
+  /** 移动端筛选抽屉里同样按后台配置折叠长选项列表 */
+  collapse?: FilterCollapseConfig
 }
 
 type PricingSearchScopeSelectProps = Pick<
@@ -362,6 +364,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
               models={props.models}
               hasActiveFilters={props.hasActiveFilters}
               onClearFilters={props.onClearFilters}
+              collapse={props.collapse}
               className='border-0 bg-transparent p-0 shadow-none'
             />
           </div>

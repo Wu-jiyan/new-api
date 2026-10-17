@@ -18,6 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
 
+import {
+  CATALOG_MODALITIES,
+  CATALOG_MODALITY_LABELS,
+} from '@/lib/catalog-modalities'
+
 import type { ScoreDimension } from './lib/scores'
 import type { TokenUnit } from './types'
 
@@ -77,28 +82,22 @@ export type RatingTier = (typeof RATING_TIERS)[number]
 
 /** Filter values */
 export const FILTER_ALL = 'all'
-/** 模态筛选选项。闭集与后端 model/model_catalog_fields.go 保持一致。 */
-export const MODEL_MODALITIES = {
-  ALL: 'all',
-  TEXT: 'text',
-  IMAGE: 'image',
-  AUDIO: 'audio',
-  VIDEO: 'video',
-  FILE: 'file',
-} as const
+/**
+ * 模态筛选的「全部」哨兵值。可选的具体模态来自 @/lib/catalog-modalities 的闭集，
+ * 这里不再复制一份列表 —— 复制过的两份曾导致有的地方漏掉 t() 只显示英文。
+ */
+export const MODEL_MODALITIES = { ALL: 'all' } as const
 
-export type ModelModality =
-  (typeof MODEL_MODALITIES)[keyof typeof MODEL_MODALITIES]
-
-/** 模态筛选器的文案 */
+/** 模态筛选器的文案。标签键由 @/lib/catalog-modalities 统一提供。 */
 export function getModalityLabels(t: TFunction): Record<string, string> {
   return {
     [MODEL_MODALITIES.ALL]: t('All Modalities'),
-    [MODEL_MODALITIES.TEXT]: t('Text'),
-    [MODEL_MODALITIES.IMAGE]: t('Image'),
-    [MODEL_MODALITIES.AUDIO]: t('Audio'),
-    [MODEL_MODALITIES.VIDEO]: t('Video'),
-    [MODEL_MODALITIES.FILE]: t('File'),
+    ...Object.fromEntries(
+      CATALOG_MODALITIES.map((modality) => [
+        modality,
+        t(CATALOG_MODALITY_LABELS[modality]),
+      ])
+    ),
   }
 }
 

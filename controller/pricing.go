@@ -74,6 +74,7 @@ func GetPricing(c *gin.Context) {
 		"supported_endpoint": model.GetSupportedEndpointMap(),
 		"auto_groups":        service.GetUserAutoGroup(group),
 		"defaults":           model.GetModelSquareDefaults(),
+		"filter_defaults":    model.GetModelSquareFilter(),
 		"pricing_version":    "gacha-rating-v1",
 	})
 }

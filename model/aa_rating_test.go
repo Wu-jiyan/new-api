@@ -234,6 +234,51 @@ func TestReloadModelSquareDefaultsIgnoresCorruptOption(t *testing.T) {
 	require.Equal(t, DefaultModelSquareDefaults, GetModelSquareDefaults())
 }
 
+func TestModelSquareFilterValidation(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	original := modelSquareFilter
+	t.Cleanup(func() { modelSquareFilter = original })
+	prev := common.OptionMap
+	common.OptionMap = map[string]string{}
+	t.Cleanup(func() { common.OptionMap = prev })
+
+	next := ModelSquareFilter{Collapsible: false, VisibleOptions: 12}
+	require.NoError(t, SetModelSquareFilter(next))
+	require.Equal(t, next, GetModelSquareFilter())
+
+	// 越界数量必须被拒绝，不能写进配置后靠前端静默回退
+	require.Error(t, SetModelSquareFilter(ModelSquareFilter{Collapsible: true, VisibleOptions: 0}))
+	require.Error(t, SetModelSquareFilter(ModelSquareFilter{
+		Collapsible: true, VisibleOptions: maxModelSquareFilterVisibleOptions + 1,
+	}))
+	// 被拒绝的写入不应改变已生效的值
+	require.Equal(t, next, GetModelSquareFilter())
+
+	ReloadModelSquareFilter()
+	require.Equal(t, next, GetModelSquareFilter())
+}
+
+func TestReloadModelSquareFilterFallsBackOnCorruptOption(t *testing.T) {
+	original := modelSquareFilter
+	t.Cleanup(func() { modelSquareFilter = original })
+	prev := common.OptionMap
+	t.Cleanup(func() { common.OptionMap = prev })
+
+	// 缺失、乱码与越界都不能让广场拿到非法配置
+	for _, raw := range []string{
+		"",
+		"not json",
+		`{"collapsible":true,"visible_options":0}`,
+		`{"collapsible":true,"visible_options":999}`,
+	} {
+		common.OptionMap = map[string]string{
+			common.OptionKeyModelSquareFilter: raw,
+		}
+		ReloadModelSquareFilter()
+		require.Equal(t, DefaultModelSquareFilter, GetModelSquareFilter(), "raw=%q", raw)
+	}
+}
+
 // 模型分级列表只应列出能上模型广场的模型：光有元信息、没有启用渠道的模型
 // 不该出现在评分列表里——给不会上架的模型打分没有意义。
 func TestFilterSquareVisibleModels(t *testing.T) {

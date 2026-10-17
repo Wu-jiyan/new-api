@@ -205,3 +205,68 @@ func ReloadModelSquareDefaults() {
 	}
 	modelSquareDefaults = loaded
 }
+
+// ModelSquareFilter 模型广场筛选侧栏的折叠显示配置。与 ModelSquareDefaults 一样
+// 是运营侧的站点配置，匿名访客也能读，只影响初始呈现，不改变筛选语义。
+//
+// VisibleOptions 统计的是「可见筛选项个数」而不是视觉行数：侧栏是 flex-wrap 的
+// chip 列表，一行能放几个随标签宽度变化，行数无法在 CSS 里稳定计数。
+type ModelSquareFilter struct {
+	Collapsible    bool `json:"collapsible"`
+	VisibleOptions int  `json:"visible_options"`
+}
+
+const (
+	// 默认每个筛选组先显示 8 个选项。这是运营侧可调的展示默认值，不是从外部
+	// 数据派生的阈值；上下界只保证它既能真的收起，也不会退化成一次显示一个。
+	defaultModelSquareFilterVisibleOptions = 8
+	minModelSquareFilterVisibleOptions     = 1
+	maxModelSquareFilterVisibleOptions     = 50
+)
+
+// DefaultModelSquareFilter 默认开启折叠，每个筛选组先显示 8 个选项。
+var DefaultModelSquareFilter = ModelSquareFilter{
+	Collapsible:    true,
+	VisibleOptions: defaultModelSquareFilterVisibleOptions,
+}
+
+var modelSquareFilter = DefaultModelSquareFilter
+
+// GetModelSquareFilter 返回当前生效的筛选侧栏折叠配置。
+func GetModelSquareFilter() ModelSquareFilter {
+	return modelSquareFilter
+}
+
+// SetModelSquareFilter 校验并保存筛选侧栏折叠配置。选项个数越界时返回错误。
+func SetModelSquareFilter(next ModelSquareFilter) error {
+	if next.VisibleOptions < minModelSquareFilterVisibleOptions || next.VisibleOptions > maxModelSquareFilterVisibleOptions {
+		return fmt.Errorf("visible options must be between %d and %d", minModelSquareFilterVisibleOptions, maxModelSquareFilterVisibleOptions)
+	}
+	encoded, err := common.Marshal(next)
+	if err != nil {
+		return err
+	}
+	if err := UpdateOption(common.OptionKeyModelSquareFilter, string(encoded)); err != nil {
+		return err
+	}
+	modelSquareFilter = next
+	return nil
+}
+
+// ReloadModelSquareFilter 从选项表重新加载筛选侧栏折叠配置。缺失或越界时回落到默认。
+func ReloadModelSquareFilter() {
+	common.OptionMapRWMutex.RLock()
+	raw := common.OptionMap[common.OptionKeyModelSquareFilter]
+	common.OptionMapRWMutex.RUnlock()
+
+	loaded := DefaultModelSquareFilter
+	if raw != "" {
+		var stored ModelSquareFilter
+		if err := common.Unmarshal([]byte(raw), &stored); err == nil &&
+			stored.VisibleOptions >= minModelSquareFilterVisibleOptions &&
+			stored.VisibleOptions <= maxModelSquareFilterVisibleOptions {
+			loaded = stored
+		}
+	}
+	modelSquareFilter = loaded
+}

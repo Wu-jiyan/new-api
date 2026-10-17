@@ -6,6 +6,7 @@ import type {
   DeepSweSyncResult,
   ModelRatingListResult,
   ModelSquareDefaults,
+  ModelSquareFilter,
   RatingDimension,
   RatingThresholds,
 } from './types'
@@ -126,28 +127,35 @@ export async function updateAASettings(apiKey: string): Promise<boolean> {
 export async function getSquareDefaults(): Promise<{
   defaults: ModelSquareDefaults
   sorts: string[]
+  filter?: ModelSquareFilter
 }> {
   const res = await api.get<{
     success: boolean
     message?: string
     data: ModelSquareDefaults
     sorts: string[]
+    filter?: ModelSquareFilter
   }>('/api/admin/model-rating/square-defaults')
   requireServerSuccess(res.data)
   if (!res.data?.data) {
     throw new Error('Missing model square defaults in response')
   }
-  return { defaults: res.data.data, sorts: res.data.sorts ?? [] }
+  return {
+    defaults: res.data.data,
+    sorts: res.data.sorts ?? [],
+    filter: res.data.filter,
+  }
 }
 
 export async function updateSquareDefaults(
-  next: ModelSquareDefaults
+  next: ModelSquareDefaults,
+  filter: ModelSquareFilter
 ): Promise<ModelSquareDefaults> {
   const res = await api.put<{
     success: boolean
     message?: string
     data?: ModelSquareDefaults
-  }>('/api/admin/model-rating/square-defaults', next)
+  }>('/api/admin/model-rating/square-defaults', { ...next, filter })
   requireServerSuccess(res.data)
   if (!res.data?.data) {
     throw new Error('Missing model square defaults in response')

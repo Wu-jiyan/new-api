@@ -287,21 +287,24 @@ func AdminUpdateAASettings(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"api_key_set": key != ""}})
 }
 
-// AdminGetModelSquareDefaults 返回模型广场当前的默认排序与默认评分维度。
+// AdminGetModelSquareDefaults 返回模型广场当前的默认排序、默认评分维度与筛选侧栏配置。
 func AdminGetModelSquareDefaults(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    model.GetModelSquareDefaults(),
 		"sorts":   model.ModelSquareSortKeys,
+		"filter":  model.GetModelSquareFilter(),
 	})
 }
 
-// AdminUpdateModelSquareDefaults 保存模型广场的默认排序与默认评分维度。
+// AdminUpdateModelSquareDefaults 保存模型广场的默认排序、默认评分维度与筛选侧栏配置。
 // 非法取值会被后端拒绝，避免把无效值写进配置后前端静默回退。
 func AdminUpdateModelSquareDefaults(c *gin.Context) {
 	var req struct {
 		Sort      string                `json:"sort" binding:"required"`
 		Dimension model.RatingDimension `json:"dimension" binding:"required"`
+		// 筛选侧栏配置可选：不传时只更新排序与维度，保持既有调用方的语义。
+		Filter *model.ModelSquareFilter `json:"filter"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
@@ -312,5 +315,11 @@ func AdminUpdateModelSquareDefaults(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": next})
+	if req.Filter != nil {
+		if err := model.SetModelSquareFilter(*req.Filter); err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": next, "filter": model.GetModelSquareFilter()})
 }

@@ -77,3 +77,10 @@ export interface ModelSquareDefaults {
   sort: string
   dimension: RatingDimension
 }
+
+/** 模型广场筛选侧栏的折叠显示配置（运营侧站点配置，字段名与后端 JSON 一致）。 */
+export interface ModelSquareFilter {
+  collapsible: boolean
+  /** 每个筛选组默认显示的选项个数（不是视觉行数）。 */
+  visible_options: number
+}

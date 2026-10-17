@@ -347,6 +347,9 @@ func InitResources() error {
 	// 加载模型广场默认排序与默认评分维度（依赖 OptionMap）
 	model.ReloadModelSquareDefaults()
 
+	// 加载模型广场筛选侧栏折叠配置（依赖 OptionMap）
+	model.ReloadModelSquareFilter()
+
 	// 加载角色系统阶段阈值（依赖 OptionMap）
 	model.ReloadCharacterStageThresholds()
 

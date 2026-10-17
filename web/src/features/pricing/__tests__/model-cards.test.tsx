@@ -26,9 +26,19 @@ import {
   within,
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import i18next from 'i18next'
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 import { createJSONStorage } from 'zustand/middleware'
 
+import zhCN from '@/i18n/locales/zh.json'
 import { api } from '@/lib/api'
 import {
   DEFAULT_CURRENCY_CONFIG,
@@ -817,5 +827,40 @@ describe('model cards', () => {
     // The token prices of this model are not what the caller is charged.
     expect(screen.queryByText('Input')).not.toBeInTheDocument()
     expect(screen.queryByText('Output')).not.toBeInTheDocument()
+  })
+})
+
+describe('modality labels', () => {
+  // 测试环境的 i18n 资源是空的，需要显式装载真实语言包才能验证翻译。
+  beforeAll(() => {
+    i18next.addResourceBundle(
+      'zhCN',
+      'translation',
+      zhCN.translation,
+      true,
+      true
+    )
+  })
+
+  afterEach(async () => {
+    await act(() => i18next.changeLanguage('en'))
+  })
+
+  // 模态值以前直接渲染 CATALOG_MODALITY_LABELS，中文界面里也显示 Text/Image。
+  it('translates the modality summary instead of showing raw English', async () => {
+    render(
+      <ModelCard
+        model={pricingModel({
+          input_modalities: ['text', 'image'],
+          output_modalities: ['text'],
+        })}
+        onClick={vi.fn()}
+      />
+    )
+
+    await act(() => i18next.changeLanguage('zhCN'))
+
+    expect(screen.getByText('文本, 图片')).toBeVisible()
+    expect(screen.queryByText('Text, Image')).not.toBeInTheDocument()
   })
 })

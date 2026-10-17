@@ -154,6 +154,12 @@ export type PricingData = {
     sort?: string
     dimension?: ScoreDimension
   }
+  /** Operator-configured collapsing of long filter lists in the model square */
+  filter_defaults?: {
+    collapsible?: boolean
+    /** 每个筛选组默认显示的选项个数；0 或缺失表示不折叠。 */
+    visible_options?: number
+  }
 }
 
 export type TokenUnit = 'M' | 'K'

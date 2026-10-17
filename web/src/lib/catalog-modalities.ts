@@ -43,3 +43,17 @@ export const CATALOG_MODALITY_LABELS: Record<CatalogModality, string> = {
   video: 'Video',
   file: 'File',
 }
+
+/**
+ * i18n key for one modality value, for callers holding an untyped value read
+ * back from the API.
+ *
+ * The set is closed on the server, but a value outside it must still render as
+ * something: returning it verbatim keeps the mismatch visible instead of
+ * leaving a blank cell. Every renderer has to resolve the key through t() —
+ * rendering CATALOG_MODALITY_LABELS directly shows English in every language.
+ */
+export function catalogModalityLabelKey(value: string): string {
+  const labels: Record<string, string | undefined> = CATALOG_MODALITY_LABELS
+  return labels[value] ?? value
+}

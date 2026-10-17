@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { getSortLabels, SORT_OPTIONS } from '@/features/pricing/constants'
 import { toIntlLocale } from '@/i18n/languages'
 
@@ -24,8 +25,10 @@ import {
 } from '../api'
 import {
   DEFAULT_SQUARE_DEFAULTS,
+  DEFAULT_SQUARE_FILTER,
   DIMENSION_META,
   RATING_DIMENSIONS,
+  SQUARE_FILTER_VISIBLE_OPTIONS_RANGE,
 } from '../constants'
 import type { AASyncStatus, RatingDimension } from '../types'
 
@@ -35,15 +38,29 @@ function SquareDefaultsCard(props: { onChanged: () => void }) {
   const { t } = useTranslation()
   const [sort, setSort] = useState<string | undefined>()
   const [dimension, setDimension] = useState<RatingDimension | undefined>()
+  const [collapsible, setCollapsible] = useState<boolean | undefined>()
+  const [visibleOptions, setVisibleOptions] = useState<number | undefined>()
   const [saving, setSaving] = useState(false)
   const sortLabels = getSortLabels(t)
 
-  // 配置加载完成前禁用下拉框，避免让人以为改了却没保存。
-  const dirty =
+  // 配置加载完成前禁用控件，避免让人以为改了却没保存。
+  const loaded =
     sort !== undefined &&
     dimension !== undefined &&
+    collapsible !== undefined &&
+    visibleOptions !== undefined
+
+  const visibleOptionsInRange =
+    visibleOptions !== undefined &&
+    visibleOptions >= SQUARE_FILTER_VISIBLE_OPTIONS_RANGE.min &&
+    visibleOptions <= SQUARE_FILTER_VISIBLE_OPTIONS_RANGE.max
+
+  const dirty =
+    loaded &&
     (sort !== DEFAULT_SQUARE_DEFAULTS.sort ||
-      dimension !== DEFAULT_SQUARE_DEFAULTS.dimension)
+      dimension !== DEFAULT_SQUARE_DEFAULTS.dimension ||
+      collapsible !== DEFAULT_SQUARE_FILTER.collapsible ||
+      visibleOptions !== DEFAULT_SQUARE_FILTER.visibleOptions)
 
   useEffect(() => {
     let cancelled = false
@@ -52,6 +69,20 @@ function SquareDefaultsCard(props: { onChanged: () => void }) {
         if (cancelled || !res.defaults) return
         setSort(res.defaults.sort)
         setDimension(res.defaults.dimension)
+        setCollapsible(
+          res.filter?.collapsible ?? DEFAULT_SQUARE_FILTER.collapsible
+        )
+        // 0 不在合法区间内（后端最小 1），所以越界值按「未配置」回落默认，
+        // 而不是把一个不可能生效的数字当成有效配置显示出来。
+        const stored = res.filter?.visible_options
+        setVisibleOptions(
+          typeof stored === 'number' &&
+            Number.isFinite(stored) &&
+            stored >= SQUARE_FILTER_VISIBLE_OPTIONS_RANGE.min &&
+            stored <= SQUARE_FILTER_VISIBLE_OPTIONS_RANGE.max
+            ? stored
+            : DEFAULT_SQUARE_FILTER.visibleOptions
+        )
       })
       .catch((error: unknown) => {
         if (!cancelled) {
@@ -64,10 +95,22 @@ function SquareDefaultsCard(props: { onChanged: () => void }) {
   }, [t])
 
   async function save() {
-    if (!sort || !dimension) return
+    if (
+      sort === undefined ||
+      dimension === undefined ||
+      collapsible === undefined ||
+      visibleOptions === undefined ||
+      visibleOptions < SQUARE_FILTER_VISIBLE_OPTIONS_RANGE.min ||
+      visibleOptions > SQUARE_FILTER_VISIBLE_OPTIONS_RANGE.max
+    ) {
+      return
+    }
     setSaving(true)
     try {
-      await updateSquareDefaults({ sort, dimension })
+      await updateSquareDefaults(
+        { sort, dimension },
+        { collapsible, visible_options: visibleOptions }
+      )
       toast.success(t('Model square defaults updated'))
       props.onChanged()
     } catch (error) {
@@ -86,6 +129,11 @@ function SquareDefaultsCard(props: { onChanged: () => void }) {
       <p className='text-muted-foreground mt-1 text-xs'>
         {t(
           'Applied when a visitor opens the model square without a sort or dimension in the URL. Visitors can still switch afterwards; their choice wins and is kept in the link.'
+        )}
+      </p>
+      <p className='text-muted-foreground mt-1 text-xs'>
+        {t(
+          'Long filter lists in the sidebar show only the first options; visitors expand them to see the rest.'
         )}
       </p>
       <div className='mt-3 flex flex-wrap items-end gap-3'>
@@ -141,14 +189,59 @@ function SquareDefaultsCard(props: { onChanged: () => void }) {
             </SelectContent>
           </Select>
         </div>
+        <div className='flex flex-col gap-1'>
+          <Label htmlFor='square-filter-collapsible'>
+            {t('Collapse long filter lists')}
+          </Label>
+          <div className='flex h-9 items-center gap-2'>
+            <Switch
+              id='square-filter-collapsible'
+              checked={collapsible ?? false}
+              disabled={collapsible === undefined}
+              onCheckedChange={(checked) => setCollapsible(checked)}
+            />
+            <span className='text-muted-foreground text-xs'>
+              {t('Expand on demand')}
+            </span>
+          </div>
+        </div>
+        <div className='flex min-w-36 flex-col gap-1'>
+          <Label htmlFor='square-filter-visible-options'>
+            {t('Filter options shown first')}
+          </Label>
+          <Input
+            id='square-filter-visible-options'
+            type='number'
+            inputMode='numeric'
+            min={SQUARE_FILTER_VISIBLE_OPTIONS_RANGE.min}
+            max={SQUARE_FILTER_VISIBLE_OPTIONS_RANGE.max}
+            value={visibleOptions ?? ''}
+            disabled={collapsible !== true}
+            aria-invalid={!visibleOptionsInRange}
+            onChange={(event) => {
+              // 空输入保持「未填写」：0 在这里不是合法取值，不能悄悄补成 0。
+              const parsed = Number.parseFloat(event.target.value)
+              setVisibleOptions(Number.isFinite(parsed) ? parsed : undefined)
+            }}
+            className='h-9 w-28'
+          />
+        </div>
         <Button
           size='sm'
-          disabled={saving || !dirty}
+          disabled={saving || !dirty || !visibleOptionsInRange}
           onClick={() => void save()}
         >
           {t('Save')}
         </Button>
       </div>
+      {!visibleOptionsInRange && visibleOptions !== undefined && (
+        <p className='text-destructive mt-2 text-xs'>
+          {t('Must be between {{min}} and {{max}}', {
+            min: SQUARE_FILTER_VISIBLE_OPTIONS_RANGE.min,
+            max: SQUARE_FILTER_VISIBLE_OPTIONS_RANGE.max,
+          })}
+        </p>
+      )}
       {dirty && (
         <p className='text-muted-foreground mt-2 text-xs'>
           {t('Unsaved changes')}

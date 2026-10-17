@@ -33,9 +33,6 @@ import {
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { toIntlLocale } from '@/i18n/languages'
-import { formatCatalogTokenCount } from '../lib/catalog-metadata'
-
 import { CopyButton } from '@/components/copy-button'
 import { StaticDataTable } from '@/components/data-table'
 import { sideDrawerContentClassName } from '@/components/drawer-layout'
@@ -59,6 +56,8 @@ import {
   getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
 import { PluginIcon } from '@/features/task-plugins/components/plugin-icon'
+import { toIntlLocale } from '@/i18n/languages'
+import { catalogModalityLabelKey } from '@/lib/catalog-modalities'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatGroupRatioLabel } from '@/lib/group-ratio'
 import { getLobeIcon } from '@/lib/lobe-icon'
@@ -71,6 +70,7 @@ import { useBillingTime } from '../hooks/use-billing-time'
 import { usePricingData } from '../hooks/use-pricing-data'
 import type { ParsedTaskTier } from '../lib/billing-expr'
 import { formatBillingCondition } from '../lib/billing-expression/condition-display'
+import { formatCatalogTokenCount } from '../lib/catalog-metadata'
 import {
   formatTaskUsageUnitPrice,
   getDynamicPriceEntries,
@@ -83,6 +83,7 @@ import {
   type DynamicPriceEntry,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
+import { sortGroups, type GroupSortMode } from '../lib/group-sort'
 import {
   getAvailableGroups,
   getConfiguredGroupRatio,
@@ -91,10 +92,6 @@ import {
 } from '../lib/model-helpers'
 import { withPluginPricing } from '../lib/plugin-pricing'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
-import {
-  sortGroups,
-  type GroupSortMode,
-} from '../lib/group-sort'
 import {
   DEFAULT_SCORE_DIMENSION,
   isScoreDimension,
@@ -121,11 +118,11 @@ import type {
   TokenUnit,
 } from '../types'
 import { DynamicPricingBreakdown } from './dynamic-pricing-breakdown'
+import { GroupSortControl } from './group-sort-control'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelDetailsApi } from './model-details-api'
 import { ModelDetailsPerformance } from './model-details-performance'
 import { ModelScores } from './model-scores'
-import { GroupSortControl } from './group-sort-control'
 import { RatingBadge } from './rating-badge'
 
 // ----------------------------------------------------------------------------
@@ -235,14 +232,6 @@ const CAPABILITY_LABEL_KEYS: Record<ModelCapability, string> = {
   code_interpreter: 'Code interpreter',
   caching: 'Prompt caching',
   embeddings: 'Embeddings',
-}
-
-const MODALITY_LABEL_KEYS: Record<string, string> = {
-  text: 'Text',
-  image: 'Image',
-  audio: 'Audio',
-  video: 'Video',
-  file: 'File',
 }
 
 const MODEL_DETAILS_SKELETON_KEYS = ['first', 'second', 'third', 'fourth']
@@ -360,15 +349,19 @@ function CatalogInfoCell(props: { label: string; children: React.ReactNode }) {
   )
 }
 
+/**
+ * 模态用可换行的行内列表呈现。抽屉和详情页都远窄于视口，用一个不能换行的
+ * inline-flex 时，同行的标签会被挤成逐字竖排、取值也会溢出色块边框。
+ */
 function ModalityLabels(props: { items: string[] }) {
   const { t } = useTranslation()
   if (props.items.length === 0) return null
 
   return (
-    <span className='inline-flex items-center gap-1 align-middle'>
+    <span className='inline-flex flex-wrap items-center gap-x-1.5 gap-y-1'>
       {props.items.map((item) => (
         <span key={item} className='font-medium'>
-          {t(MODALITY_LABEL_KEYS[item] ?? item)}
+          {t(catalogModalityLabelKey(item))}
         </span>
       ))}
     </span>
@@ -392,6 +385,8 @@ function ModelBackendQuickStats(props: { model: PricingModel }) {
     label: string
     value: React.ReactNode
     hint?: string
+    /** 取值是一组而不是一个标量：换行显示，不能像其他指标那样截断。 */
+    wrap?: boolean
   }[] = []
 
   if (contextLength > 0) {
@@ -419,14 +414,15 @@ function ModelBackendQuickStats(props: { model: PricingModel }) {
       key: 'modalities',
       icon: FileText,
       label: t('Modalities'),
+      wrap: true,
       value: (
-        <span className='inline-flex items-center gap-1'>
+        <>
           <ModalityLabels items={inputModalities} />
           {inputModalities.length > 0 && outputModalities.length > 0 && (
             <span className='text-muted-foreground/40'>→</span>
           )}
           <ModalityLabels items={outputModalities} />
-        </span>
+        </>
       ),
     })
   }
@@ -464,7 +460,14 @@ function ModelBackendQuickStats(props: { model: PricingModel }) {
               <Icon className='size-3 shrink-0' />
               <span className='truncate'>{stat.label}</span>
             </span>
-            <span className='text-foreground truncate text-sm font-semibold tabular-nums'>
+            <span
+              className={cn(
+                'text-foreground text-sm font-semibold tabular-nums',
+                stat.wrap
+                  ? 'flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5'
+                  : 'truncate'
+              )}
+            >
               {stat.value}
             </span>
             {stat.hint && (
@@ -485,56 +488,68 @@ function ModelBackendSignalsSection(props: { model: PricingModel }) {
   const inputModalities = normalizeCatalogItems(props.model.input_modalities)
   const outputModalities = normalizeCatalogItems(props.model.output_modalities)
 
-  if (
-    capabilities.length === 0 &&
-    inputModalities.length === 0 &&
-    outputModalities.length === 0
-  ) {
+  const hasModalities =
+    inputModalities.length > 0 || outputModalities.length > 0
+  if (capabilities.length === 0 && !hasModalities) {
     return null
+  }
+
+  const rows: { key: string; label: string; value: React.ReactNode }[] = []
+
+  if (capabilities.length > 0) {
+    rows.push({
+      key: 'capabilities',
+      label: t('Capabilities'),
+      value: (
+        <CatalogPillList
+          items={capabilities.map((capability) =>
+            t(
+              CAPABILITY_LABEL_KEYS[capability as ModelCapability] ?? capability
+            )
+          )}
+        />
+      ),
+    })
+  }
+
+  if (inputModalities.length > 0) {
+    rows.push({
+      key: 'input',
+      label: t('Input'),
+      value: <ModalityLabels items={inputModalities} />,
+    })
+  }
+
+  if (outputModalities.length > 0) {
+    rows.push({
+      key: 'output',
+      label: t('Output'),
+      value: <ModalityLabels items={outputModalities} />,
+    })
   }
 
   return (
     <section>
       <SectionTitle>
-        {t('Capabilities')} / {t('Supported modalities')}
+        {capabilities.length > 0
+          ? `${t('Capabilities')} / ${t('Supported modalities')}`
+          : t('Supported modalities')}
       </SectionTitle>
-      <div className='grid gap-3 rounded-xl border p-3 @2xl/details:grid-cols-[minmax(0,1.5fr)_minmax(260px,1fr)]'>
-        {capabilities.length > 0 ? (
-          <CatalogPillList
-            items={capabilities.map((capability) =>
-              t(
-                CAPABILITY_LABEL_KEYS[capability as ModelCapability] ??
-                  capability
-              )
-            )}
-          />
-        ) : (
-          <div />
-        )}
-        {(inputModalities.length > 0 || outputModalities.length > 0) && (
-          <div className='grid gap-2 sm:grid-cols-2'>
-            {inputModalities.length > 0 && (
-              <div className='flex items-center justify-between gap-3 rounded-lg border px-3 py-2'>
-                <span className='text-muted-foreground text-xs font-medium'>
-                  {t('Input')}
-                </span>
-                <CatalogTextValue>
-                  <ModalityLabels items={inputModalities} />
-                </CatalogTextValue>
-              </div>
-            )}
-            {outputModalities.length > 0 && (
-              <div className='flex items-center justify-between gap-3 rounded-lg border px-3 py-2'>
-                <span className='text-muted-foreground text-xs font-medium'>
-                  {t('Output')}
-                </span>
-                <CatalogTextValue>
-                  <ModalityLabels items={outputModalities} />
-                </CatalogTextValue>
-              </div>
-            )}
+      {/* 这里用容器查询而不是视口断点：抽屉和详情页都比视口窄得多，sm: 起不到
+          作用，会让两组取值硬挤成两列，再把「输入」逐字压成竖排。每行一格，
+          标签固定宽度，取值自己换行。 */}
+      <div className='border-border/60 bg-border/60 grid gap-px overflow-hidden rounded-xl border'>
+        {rows.map((row) => (
+          <div
+            key={row.key}
+            className='bg-background grid gap-x-3 gap-y-1 px-3 py-2.5 @md/details:grid-cols-[auto_minmax(0,1fr)] @md/details:items-baseline'
+          >
+            <span className='text-muted-foreground text-xs font-medium'>
+              {row.label}
+            </span>
+            <div className='min-w-0'>{row.value}</div>
           </div>
-        )}
+        ))}
       </div>
     </section>
   )
@@ -1050,7 +1065,13 @@ function GroupPricingSection(props: GroupPricingSectionProps) {
           groupRatios: props.groupRatio,
         }
       ),
-    [props.model, props.usableGroup, props.autoGroups, props.groupRatio, groupSort]
+    [
+      props.model,
+      props.usableGroup,
+      props.autoGroups,
+      props.groupRatio,
+      groupSort,
+    ]
   )
   const sortControl = (
     <GroupSortControl
@@ -1138,7 +1159,13 @@ function ProviderGroupPricingSection(
         'auto',
         { autoGroups: props.autoGroups, groupRatios: props.groupRatio }
       ),
-    [props.availableGroups, props.model, props.usableGroup, props.autoGroups, props.groupRatio]
+    [
+      props.availableGroups,
+      props.model,
+      props.usableGroup,
+      props.autoGroups,
+      props.groupRatio,
+    ]
   )
 
   const isTokenBased = isTokenBasedModel(props.model)
@@ -1207,9 +1234,9 @@ function ProviderGroupPricingSection(
         <section>
           {!props.hideTitle && (
             <GroupSectionHeading
-            title={t('Pricing by Group')}
-            control={props.sortControl}
-          />
+              title={t('Pricing by Group')}
+              control={props.sortControl}
+            />
           )}
           <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
           <div className='rounded-lg border border-amber-200/70 bg-amber-50/70 p-3 dark:border-amber-500/20 dark:bg-amber-500/10'>
@@ -1560,9 +1587,12 @@ function ProviderGroupPricingSection(
         )}
         {forcedPriceGroups.length > 0 && (
           <p className='text-muted-foreground/40 mt-1.5 px-4 text-[10px] sm:px-0'>
-            {t('Groups with a forced price charge one flat amount per request: {{groups}}', {
-              groups: forcedPriceGroups.join(', '),
-            })}
+            {t(
+              'Groups with a forced price charge one flat amount per request: {{groups}}',
+              {
+                groups: forcedPriceGroups.join(', '),
+              }
+            )}
           </p>
         )}
       </div>

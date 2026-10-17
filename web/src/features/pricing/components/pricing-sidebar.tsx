@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { ChevronDown, RotateCcw } from 'lucide-react'
-import { memo, useMemo, type ReactNode } from 'react'
+import { memo, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
@@ -65,6 +65,15 @@ type FilterSectionProps = {
   onChange: (value: string) => void
   /** Optional control rendered above the options, e.g. a sort selector */
   action?: ReactNode
+  /** 长选项列表的折叠配置：先显示前 visibleOptions 个，其余点「展开」看。 */
+  collapse?: FilterCollapseConfig
+}
+
+/** 筛选侧栏的折叠展示配置，来自后台「模型广场默认设置」。 */
+export type FilterCollapseConfig = {
+  enabled: boolean
+  /** 每个筛选组默认显示的选项个数（不是视觉行数）。 */
+  visibleOptions: number
 }
 
 export interface PricingSidebarProps {
@@ -74,8 +83,7 @@ export interface PricingSidebarProps {
   vendorFilter: string
   groupFilter: string
   tagFilter: string
-  ratingFilter: string
-  /** Rating tiers shown here follow the selected score dimension */
+  ratingFilter: string /** Rating tiers shown here follow the selected score dimension */
   dimension: ScoreDimension
   onQuotaTypeChange: (value: string) => void
   onEndpointTypeChange: (value: string) => void
@@ -97,6 +105,8 @@ export interface PricingSidebarProps {
   models: PricingModel[]
   hasActiveFilters: boolean
   onClearFilters: () => void
+  /** 长选项列表的折叠展示配置；缺省时不折叠。 */
+  collapse?: FilterCollapseConfig
   className?: string
 }
 
@@ -148,6 +158,28 @@ function FilterChip(props: {
 }
 
 function FilterSection(props: FilterSectionProps) {
+  const { t } = useTranslation()
+  const [expanded, setExpanded] = useState(false)
+  const limit = props.collapse?.visibleOptions ?? 0
+  const canCollapse =
+    Boolean(props.collapse?.enabled) &&
+    limit > 0 &&
+    props.options.length > limit
+
+  // 折叠时必须让当前选中项保持可见，否则用户看到「筛选已生效」却找不到选中的
+  // 那一项，会以为筛选坏了。
+  let visibleOptions = props.options
+  if (canCollapse && !expanded) {
+    const head = props.options.slice(0, limit)
+    const selected = props.options.find(
+      (option) => option.value === props.value
+    )
+    visibleOptions =
+      selected && !head.some((option) => option.value === selected.value)
+        ? [...head, selected]
+        : head
+  }
+
   return (
     <Collapsible
       defaultOpen
@@ -164,7 +196,7 @@ function FilterSection(props: FilterSectionProps) {
           <div className='mb-2 flex justify-end'>{props.action}</div>
         )}
         <div className='flex flex-wrap gap-1.5'>
-          {props.options.map((option) => (
+          {visibleOptions.map((option) => (
             <FilterChip
               key={option.value}
               option={option}
@@ -173,6 +205,25 @@ function FilterSection(props: FilterSectionProps) {
             />
           ))}
         </div>
+        {canCollapse && (
+          <Button
+            type='button'
+            variant='ghost'
+            size='sm'
+            onClick={() => setExpanded((prev) => !prev)}
+            aria-expanded={expanded}
+            className='text-muted-foreground mt-1.5 h-auto gap-1 px-1.5 py-1 text-xs'
+          >
+            {expanded ? t('Show less') : t('Show more')}
+            <ChevronDown
+              aria-hidden
+              className={cn(
+                'size-3 transition-transform',
+                expanded && 'rotate-180'
+              )}
+            />
+          </Button>
+        )}
       </CollapsibleContent>
     </Collapsible>
   )
@@ -396,6 +447,7 @@ export const PricingSidebar = memo(function PricingSidebar(
           value={props.groupFilter}
           options={groupOptions}
           onChange={props.onGroupChange}
+          collapse={props.collapse}
           action={
             <GroupSortControl
               value={props.groupSort}
@@ -408,30 +460,35 @@ export const PricingSidebar = memo(function PricingSidebar(
           value={props.vendorFilter}
           options={vendorOptions}
           onChange={props.onVendorChange}
+          collapse={props.collapse}
         />
         <FilterSection
           title={t('Model Tags')}
           value={props.tagFilter}
           options={tagOptions}
           onChange={props.onTagChange}
+          collapse={props.collapse}
         />
         <FilterSection
           title={t('Pricing Type')}
           value={props.quotaTypeFilter}
           options={quotaOptions}
           onChange={props.onQuotaTypeChange}
+          collapse={props.collapse}
         />
         <FilterSection
           title={t('Endpoint Type')}
           value={props.endpointTypeFilter}
           options={endpointOptions}
           onChange={props.onEndpointTypeChange}
+          collapse={props.collapse}
         />
         <FilterSection
           title={t('Modality')}
           value={props.modalityFilter}
           options={modalityOptions}
           onChange={props.onModalityChange}
+          collapse={props.collapse}
         />
         {hasAnyRating && (
           <FilterSection
@@ -439,6 +496,7 @@ export const PricingSidebar = memo(function PricingSidebar(
             value={props.ratingFilter}
             options={ratingOptions}
             onChange={props.onRatingChange}
+            collapse={props.collapse}
           />
         )}
       </div>
