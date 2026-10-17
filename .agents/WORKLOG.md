@@ -506,5 +506,25 @@ text+image+audio+video+file 等抽查通过）。
 `tsgo -b` exit 0；`oxlint` 改动文件 0/0；`oxfmt --check` 通过；
 `pricing + i18n` **18 files / 335 tests** 通过；`rsbuild build` exit 0。
 
+已部署：提交 `961b2272e` → GHCR run `39032721851` → 生产镜像 created 2026-10-17T12:32:22Z。
+视觉核对（CDP 关掉系统公告弹窗后截图生产页 `/pricing/claude-opus-5-5`）：
+元信息块在描述下方、Tab 之上，3 格等宽铺满无空列；点击 `1M` 后两个计数同时变成
+`1,000,000` / `128,000`。
+
+### 数据清理：去掉与模态重复的标签
+
+标签里 `图像输入 / 图片输入 / 视频输入 / 音频输入 / 图像输出` 与刚回填的
+`input_modalities` / `output_modalities` 表达同一件事，且模态筛选（`filterByModality`）
+本来就同时匹配输入与输出，所以这些标签在筛选上也是冗余的。
+
+生产执行前备份 `models` 的 `id/model_name/tags` 到
+`/www/wwwroot/new-api/backup-catalog-20261017/models-tags-before.csv`（74 行），
+再用 `string_agg(...) FILTER` 重建 tags（保持原顺序、只删指定 token），单事务 + 事务内
+自检。结果：**UPDATE 51 行**，剩余标签只有 `推理 63 / 免费 3 / 安全 3 / ASR 2 / 决策 1`。
+
+副作用：5 个纯图像模型（`gpt-image-2*`、`ernie-image-turbo`）的标签被清空——它们原本
+只有模态标签。详情页「标签」行对它们不再显示，但「输出 图片」仍能说明用途，可接受。
+
+
 
 
