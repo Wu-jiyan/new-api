@@ -617,6 +617,57 @@ compose（`/www/wwwroot/new-api`，new-api + redis + postgres:15），部署命�
 二五云4，一条 `docker compose pull` 差点落到错机器（`cd /www/wwwroot/new-api` 失败才
 暴露）。对生产机一律**显式传 `connection_id`**。
 
+## 2026-10-19 · 同步上游 QuantumNous/new-api
+
+上游 `32e587406`（21 个提交，199 文件，+12076/-1316）合入 fork，merge commit
+`19d858cc3`；同步前建了备份分支 `backup/main-pre-sync-20261019`。
+
+### 冲突：14 个文件，全部按「保留双方」处理
+
+- relay 模式：我们的 `SystemOne` + 上游的 `ToolsSearch`/`ToolsFetch`
+  （`relay/constant/relay_mode.go`、`controller/relay.go`、`relay/common/relay_info.go`）
+- 内置计费：我们的 `jev-*` + 上游的 DeepSeek V4 价目
+  （`setting/billing_setting/builtin_billing.go`）
+- 7 个 locale + `static-keys.ts`：词条取并集
+- `relay/channel/api_request.go`：上游把流式保活挪进了 `helper.StartStreamKeepAlive`，
+  `context` import 变成未使用 → 删除（这一步只有 `go build` 才会报出来）
+
+### i18n 处理细节（本次最容易踩的地方）
+
+- 合并后 7 个语言各多出 **48 条完全重复**的词条行（双方都加了同一条目）。JSON 里后写的
+  覆盖先写的，取值相同所以语义无差别，但文件不干净 → 按「键与取值都相同才算重复」删掉
+  后出现的行。
+- `ja.json` 有 2 条取值不同：上游用 i18next 的保护占位符 `__ PH_0 __`
+  （`Model pull failed: {{msg}}`、`Parsed {{count}} service account file(s)`），
+  我们用普通 `{{msg}}` / `{{count}}`。仓库里**没有任何还原 `__ PH_0 __` 的机制**，
+  运行时会把标记原样显示出来，所以保留我们的写法。
+- 顺带发现上游遗留问题（本次未改）：`"New API &lt;noreply@example.com&gt;"` 在 ja.json
+  的取值是 `新しいAPI __ PH_0 __`，邮件地址被保护占位符替换掉了。
+- **PowerShell 的 `Group-Object` 默认忽略大小写**，用它查「重复键」会把
+  `All models` / `All Models` 误判成重复；查重复键必须用 Node 做精确匹配。
+  另外 `git show x:file > out.json` 在 PowerShell 5.1 会写成 UTF-16，统计行数全为 0，
+  要用 `[System.IO.File]::WriteAllText` 显式落 UTF-8。
+
+### 验证
+
+- `go build ./...` 通过；`go test` 覆盖 controller / relay / setting / pkg / model /
+  router / middleware / service 全绿
+- `tsgo -b` 通过；全量 `vitest` **222 files / 2567 tests** 通过（上游新增 11 文件 / 120 用例）
+- `rsbuild build` 通过
+- 已知历史债（本次**未**处理，因为与同步无关）：oxlint 在 `src/features/pricing` +
+  `src/features/performance-metrics` 报 17 个 error（`model-details-api.tsx` /
+  `model-details-apps.tsx` / `mock-stats.ts` 等，双方都没动过的文件）；gofmt 有 7 个文件
+  告警（`character_*` 与 `channel-profit.go`），合并前就是脏的。
+
+### 部署与线上核对
+
+- 提交 `19d858cc3` → GHCR run `39264440033`（success，镜像 created
+  `2026-10-19T13:59:11Z`）→ 香港PCCW `docker compose pull new-api && up -d --no-deps new-api`；
+  容器 healthy、restarts=0、本地与公网 `/api/status` 均 200
+- `auto_group_chain` 仍为 29 个分组；模型广场 51/52（`gpt-image-2.5` 仍按规则隐藏）；
+  `glm-5.3` 仍是链内价 ¥0.4/1M；`?group=free` 仍是 9 个模型、全 `$0`、成功率全红
+- 上游新模型 `deepseek-v4.1-flash` / `minimax-m3.1-flash` 已出现在广场
+
 
 
 
