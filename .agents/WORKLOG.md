@@ -581,12 +581,41 @@ text+image+audio+video+file 等抽查通过）。
   `deepseek-v4-flash` 只有 `free` 有采样且为 0%——改后它们的整体成功率变成「无数据」
   而不是 0%，比现在的 0% 更诚实。
 
-### 待办
+### 部署（生产机已迁移到香港 PCCW）
 
-本地提交 `abc3879f3`，**未推送、未部署**：本机 GitHub 代理 `127.0.0.1:10808` 未运行、
-`git@github.com` 无可用密钥；同时 `ai.idcidiot.com` 当前 A 记录是 `85.137.240.166`
-（香港PCCW），而记录里的生产机是 `103.116.245.218`（二五云HKCN2新，SSH 32553 已不可达）。
-部署前必须先确认目标机。
+2026-10-19 用户告知生产机改为 **香港PCCW**（`85.137.240.166:43836`，hostname
+`ser111608170755`，SSH connection id `香港PCCW-94724c60`），`ai.idcidiot.com` 的 A 记录
+也确实指向它；`二五云HKCN2新`（`103.116.245.218:32553`）SSH 已不可达。PCCW 上是同一套
+compose（`/www/wwwroot/new-api`，new-api + redis + postgres:15），部署命令不变。
+
+推送曾被本机代理坑住：全局 gitconfig 里 `http.https://github.com.proxy=http://127.0.0.1:10808`，
+代理没运行时 push 直接失败；用 `git -c "http.https://github.com.proxy=" push` 临时绕过
+（不改用户配置）即成功。
+
+- 提交 `468682dc1` → GHCR run `39186840605`（success，镜像 created `2026-10-19T01:48:45Z`）
+- `docker compose pull new-api && up -d --no-deps new-api`，容器 healthy、restarts=0
+
+### 线上核对（真实数据）
+
+- `GET /api/pricing` 返回 `auto_group_chain`（29 个分组），模型 53 个
+- `space-bunny`：整体 **91.85%**（只含 Buddy），`groups` 仍有 Buddy 91.85% / free 0%
+- `space-bunny&group=free`：整体 0%，`groups` 仍列出 2 个分组
+- `glm-5.3`：整体变成「无数据」（只有 free 采样，链内无采样），`groups` 仍有 free 0%
+- 页面截图：全部视图里 `glm-5.3` / `glm-5.3-flash` 已是 `$0.04` 起（不再是免费），
+  计数 `52/53`（`gpt-image-2.5` 被隐藏）；`?group=free` 视图 9 个模型、价格全 `$0`、
+  成功率全红（6.4%–8.7%）；`space-bunny` 卡片 91.85% 绿 + 详情分组表 Buddy 绿 / free 红。
+
+### 遗留
+
+`glm-5.3` 这类「只有 free 有流量」的模型现在整体显示「无数据」。如果希望它们在广场里
+仍显示一个数字，后续可考虑在链内无采样时回退到全分组（但那就又违背本次口径），或干脆
+不展示——当前按「不臆造数字」处理。
+
+### 机器口径提醒
+
+`ssh_exec` 的「当前连接」会被操作员或其他 agent 切换：本次中途就从 PCCW 切到了
+二五云4，一条 `docker compose pull` 差点落到错机器（`cd /www/wwwroot/new-api` 失败才
+暴露）。对生产机一律**显式传 `connection_id`**。
 
 
 
