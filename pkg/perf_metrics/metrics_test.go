@@ -226,6 +226,26 @@ func TestPerformanceAggregationAndFlush(t *testing.T) {
 			assert.InDelta(t, 99.01, before.Series[0].SuccessRate, 0.01)
 			require.Len(t, before.Groups, 2)
 
+			// A group outside SummaryGroups keeps its own row but must not drag
+			// the model-level summary or series down.
+			scoped, err := Query(QueryParams{
+				Model:         "test-model",
+				Hours:         24,
+				AllowedGroups: groups,
+				SummaryGroups: []string{"a"},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, scoped.Summary)
+			assert.Equal(t, 100.0, scoped.Summary.SuccessRate)
+			require.Len(t, scoped.Groups, 2)
+			groupRates := map[string]float64{}
+			for _, group := range scoped.Groups {
+				groupRates[group.Group] = group.SuccessRate
+			}
+			assert.Equal(t, map[string]float64{"a": 100, "b": 0}, groupRates)
+			require.Len(t, scoped.Series, 1)
+			assert.Equal(t, 100.0, scoped.Series[0].SuccessRate)
+
 			summary, err := QuerySummaryAll(24, groups)
 			require.NoError(t, err)
 			assert.Equal(t, before.Summary, summary.Summary)

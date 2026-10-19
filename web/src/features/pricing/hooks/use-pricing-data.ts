@@ -23,6 +23,10 @@ import { useStatus } from '@/hooks/use-status'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { getPricing } from '../api'
+import {
+  getAutoChainForcedPrice,
+  getAutoChainRatio,
+} from '../lib/model-helpers'
 
 export function usePricingData(enabled = true) {
   const { status } = useStatus()
@@ -48,6 +52,7 @@ export function usePricingData(enabled = true) {
     if (!data?.data || !data?.vendors) return []
 
     const vendorMap = new Map(data.vendors.map((v) => [v.id, v]))
+    const autoChain = data.auto_group_chain ?? []
 
     return data.data.map((model) => {
       const vendor = model.vendor_id
@@ -60,6 +65,15 @@ export function usePricingData(enabled = true) {
         vendor_icon: vendor?.icon,
         vendor_description: vendor?.description,
         group_ratio: data.group_ratio,
+        // 全部分组时的展示价只在自动分组链内取最低：链外的免费/福利分组
+        // 不应把模型广场的默认价格拉成免费。链未配置或模型不在链内时为
+        // undefined，退回原来的「所有分组取最低」。
+        auto_chain_ratio: getAutoChainRatio(model, autoChain, data.group_ratio),
+        auto_chain_forced_price: getAutoChainForcedPrice(
+          model,
+          autoChain,
+          data.group_forced_price
+        ),
       }
     })
   }, [data])
@@ -72,6 +86,7 @@ export function usePricingData(enabled = true) {
     usableGroup: data?.usable_group ?? {},
     endpointMap: data?.supported_endpoint ?? {},
     autoGroups: data?.auto_groups ?? [],
+    autoGroupChain: data?.auto_group_chain ?? [],
     defaults: data?.defaults,
     filterDefaults: data?.filter_defaults,
     isLoading,

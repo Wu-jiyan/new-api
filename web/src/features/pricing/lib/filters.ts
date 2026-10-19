@@ -32,7 +32,7 @@ import {
   hasTaskUsageSchema,
   isUnconfiguredTaskUsageModel,
 } from './dynamic-price'
-import { isTokenBasedModel } from './model-helpers'
+import { getAutoChainGroups, isTokenBasedModel } from './model-helpers'
 import { calculateTokenPrice } from './price'
 import {
   DEFAULT_SCORE_DIMENSION,
@@ -110,13 +110,22 @@ export function filterByVendor(
 
 /**
  * Filter models by group
+ *
+ * "All groups" means the groups the square actually offers by default, i.e. the
+ * Auto Group Chain. A model only reachable through an off-chain group (free,
+ * promotional) would otherwise be quoted a price nobody defaults to, so it is
+ * listed only when that group is selected explicitly.
  */
 export function filterByGroup(
   models: PricingModel[],
-  group: string
+  group: string,
+  autoGroups?: readonly string[]
 ): PricingModel[] {
-  if (group === FILTER_ALL) return models
-  return models.filter((m) => m.enable_groups?.includes(group))
+  if (group !== FILTER_ALL) {
+    return models.filter((m) => m.enable_groups?.includes(group))
+  }
+  if (!autoGroups || autoGroups.length === 0) return models
+  return models.filter((m) => getAutoChainGroups(m, autoGroups).length > 0)
 }
 
 /**
@@ -321,12 +330,14 @@ export function filterAndSortModels(
     rating: string
     sortBy: string
     dimension?: ScoreDimension
+    /** Auto Group Chain; scopes what "all groups" means. */
+    autoGroups?: readonly string[]
   }
 ): PricingModel[] {
   const dimension = filters.dimension ?? DEFAULT_SCORE_DIMENSION
   let result = filterBySearch(models, filters.search, filters.searchScopes)
   result = filterByVendor(result, filters.vendor)
-  result = filterByGroup(result, filters.group)
+  result = filterByGroup(result, filters.group, filters.autoGroups)
   result = filterByQuotaType(result, filters.quotaType)
   result = filterByEndpointType(result, filters.endpointType)
   result = filterByModality(result, filters.modality)

@@ -91,6 +91,12 @@ export function getDisplayGroupForcedPrice(
     return getGroupForcedPrice(groupForcedPrice, selectedGroup)
   }
 
+  // "Every group" quotes the chain's flat fee: a forced price belonging to a
+  // group outside the chain is only shown when that group is selected.
+  if (model.auto_chain_forced_price !== undefined) {
+    return model.auto_chain_forced_price
+  }
+
   let minPrice = Number.POSITIVE_INFINITY
   for (const group of modelEnableGroups) {
     const price = getGroupForcedPrice(groupForcedPrice, group)
@@ -121,6 +127,12 @@ export function getDisplayGroupRatio(
     modelEnableGroups.includes(selectedGroup)
   ) {
     return getConfiguredGroupRatio(groupRatio, selectedGroup)
+  }
+
+  // "Every group" quotes the Auto Group Chain price, so a free group outside the
+  // chain (ratio 0) can no longer make every model in the square look free.
+  if (model.auto_chain_ratio !== undefined) {
+    return model.auto_chain_ratio
   }
 
   if (modelEnableGroups.length === 0) {
@@ -155,4 +167,69 @@ export function replaceModelInPath(path: string, modelName: string): string {
  */
 export function isTokenBasedModel(model: PricingModel): boolean {
   return model.quota_type === QUOTA_TYPE_VALUES.TOKEN
+}
+
+// ----------------------------------------------------------------------------
+// Auto Group Chain scoping
+// ----------------------------------------------------------------------------
+
+/**
+ * Groups of the Auto Group Chain the model is actually offered in.
+ *
+ * The chain is the ordered list of groups a normal request routes through, so
+ * only those groups describe what the model square is offering by default. A
+ * group outside the chain (free, promotional) is reachable only after selecting
+ * it explicitly.
+ */
+export function getAutoChainGroups(
+  model: PricingModel,
+  autoGroups?: readonly string[]
+): string[] {
+  if (!autoGroups || autoGroups.length === 0) return []
+  const modelEnableGroups = Array.isArray(model.enable_groups)
+    ? model.enable_groups
+    : []
+  return autoGroups.filter((group) => modelEnableGroups.includes(group))
+}
+
+/**
+ * Cheapest group ratio inside the model's Auto Group Chain.
+ *
+ * Returns undefined when no chain is configured or the model is only offered
+ * outside it, so callers keep the previous "best price of every group" display.
+ */
+export function getAutoChainRatio(
+  model: PricingModel,
+  autoGroups?: readonly string[],
+  groupRatio?: Record<string, number>
+): number | undefined {
+  const ratios = groupRatio ?? model.group_ratio ?? {}
+  let minRatio: number | undefined
+  for (const group of getAutoChainGroups(model, autoGroups)) {
+    const ratio = ratios[group]
+    if (typeof ratio !== 'number' || !Number.isFinite(ratio)) continue
+    if (minRatio === undefined || ratio < minRatio) minRatio = ratio
+  }
+  return minRatio
+}
+
+/**
+ * Cheapest flat per-request price inside the model's Auto Group Chain.
+ *
+ * A forced-price group replaces model pricing entirely, so it has to be scoped
+ * the same way the ratio is.
+ */
+export function getAutoChainForcedPrice(
+  model: PricingModel,
+  autoGroups?: readonly string[],
+  groupForcedPrice?: Record<string, number>
+): number | undefined {
+  let minPrice: number | undefined
+  for (const group of getAutoChainGroups(model, autoGroups)) {
+    const price = getGroupForcedPrice(groupForcedPrice, group)
+    if (price !== undefined && (minPrice === undefined || price < minPrice)) {
+      minPrice = price
+    }
+  }
+  return minPrice
 }

@@ -5776,6 +5776,8 @@
     "Success": "Succès",
     "Success rate": "Taux de réussite",
     "Success rate excludes business rejections and includes the current partial hour.": "Le taux de réussite exclut les rejets métier et inclut l’heure en cours.",
+    "Success rate is filtered to the selected group.": "Le taux de réussite est limité au groupe sélectionné.",
+    "Overall success rate counts only the Auto Group Chain; the table below lists every group.": "Le taux global ne compte que les groupes de la chaîne automatique ; le tableau ci-dessous liste tous les groupes.",
     "Successful scheduled or bulk checks can restore automatically disabled channels. Manually disabled channels stay disabled.": "Les contrôles périodiques ou groupés réussis peuvent rétablir les canaux désactivés automatiquement. Ceux désactivés manuellement le restent.",
     "Successfully created {{count}} API Key(s)": "{{count}} clé(s) API créée(s) avec succès",
     "Successfully created {{count}} redemption codes": "{{count}} codes de réduction créés avec succès",

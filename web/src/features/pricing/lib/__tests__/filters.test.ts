@@ -18,9 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, it } from 'vitest'
 
-import { SORT_OPTIONS } from '../../constants'
+import { FILTER_ALL, SORT_OPTIONS } from '../../constants'
 import type { PricingModel } from '../../types'
 import {
+  filterByGroup,
   filterByModality,
   filterBySearch,
   parseSearchScopes,
@@ -75,6 +76,31 @@ describe('sortModels', () => {
     expect(
       sortModels(models, SORT_OPTIONS.INPUT_PRICE_LOW).map((m) => m.model_name)
     ).toEqual(['c-model', 'a-model', 'b-model'])
+  })
+})
+
+describe('filterByGroup', () => {
+  const models = [
+    pricingModel({ model_name: 'paid', enable_groups: ['buddy', 'free'] }),
+    pricingModel({ model_name: 'free-only', enable_groups: ['free'] }),
+  ]
+
+  it('lists only models offered in the Auto Group Chain when no group is selected', () => {
+    expect(
+      filterByGroup(models, FILTER_ALL, ['buddy']).map((m) => m.model_name)
+    ).toEqual(['paid'])
+  })
+
+  it('lists a model reachable only outside the chain when that group is selected', () => {
+    expect(
+      filterByGroup(models, 'free', ['buddy']).map((m) => m.model_name)
+    ).toEqual(['paid', 'free-only'])
+  })
+
+  it('keeps every model when no Auto Group Chain is configured', () => {
+    expect(
+      filterByGroup(models, FILTER_ALL, []).map((m) => m.model_name)
+    ).toEqual(['paid', 'free-only'])
   })
 })
 

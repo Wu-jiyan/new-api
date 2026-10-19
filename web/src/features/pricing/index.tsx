@@ -52,6 +52,7 @@ export function Pricing() {
     usableGroup,
     endpointMap,
     autoGroups,
+    autoGroupChain,
     defaults,
     filterDefaults,
     isLoading,
@@ -94,7 +95,7 @@ export function Pricing() {
     availableTags,
     clearFilters,
     clearSearch,
-  } = useFilters(models || [], defaults)
+  } = useFilters(models || [], defaults, autoGroupChain)
 
   // 角色 model_name 为前缀（如 deepseek），匹配该前缀下所有模型；多个角色覆盖同一模型时取最长前缀。
   const characterMap = useCharacterMap(models ?? [])
@@ -329,6 +330,8 @@ export function Pricing() {
                 >) || {}
               }
               autoGroups={autoGroups || []}
+              selectedGroup={groupFilter}
+              hasAutoGroupChain={(autoGroupChain || []).length > 0}
               priceRate={priceRate ?? 1}
               usdExchangeRate={usdExchangeRate ?? 1}
               tokenUnit={tokenUnit}

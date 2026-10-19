@@ -25,6 +25,11 @@ type QueryParams struct {
 	// AllowedGroups restricts both the per-group results and the model summary;
 	// nil allows every group.
 	AllowedGroups []string
+	// SummaryGroups restricts only the model summary and its series; nil falls
+	// back to AllowedGroups so existing callers keep their behaviour. Groups
+	// outside this set still appear in Groups, which is what makes a per-group
+	// breakdown possible while the overall figure ignores them.
+	SummaryGroups []string
 }
 
 // Summary is the request-weighted aggregate over every bucket in the window.

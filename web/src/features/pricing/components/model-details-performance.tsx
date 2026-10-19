@@ -121,12 +121,24 @@ function toGroupUptimeSeries(group: PerformanceGroup): UptimeDayPoint[] {
   })
 }
 
-export function ModelDetailsPerformance(props: { model: PricingModel }) {
+export function ModelDetailsPerformance(props: {
+  model: PricingModel
+  /** Group filter from the model square; scopes the summary, not the per-group table. */
+  group?: string
+  /** Whether an Auto Group Chain exists; without one every group counts. */
+  autoChainConfigured?: boolean
+}) {
   const { t } = useTranslation()
   const metricsQuery = useQuery({
-    queryKey: ['perf-metrics', props.model.model_name],
+    queryKey: [
+      'perf-metrics',
+      props.model.model_name,
+      ...(props.group ? [props.group] : []),
+    ],
     queryFn: async () =>
-      requireServerSuccess(await getPerfMetrics(props.model.model_name, 24)),
+      requireServerSuccess(
+        await getPerfMetrics(props.model.model_name, 24, props.group)
+      ),
     staleTime: 60 * 1000,
   })
   const groups = useMemo(
@@ -200,6 +212,16 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
           valueClassName={getSuccessRateTextClass(successRate)}
         />
       </div>
+
+      {props.autoChainConfigured && (
+        <p className='text-muted-foreground text-xs leading-relaxed'>
+          {props.group
+            ? t('Success rate is filtered to the selected group.')
+            : t(
+                'Overall success rate counts only the Auto Group Chain; the table below lists every group.'
+              )}
+        </p>
+      )}
 
       <section>
         <SectionHeader

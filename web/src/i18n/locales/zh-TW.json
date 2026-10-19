@@ -5776,6 +5776,8 @@
     "Success": "成功",
     "Success rate": "成功率",
     "Success rate excludes business rejections and includes the current partial hour.": "成功率排除業務拒絕，統計包含目前尚未結束的小時。",
+    "Success rate is filtered to the selected group.": "成功率僅統計所選分組。",
+    "Overall success rate counts only the Auto Group Chain; the table below lists every group.": "整體成功率只統計自動分組鏈內的分組，下方表格仍列出所有分組。",
     "Successful scheduled or bulk checks can restore automatically disabled channels. Manually disabled channels stay disabled.": "定時或批次檢查成功後，可恢復被自動停用的渠道；人工停用的渠道保持停用。",
     "Successfully created {{count}} API Key(s)": "成功建立了 {{count}} 個 API 金鑰",
     "Successfully created {{count}} redemption codes": "成功建立了 {{count}} 個兌換碼",

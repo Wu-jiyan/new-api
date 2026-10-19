@@ -26,7 +26,11 @@ import type { CharacterView } from '@/features/character/types'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
-import { DEFAULT_PRICING_PAGE_SIZE, DEFAULT_TOKEN_UNIT } from '../constants'
+import {
+  DEFAULT_PRICING_PAGE_SIZE,
+  DEFAULT_TOKEN_UNIT,
+  FILTER_ALL,
+} from '../constants'
 import type { ScoreDimension } from '../lib/scores'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelCard } from './model-card'
@@ -63,10 +67,23 @@ export const ModelCardGrid = memo(function ModelCardGrid(
     return props.models.slice(start, start + pageSize)
   }, [currentPage, pageSize, props.models])
   const recentModels = pagedModels.map((model) => model.model_name || '')
+  // 卡片上的成功率跟随当前分组筛选：选中某个分组就只看它，否则看自动分组链。
+  const perfScopeGroup =
+    props.selectedGroup && props.selectedGroup !== FILTER_ALL
+      ? props.selectedGroup
+      : undefined
   const perfQuery = useQuery({
-    queryKey: ['perf-metrics-summary', 24, recentModels],
+    // 未筛选分组时保持原来的 key，切换分组才另起一份缓存。
+    queryKey: [
+      'perf-metrics-summary',
+      24,
+      recentModels,
+      ...(perfScopeGroup ? [perfScopeGroup] : []),
+    ],
     queryFn: async () =>
-      requireServerSuccess(await getPerfMetricsSummary(24, recentModels)),
+      requireServerSuccess(
+        await getPerfMetricsSummary(24, recentModels, perfScopeGroup)
+      ),
     enabled: recentModels.length > 0,
     staleTime: 60 * 1000,
     retry: false,

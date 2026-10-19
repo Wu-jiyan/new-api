@@ -525,6 +525,69 @@ text+image+audio+video+file 等抽查通过）。
 副作用：5 个纯图像模型（`gpt-image-2*`、`ernie-image-turbo`）的标签被清空——它们原本
 只有模态标签。详情页「标签」行对它们不再显示，但「输出 图片」仍能说明用途，可接受。
 
+## 2026-10-19 · 按自动分组链收敛模型广场的价格与成功率
+
+运营反馈：不在「自动分组链」里的免费 / 福利分组把模型广场带偏了——`free` 是 0x，
+导致选「全部分组」时很多模型显示免费；这些分组的低成功率也被算进了模型整体成功率。
+
+### 三个概念必须分清
+
+- **自动分组链**：`setting.GetAutoGroups()`，普通请求「不指定分组」时按顺序路由的分组
+  列表。链外分组（`free` / `福利分组` / `生图福利 2.x`）只有显式选择才用得到。
+- **`auto_groups`**（原有）：链按当前用户权限过滤后的结果，用于侧栏排序与详情里的
+  链路展示。
+- **`auto_group_chain`**（新增）：未过滤的原始链。广场的默认价格与整体成功率都按它收敛；
+  用未过滤版本是因为匿名访客的 `auto_groups` 可能为空，那会让口径退化成「所有分组」。
+  这正是要修的问题。
+
+### 后端
+
+- `GET /api/pricing` 增加 `auto_group_chain`。
+- `pkg/perf_metrics.QueryParams` 拆出 `SummaryGroups`：只约束 `Summary` 与模型级
+  `Series`；`AllowedGroups` 继续约束 `Groups` 明细。这样详情页可以同时给出「不受链外
+  分组影响的总成功率」和「每个分组自己的成功率」。
+- `controller/perf_metrics.go` 的 `resolvePerfSummaryGroups(group)`：指定分组→只算它；
+  未指定→自动分组链；链未配置→`nil`，退回原来的全部分组口径，避免没有链的站点被清空。
+- `/api/perf-metrics` 的 `group` 只影响 summary，不再过滤明细行（该参数此前没有任何前端
+  调用方），否则详情页就拿不到其它分组的数据。
+
+### 前端
+
+- 价格：`getDisplayGroupRatio` / `getDisplayGroupForcedPrice` 优先读
+  `model.auto_chain_ratio` / `auto_chain_forced_price`。这两个值在 `usePricingData` 里
+  用 `auto_group_chain ∩ enable_groups` 算一次并挂到模型上——避免把链透传进 `formatPrice`
+  这一长串函数。
+- 列表：「全部分组」时只列至少有一个链内分组的模型；链未配置时不过滤。
+- 成功率：卡片网格与详情（概览格、性能 Tab）都带当前 `group` 请求 perf 接口。queryKey
+  只在有分组时才多一项，未筛选时的 key 与原来一致（否则会击穿既有缓存断言）。
+- 文案：详情性能 Tab 增加一行说明（2 条 key × 7 语言，原始行插入）。
+
+### 验证
+
+`go test ./pkg/perf_metrics ./controller` 通过；全量 `vitest` **211 files / 2447 tests**；
+`tsgo -b`、`oxlint`、`oxfmt --check`、`go vet ./...`、`rsbuild build` 全绿。
+
+### 生产影响（部署前用线上 `/api/pricing` 实测）
+
+链上 29 个分组；链外有 `free=0`、`福利分组=0.05`、`生图福利 2.0=0.25`、
+`生图福利 2.5=0.1875`、`auto=1`。
+
+- **9 个模型**在「全部」下从 `$0` 变成真实价格（`glm-5.3` / `deepseek-v4-flash` /
+  `deepseek-v4-pro` / `kimi-k3` / `minimax-m3` / `step-5-preview` / `space-bunny` /
+  `deepseek-v4.1-flash` 等，倍率 0.03–0.05）。
+- **1 个模型**在「全部」下不再出现：`gpt-image-2.5`（只在链外 `生图福利 2.5`），筛选该
+  分组时才出现。
+- 分组成功率实测：`space-bunny` 链内 `Buddy` 91.85%、`free` 0%；`glm-5.3` /
+  `deepseek-v4-flash` 只有 `free` 有采样且为 0%——改后它们的整体成功率变成「无数据」
+  而不是 0%，比现在的 0% 更诚实。
+
+### 待办
+
+本地提交 `abc3879f3`，**未推送、未部署**：本机 GitHub 代理 `127.0.0.1:10808` 未运行、
+`git@github.com` 无可用密钥；同时 `ai.idcidiot.com` 当前 A 记录是 `85.137.240.166`
+（香港PCCW），而记录里的生产机是 `103.116.245.218`（二五云HKCN2新，SSH 32553 已不可达）。
+部署前必须先确认目标机。
+
 
 
 

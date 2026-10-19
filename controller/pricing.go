@@ -6,6 +6,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -73,9 +74,13 @@ func GetPricing(c *gin.Context) {
 		"usable_group":       usableGroup,
 		"supported_endpoint": model.GetSupportedEndpointMap(),
 		"auto_groups":        service.GetUserAutoGroup(group),
-		"defaults":           model.GetModelSquareDefaults(),
-		"filter_defaults":    model.GetModelSquareFilter(),
-		"pricing_version":    "gacha-rating-v1",
+		// Unfiltered chain: the model square scopes prices and the model-level
+		// success rate to it, so a free/promotional group outside the chain no
+		// longer makes every model look free.
+		"auto_group_chain": setting.GetAutoGroups(),
+		"defaults":         model.GetModelSquareDefaults(),
+		"filter_defaults":  model.GetModelSquareFilter(),
+		"pricing_version":  "gacha-rating-v1",
 	})
 }
 

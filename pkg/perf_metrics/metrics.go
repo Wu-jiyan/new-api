@@ -142,6 +142,10 @@ func queryWindow(now time.Time, hours int) (int64, int64) {
 func Query(params QueryParams) (QueryResult, error) {
 	startTs, endTs := queryWindow(time.Now(), params.Hours)
 	allowedGroups := allowedGroupSet(params.AllowedGroups)
+	summaryGroups := allowedGroupSet(params.SummaryGroups)
+	if summaryGroups == nil {
+		summaryGroups = allowedGroups
+	}
 
 	merged := map[bucketKey]counters{}
 	rows, err := model.GetPerfMetrics(params.Model, params.Group, startTs, endTs)
@@ -186,7 +190,7 @@ func Query(params QueryParams) (QueryResult, error) {
 		return true
 	})
 
-	result := buildQueryResult(params.Model, merged)
+	result := buildQueryResult(params.Model, merged, summaryGroups)
 	result.WindowStart, result.WindowEnd = startTs, endTs
 	return result, nil
 }
@@ -411,7 +415,17 @@ func mergeCounters(merged map[bucketKey]counters, key bucketKey, value counters)
 	merged[key] = current
 }
 
-func buildQueryResult(modelName string, merged map[bucketKey]counters) QueryResult {
+func buildQueryResult(modelName string, merged map[bucketKey]counters, summaryGroups map[string]struct{}) QueryResult {
+	// A nil set means "no scope configured"; every group then contributes to the
+	// model-level summary, which preserves the behaviour before SummaryGroups.
+	inSummary := func(group string) bool {
+		if summaryGroups == nil {
+			return true
+		}
+		_, ok := summaryGroups[group]
+		return ok
+	}
+
 	groupBuckets := map[string]map[int64]counters{}
 	modelBuckets := map[string]map[int64]counters{}
 	for key, value := range merged {
@@ -422,7 +436,9 @@ func buildQueryResult(modelName string, merged map[bucketKey]counters) QueryResu
 			groupBuckets[key.group] = map[int64]counters{}
 		}
 		groupBuckets[key.group][key.bucketTs] = value
-		mergeModelBucket(modelBuckets, modelName, key.bucketTs, value)
+		if inSummary(key.group) {
+			mergeModelBucket(modelBuckets, modelName, key.bucketTs, value)
+		}
 	}
 
 	groups := make([]string, 0, len(groupBuckets))
@@ -456,11 +472,13 @@ func buildQueryResult(modelName string, merged map[bucketKey]counters) QueryResu
 			total.generationMs += value.generationMs
 			series = append(series, bucketPoint(ts, value))
 		}
-		all.requestCount += total.requestCount
-		all.successCount += total.successCount
-		all.totalLatencyMs += total.totalLatencyMs
-		all.outputTokens += total.outputTokens
-		all.generationMs += total.generationMs
+		if inSummary(group) {
+			all.requestCount += total.requestCount
+			all.successCount += total.successCount
+			all.totalLatencyMs += total.totalLatencyMs
+			all.outputTokens += total.outputTokens
+			all.generationMs += total.generationMs
+		}
 
 		results = append(results, GroupResult{
 			Group:        group,

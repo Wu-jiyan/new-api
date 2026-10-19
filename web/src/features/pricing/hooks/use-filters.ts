@@ -78,7 +78,9 @@ function isSortOption(value: unknown): value is SortOption {
 
 export function useFilters(
   models: PricingModel[],
-  defaults?: { sort?: string; dimension?: ScoreDimension }
+  defaults?: { sort?: string; dimension?: ScoreDimension },
+  /** Auto Group Chain: defines what "all groups" means for listing and pricing. */
+  autoGroups?: readonly string[]
 ) {
   const search = useSearch({ from: '/pricing/' })
   const [filterState, setFilterState] = useState<FilterState>(() => ({
@@ -232,6 +234,7 @@ export function useFilters(
       rating: ratingFilter,
       sortBy,
       dimension: scoreDimension,
+      autoGroups,
     })
   }, [
     models,
@@ -246,6 +249,7 @@ export function useFilters(
     ratingFilter,
     sortBy,
     scoreDimension,
+    autoGroups,
   ])
 
   const hasActiveFilters = useMemo(

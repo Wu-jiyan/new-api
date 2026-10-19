@@ -65,7 +65,7 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
-import { DEFAULT_TOKEN_UNIT } from '../constants'
+import { DEFAULT_TOKEN_UNIT, FILTER_ALL } from '../constants'
 import { useBillingTime } from '../hooks/use-billing-time'
 import { usePricingData } from '../hooks/use-pricing-data'
 import type { ParsedTaskTier } from '../lib/billing-expr'
@@ -288,12 +288,18 @@ function OverviewMetric(props: {
   )
 }
 
-function OverviewSummaryGrid(props: { model: PricingModel }) {
+function OverviewSummaryGrid(props: { model: PricingModel; group?: string }) {
   const { t } = useTranslation()
   const metricsQuery = useQuery({
-    queryKey: ['perf-metrics', props.model.model_name],
+    queryKey: [
+      'perf-metrics',
+      props.model.model_name,
+      ...(props.group ? [props.group] : []),
+    ],
     queryFn: async () =>
-      requireServerSuccess(await getPerfMetrics(props.model.model_name, 24)),
+      requireServerSuccess(
+        await getPerfMetrics(props.model.model_name, 24, props.group)
+      ),
     staleTime: 60 * 1000,
   })
 
@@ -1635,6 +1641,10 @@ export interface ModelDetailsContentProps {
   usdExchangeRate: number
   tokenUnit: TokenUnit
   showRechargePrice?: boolean
+  /** Group filter active in the model square; scopes the model-level success rate */
+  selectedGroup?: string
+  /** Whether the site configured an Auto Group Chain, which bounds the success rate */
+  hasAutoGroupChain?: boolean
   /** Selected score dimension: drives the tier badge and the highlighted score */
   dimension?: ScoreDimension
 }
@@ -1643,6 +1653,11 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
   const { t } = useTranslation()
   const showRechargePrice = props.showRechargePrice ?? false
   const scoreDimension = props.dimension ?? DEFAULT_SCORE_DIMENSION
+  // 「全部分组」不带 group，让后端按自动分组链统计；选中某分组时只看该分组。
+  const perfGroup =
+    props.selectedGroup && props.selectedGroup !== FILTER_ALL
+      ? props.selectedGroup
+      : undefined
 
   const isDynamic =
     props.model.billing_mode === 'tiered_expr' &&
@@ -1680,7 +1695,7 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
         </TabsList>
 
         <TabsContent value='overview' className='space-y-6 outline-none'>
-          <OverviewSummaryGrid model={props.model} />
+          <OverviewSummaryGrid model={props.model} group={perfGroup} />
 
           <section className='bg-card/60 space-y-5 rounded-xl border p-4 shadow-sm'>
             <SectionTitle>{t('Pricing')}</SectionTitle>
@@ -1721,7 +1736,11 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
         </TabsContent>
 
         <TabsContent value='performance' className='outline-none'>
-          <ModelDetailsPerformance model={props.model} />
+          <ModelDetailsPerformance
+            model={props.model}
+            group={perfGroup}
+            autoChainConfigured={props.hasAutoGroupChain}
+          />
         </TabsContent>
 
         <TabsContent value='api' className='outline-none'>
@@ -1781,6 +1800,7 @@ export function ModelDetails() {
     usableGroup,
     endpointMap,
     autoGroups,
+    autoGroupChain,
     isLoading,
     priceRate,
     usdExchangeRate,
@@ -1875,6 +1895,8 @@ export function ModelDetails() {
           usdExchangeRate={usdExchangeRate ?? 1}
           tokenUnit={tokenUnit}
           showRechargePrice={search.rechargePrice ?? false}
+          selectedGroup={search.group}
+          hasAutoGroupChain={(autoGroupChain || []).length > 0}
           endpointMap={
             (endpointMap as Record<
               string,

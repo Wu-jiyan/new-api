@@ -266,6 +266,32 @@ describe('model cards', () => {
     expect(within(idle).getByText('—t/s')).toBeVisible()
   })
 
+  it('scopes the card success rate to the selected group filter', async () => {
+    const request = vi.spyOn(api, 'get').mockResolvedValue({
+      data: { success: true, data: { models: [], recent_success_series: {} } },
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ModelCardGrid
+          models={[pricingModel({ model_name: 'active-model' })]}
+          onModelClick={vi.fn()}
+          selectedGroup='free'
+        />
+      </QueryClientProvider>
+    )
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith('/api/perf-metrics/summary', {
+        params: {
+          hours: 24,
+          recent_model: ['active-model'],
+          group: 'free',
+        },
+        paramsSerializer: { indexes: null },
+        optionalAuth: true,
+      })
+    )
+  })
+
   it('keeps group, endpoint and tag overflow counts with their own metadata', () => {
     const groups = ['default-with-a-long-group-name', 'premium', 'internal']
     const endpoints = ['openai-response', 'openai', 'claude', 'gemini', 'jina']
@@ -399,6 +425,25 @@ describe('model cards', () => {
     expect(screen.queryByText(/1K|1M/)).not.toBeInTheDocument()
     expect(screen.getAllByText('Per Request')).toHaveLength(1)
     expect(screen.queryByText('Per-request')).not.toBeInTheDocument()
+  })
+
+  it('quotes the Auto Group Chain price instead of a free group outside the chain', () => {
+    render(
+      <ModelCard
+        model={pricingModel({
+          enable_groups: ['buddy', 'free'],
+          group_ratio: { buddy: 1, free: 0 },
+          auto_chain_ratio: 1,
+        })}
+        onClick={vi.fn()}
+        tokenUnit='M'
+      />
+    )
+    // 1 × 2 × chain ratio 1 = $2 / 1M; the 0x free group outside the chain must
+    // not turn every card in the square into a free model.
+    expect(screen.getByText('Input').parentElement).toHaveTextContent(
+      /\$2\s*\/\s*1M/
+    )
   })
 
   it('preserves expression prices and makes the selected token unit explicit', () => {

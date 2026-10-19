@@ -20,26 +20,40 @@ import { api } from '@/lib/api'
 
 import type { PerformanceMetricsData, PerfSummaryAllData } from './types'
 
+/**
+ * Model-level summaries for the model square.
+ *
+ * `group` scopes the figures: a specific group reports that group only, while an
+ * omitted group reports the Auto Group Chain. Groups outside the chain keep their
+ * own row but never dilute the model's overall success rate.
+ */
 export async function getPerfMetricsSummary(
   hours = 24,
-  recentModels?: string[]
+  recentModels?: string[],
+  group?: string
 ): Promise<PerfSummaryAllData> {
   const res = await api.get<PerfSummaryAllData>('/api/perf-metrics/summary', {
-    params: { hours, recent_model: recentModels },
+    params: { hours, recent_model: recentModels, group },
     paramsSerializer: { indexes: null },
     optionalAuth: true,
   })
   return res.data
 }
 
+/**
+ * One model's performance. `group` scopes the summary only; the returned group
+ * rows always list every group so the details view can show the breakdown.
+ */
 export async function getPerfMetrics(
   modelName: string,
-  hours = 24
+  hours = 24,
+  group?: string
 ): Promise<PerformanceMetricsData> {
   const res = await api.get<PerformanceMetricsData>('/api/perf-metrics', {
     params: {
       model: modelName,
       hours,
+      group,
     },
     optionalAuth: true,
   })

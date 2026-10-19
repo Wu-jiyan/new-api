@@ -5776,6 +5776,8 @@
     "Success": "Success",
     "Success rate": "Success rate",
     "Success rate excludes business rejections and includes the current partial hour.": "Success rate excludes business rejections and includes the current partial hour.",
+    "Success rate is filtered to the selected group.": "Success rate is filtered to the selected group.",
+    "Overall success rate counts only the Auto Group Chain; the table below lists every group.": "Overall success rate counts only the Auto Group Chain; the table below lists every group.",
     "Successful scheduled or bulk checks can restore automatically disabled channels. Manually disabled channels stay disabled.": "Successful scheduled or bulk checks can restore automatically disabled channels. Manually disabled channels stay disabled.",
     "Successfully created {{count}} API Key(s)": "Successfully created {{count}} API Key(s)",
     "Successfully created {{count}} redemption codes": "Successfully created {{count}} redemption codes",

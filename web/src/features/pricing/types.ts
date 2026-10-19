@@ -81,6 +81,14 @@ export type PricingModel = {
   supported_endpoint_types?: string[]
   key?: string
   group_ratio?: Record<string, number>
+  /**
+   * Cheapest group ratio among the model's Auto Group Chain groups, computed from
+   * the pricing payload. Undefined when the chain is unconfigured or the model is
+   * only offered outside it, in which case the display falls back to every group.
+   */
+  auto_chain_ratio?: number
+  /** Cheapest flat per-request price among the model's Auto Group Chain groups. */
+  auto_chain_forced_price?: number
   /** Billing mode (e.g. "tiered_expr") used to flag dynamic pricing */
   billing_mode?: string
   /** Raw expression describing dynamic / tiered billing */
@@ -149,6 +157,11 @@ export type PricingData = {
   usable_group: Record<string, { desc: string; ratio: number }>
   supported_endpoint: Record<string, string>
   auto_groups: string[]
+  /**
+   * Operator-configured Auto Group Chain, unfiltered by the viewer's permissions.
+   * The model square scopes its default price and model-level success rate to it.
+   */
+  auto_group_chain?: string[]
   /** Operator-configured initial sort and score dimension for the model square */
   defaults?: {
     sort?: string
