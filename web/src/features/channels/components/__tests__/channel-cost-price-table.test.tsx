@@ -84,7 +84,9 @@ describe('ChannelCostPriceTable', () => {
     const onPrices = vi.fn()
     render(
       <Host
-        initial={{ 'deepseek-v4-flash': { model_ratio: 1.5, cache_ratio: 0.05 } }}
+        initial={{
+          'deepseek-v4-flash': { model_ratio: 1.5, cache_ratio: 0.05 },
+        }}
         onPrices={onPrices}
       />
     )
@@ -127,9 +129,7 @@ describe('ChannelCostPriceTable', () => {
       />
     )
 
-    expect(
-      screen.getByLabelText('space-bunny-free Cache Ratio')
-    ).toBeDisabled()
+    expect(screen.getByLabelText('space-bunny-free Cache Ratio')).toBeDisabled()
   })
 
   test('adds a free entry when only the free checkbox is set', async () => {

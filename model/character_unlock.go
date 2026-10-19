@@ -91,7 +91,7 @@ func getCachedUserUsage(userId int, modelName string) (int64, int64, error) {
 
 // UserCharacterState 用户对某角色的解锁进度快照（达标判定输入）
 type UserCharacterState struct {
-	MaxStage int   // 已手动解锁最深阶段；未解锁为 -1
+	MaxStage int // 已手动解锁最深阶段；未解锁为 -1
 	Tokens   int64
 	Calls    int64
 	Affinity int

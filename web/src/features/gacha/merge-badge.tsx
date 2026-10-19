@@ -29,7 +29,9 @@ export function MergeBadgeView({
       )}
     >
       <Icon className={cn('size-3.5', meta.className)} />
-      {showCount && <span>{t('Merged {{count}} times', { count: merged })}</span>}
+      {showCount && (
+        <span>{t('Merged {{count}} times', { count: merged })}</span>
+      )}
     </span>
   )
 }

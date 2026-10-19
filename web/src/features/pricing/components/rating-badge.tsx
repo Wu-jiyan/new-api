@@ -1,9 +1,6 @@
 import { cn } from '@/lib/utils'
 
-export const RATING_STYLES: Record<
-  string,
-  { label: string; className: string }
-> = {
+const RATING_STYLES: Record<string, { label: string; className: string }> = {
   N: { label: 'N', className: 'bg-slate-400 text-white' },
   R: { label: 'R', className: 'bg-blue-500 text-white' },
   SR: { label: 'SR', className: 'bg-purple-500 text-white' },

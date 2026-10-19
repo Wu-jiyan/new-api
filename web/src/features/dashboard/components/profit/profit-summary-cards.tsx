@@ -19,10 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 import { useTranslation } from 'react-i18next'
 
 import { Skeleton } from '@/components/ui/skeleton'
+import type { ChannelProfitSummary } from '@/features/dashboard/types'
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
-
-import type { ChannelProfitSummary } from '@/features/dashboard/types'
 
 type ProfitCardTone = 'default' | 'success' | 'danger'
 
@@ -72,6 +71,22 @@ export function ProfitSummaryCards(props: {
   }
   const topupConcession = summary ? summary.topup_concession : 0
   const gachaRevenue = summary?.gacha_revenue ?? 0
+  const profitSign = profit >= 0 ? '+' : ''
+  const totalCostValue =
+    summary && costEnabled ? formatQuota(summary.cost) : '-'
+  const profitValue =
+    summary && costEnabled ? profitSign + formatQuota(profit) : '-'
+  const profitRateValue =
+    summary && costEnabled ? `${(summary.profit_rate * 100).toFixed(1)}%` : '-'
+  let gachaRevenueValue = '-'
+  if (summary) {
+    gachaRevenueValue = gachaRevenue > 0 ? `+${formatQuota(gachaRevenue)}` : '0'
+  }
+  let topupConcessionValue = '-'
+  if (summary) {
+    topupConcessionValue =
+      topupConcession > 0 ? `-${formatQuota(topupConcession)}` : '0'
+  }
 
   return (
     <div className='grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6'>
@@ -82,53 +97,29 @@ export function ProfitSummaryCards(props: {
       />
       <ProfitCard
         label={t('Total Cost')}
-        value={summary ? (costEnabled ? formatQuota(summary.cost) : '-') : '-'}
+        value={totalCostValue}
         loading={loading}
       />
       <ProfitCard
         label={t('Total Profit')}
-        value={
-          summary
-            ? costEnabled
-              ? (profit >= 0 ? '+' : '') + formatQuota(profit)
-              : '-'
-            : '-'
-        }
+        value={profitValue}
         tone={profitTone}
         loading={loading}
       />
       <ProfitCard
         label={t('Profit Rate')}
-        value={
-          summary
-            ? costEnabled
-              ? `${(summary.profit_rate * 100).toFixed(1)}%`
-              : '-'
-            : '-'
-        }
+        value={profitRateValue}
         loading={loading}
       />
       <ProfitCard
         label={t('Gacha Revenue')}
-        value={
-          summary
-            ? gachaRevenue > 0
-              ? `+${formatQuota(gachaRevenue)}`
-              : '0'
-            : '-'
-        }
+        value={gachaRevenueValue}
         tone={gachaRevenue > 0 ? 'success' : 'default'}
         loading={loading}
       />
       <ProfitCard
         label={t('Topup Concession')}
-        value={
-          summary
-            ? topupConcession > 0
-              ? `-${formatQuota(topupConcession)}`
-              : '0'
-            : '-'
-        }
+        value={topupConcessionValue}
         tone={topupConcession > 0 ? 'danger' : 'default'}
         loading={loading}
       />

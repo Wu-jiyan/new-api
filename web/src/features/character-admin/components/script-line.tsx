@@ -30,7 +30,13 @@ const EFFECT_KEYS: Record<string, string> = {
   white: 'character.admin.effectWhite',
 }
 
-const EMPTY_CHOICE: ChoiceDraft = { text: '', reply: '', pose: '', effect: '', background: '' }
+const EMPTY_CHOICE: ChoiceDraft = {
+  text: '',
+  reply: '',
+  pose: '',
+  effect: '',
+  background: '',
+}
 
 export function ScriptLineEditor({
   line,
@@ -49,7 +55,9 @@ export function ScriptLineEditor({
 
   const updateChoice = (ci: number, patch: Partial<ChoiceDraft>) => {
     onChange({
-      choices: (line.choices ?? []).map((c, i) => (i === ci ? { ...c, ...patch } : c)),
+      choices: (line.choices ?? []).map((c, i) =>
+        i === ci ? { ...c, ...patch } : c
+      ),
     })
   }
 
@@ -62,7 +70,10 @@ export function ScriptLineEditor({
   }
 
   const poseSelect = (
-    <Select value={line.pose || 'none'} onValueChange={(v) => onChange({ pose: v === 'none' ? '' : (v ?? '') })}>
+    <Select
+      value={line.pose || 'none'}
+      onValueChange={(v) => onChange({ pose: v === 'none' ? '' : (v ?? '') })}
+    >
       <SelectTrigger className='w-28'>
         <SelectValue>{poseLabel(line.pose)}</SelectValue>
       </SelectTrigger>
@@ -80,13 +91,17 @@ export function ScriptLineEditor({
   const backgroundSelect = (
     <Select
       value={line.background || 'none'}
-      onValueChange={(v) => onChange({ background: v === 'none' ? '' : (v ?? '') })}
+      onValueChange={(v) =>
+        onChange({ background: v === 'none' ? '' : (v ?? '') })
+      }
     >
       <SelectTrigger className='w-28'>
         <SelectValue>{backgroundLabel(line.background)}</SelectValue>
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value='none'>{t('character.admin.noBackground')}</SelectItem>
+        <SelectItem value='none'>
+          {t('character.admin.noBackground')}
+        </SelectItem>
         {backgroundNames.map((b) => (
           <SelectItem key={b} value={b}>
             {b}
@@ -97,12 +112,17 @@ export function ScriptLineEditor({
   )
 
   const effectSelect = (value: string, onChangeValue: (v: string) => void) => (
-    <Select value={value || 'default'} onValueChange={(v) => onChangeValue(v === 'default' ? '' : (v ?? ''))}>
+    <Select
+      value={value || 'default'}
+      onValueChange={(v) => onChangeValue(v === 'default' ? '' : (v ?? ''))}
+    >
       <SelectTrigger className='w-28'>
         <SelectValue>{effectLabel(value)}</SelectValue>
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value='default'>{t('character.admin.effectDefault')}</SelectItem>
+        <SelectItem value='default'>
+          {t('character.admin.effectDefault')}
+        </SelectItem>
         {EFFECTS.map((e) => (
           <SelectItem key={e} value={e}>
             {t(EFFECT_KEYS[e])}
@@ -130,13 +150,22 @@ export function ScriptLineEditor({
         {poseSelect}
         {backgroundSelect}
         {effectSelect(line.effect ?? '', (v) => onChange({ effect: v }))}
-        <Button variant='ghost' size='icon-xs' aria-label={t('character.admin.removeLine')} onClick={onRemove}>
+        <Button
+          variant='ghost'
+          size='icon-xs'
+          aria-label={t('character.admin.removeLine')}
+          onClick={onRemove}
+        >
           <Trash2 className='h-4 w-4' />
         </Button>
       </div>
       {index === -1 && null}
       {(line.choices ?? []).map((choice, ci) => (
-        <div key={ci} className='flex flex-wrap items-center gap-2 rounded-md bg-muted/40 p-2'>
+        <div
+          // eslint-disable-next-line react/no-array-index-key -- 位置型列表：选项按下标就地编辑
+          key={ci}
+          className='bg-muted/40 flex flex-wrap items-center gap-2 rounded-md p-2'
+        >
           <Input
             className='w-40'
             value={choice.text}
@@ -149,12 +178,19 @@ export function ScriptLineEditor({
             placeholder={t('character.admin.choiceReply')}
             onChange={(e) => updateChoice(ci, { reply: e.target.value })}
           />
-          <Select value={choice.pose || 'none'} onValueChange={(v) => updateChoice(ci, { pose: v === 'none' ? '' : (v ?? '') })}>
+          <Select
+            value={choice.pose || 'none'}
+            onValueChange={(v) =>
+              updateChoice(ci, { pose: v === 'none' ? '' : (v ?? '') })
+            }
+          >
             <SelectTrigger className='w-28'>
               <SelectValue>{poseLabel(choice.pose)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value='none'>{t('character.admin.noPose')}</SelectItem>
+              <SelectItem value='none'>
+                {t('character.admin.noPose')}
+              </SelectItem>
               {poseNames.map((p) => (
                 <SelectItem key={p} value={p}>
                   {p}
@@ -164,13 +200,17 @@ export function ScriptLineEditor({
           </Select>
           <Select
             value={choice.background || 'none'}
-            onValueChange={(v) => updateChoice(ci, { background: v === 'none' ? '' : (v ?? '') })}
+            onValueChange={(v) =>
+              updateChoice(ci, { background: v === 'none' ? '' : (v ?? '') })
+            }
           >
             <SelectTrigger className='w-28'>
               <SelectValue>{backgroundLabel(choice.background)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value='none'>{t('character.admin.noBackground')}</SelectItem>
+              <SelectItem value='none'>
+                {t('character.admin.noBackground')}
+              </SelectItem>
               {backgroundNames.map((b) => (
                 <SelectItem key={b} value={b}>
                   {b}
@@ -178,7 +218,9 @@ export function ScriptLineEditor({
               ))}
             </SelectContent>
           </Select>
-          {effectSelect(choice.effect ?? '', (v) => updateChoice(ci, { effect: v }))}
+          {effectSelect(choice.effect ?? '', (v) =>
+            updateChoice(ci, { effect: v })
+          )}
           <Button
             variant='ghost'
             size='icon-xs'

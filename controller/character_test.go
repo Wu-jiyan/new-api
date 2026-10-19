@@ -105,7 +105,7 @@ func TestUserGetCharacterScriptLocked(t *testing.T) {
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/character/char-lock-model/script/1", nil))
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp struct {
-		Success bool                     `json:"success"`
+		Success bool                    `json:"success"`
 		Data    []model.CharacterScript `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))

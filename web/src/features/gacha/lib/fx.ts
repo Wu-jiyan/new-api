@@ -18,7 +18,8 @@ let raf = 0
 function ensureCanvas() {
   if (canvas) return
   canvas = document.createElement('canvas')
-  canvas.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9999'
+  canvas.style.cssText =
+    'position:fixed;inset:0;pointer-events:none;z-index:9999'
   document.body.appendChild(canvas)
   canvas.width = window.innerWidth
   canvas.height = window.innerHeight
@@ -53,7 +54,13 @@ function loop() {
   }
 }
 
-export function burst(x: number, y: number, colors: string[], count = 40, power = 7) {
+export function burst(
+  x: number,
+  y: number,
+  colors: string[],
+  count = 40,
+  power = 7
+) {
   ensureCanvas()
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2

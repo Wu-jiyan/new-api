@@ -1202,9 +1202,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
             <DetailRow
               label={t('Mode')}
               value={
-                channelCost.mode === 'fixed'
-                  ? t('Fixed Price')
-                  : t('Discount')
+                channelCost.mode === 'fixed' ? t('Fixed Price') : t('Discount')
               }
             />
             {channelCost.mode === 'discount' &&
@@ -1234,9 +1232,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
             <DetailRow
               label={t('Profit')}
               value={
-                <span
-                  className={cn(channelCostProfitClass)}
-                >
+                <span className={cn(channelCostProfitClass)}>
                   {channelCostProfit > 0 ? '+' : ''}
                   {formatLogQuota(channelCostProfit)}
                 </span>

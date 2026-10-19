@@ -29,8 +29,8 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { Dialog } from '@/components/dialog'
 import { Captcha } from '@/components/captcha'
+import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { IconBadge } from '@/components/ui/icon-badge'
@@ -41,8 +41,8 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from '@/components/ui/tooltip'
-import { formatQuotaWithCurrency } from '@/lib/currency'
 import type { CaptchaPayload, CaptchaProvider } from '@/lib/captcha'
+import { formatQuotaWithCurrency } from '@/lib/currency'
 import dayjs from '@/lib/dayjs'
 import { handleServerError } from '@/lib/handle-server-error'
 import { createServerError } from '@/lib/server-error-message'
@@ -161,13 +161,19 @@ export function CheckinCalendarCard({
         } else {
           if (!captcha && shouldTriggerCaptcha(res.message)) {
             if (!captchaSiteKey) {
-              toast.error(
-                captchaProvider === 'geetest'
-                  ? t('GeeTest is enabled but captcha id is empty.')
-                  : captchaProvider === 'corptcha'
-                    ? t('Corptcha is enabled but site id is empty.')
-                    : t('Turnstile is enabled but site key is empty.')
+              let missingKeyMessage = t(
+                'Turnstile is enabled but site key is empty.'
               )
+              if (captchaProvider === 'geetest') {
+                missingKeyMessage = t(
+                  'GeeTest is enabled but captcha id is empty.'
+                )
+              } else if (captchaProvider === 'corptcha') {
+                missingKeyMessage = t(
+                  'Corptcha is enabled but site id is empty.'
+                )
+              }
+              toast.error(missingKeyMessage)
               return
             }
             setCaptchaModalVisible(true)

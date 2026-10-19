@@ -321,39 +321,52 @@ export default function CharacterDetailPage() {
               const affinityReady =
                 stage.affinity_required === undefined ||
                 character.affinity >= stage.affinity_required
-              const right = stage.claimed ? (
-                <span className='text-primary text-xs'>
-                  {t('character.unlocked')}
-                </span>
-              ) : stage.eligible ? (
-                <Button
-                  size='sm'
-                  variant='default'
-                  disabled={unlocking}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    unlockStage(stage.index)
-                  }}
-                >
-                  <Unlock className='mr-1 h-3.5 w-3.5' />
-                  {t('character.unlock')}
-                </Button>
-              ) : (
-                <span className='text-muted-foreground text-xs'>
-                  {stage.affinity_required && !affinityReady
-                    ? `♥ ${character.affinity}/${stage.affinity_required}`
-                    : `${formatTokens(stage.unlock_tokens)} tokens`}
-                </span>
+              const right = (
+                <>
+                  {stage.claimed && (
+                    <span className='text-primary text-xs'>
+                      {t('character.unlocked')}
+                    </span>
+                  )}
+                  {stage.eligible && !stage.claimed && (
+                    <Button
+                      size='sm'
+                      variant='default'
+                      disabled={unlocking}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        unlockStage(stage.index)
+                      }}
+                    >
+                      <Unlock className='mr-1 h-3.5 w-3.5' />
+                      {t('character.unlock')}
+                    </Button>
+                  )}
+                  {!stage.claimed && !stage.eligible && (
+                    <span className='text-muted-foreground text-xs'>
+                      {stage.affinity_required && !affinityReady
+                        ? `♥ ${character.affinity}/${stage.affinity_required}`
+                        : `${formatTokens(stage.unlock_tokens)} tokens`}
+                    </span>
+                  )}
+                </>
               )
-              const icon = stage.claimed ? (
-                <Sparkles className='text-primary h-4 w-4' />
-              ) : stage.eligible ? (
-                <LockKeyhole className='h-4 w-4 text-amber-500' />
-              ) : (
-                <Lock className='text-muted-foreground h-4 w-4' />
+              const icon = (
+                <>
+                  {stage.claimed && (
+                    <Sparkles className='text-primary h-4 w-4' />
+                  )}
+                  {stage.eligible && !stage.claimed && (
+                    <LockKeyhole className='h-4 w-4 text-amber-500' />
+                  )}
+                  {!stage.claimed && !stage.eligible && (
+                    <Lock className='text-muted-foreground h-4 w-4' />
+                  )}
+                </>
               )
               return (
                 <button
+                  type='button'
                   key={stage.index}
                   className={cn(
                     'relative flex w-full items-center justify-between gap-2 overflow-hidden rounded-lg border px-4 py-2.5 text-left transition-colors',
@@ -388,7 +401,7 @@ export default function CharacterDetailPage() {
               <span className='unlock-ring' />
             </span>
           )}
-          {currentClaimed ? (
+          {currentClaimed && (
             <Button
               variant='outline'
               size='lg'
@@ -403,7 +416,8 @@ export default function CharacterDetailPage() {
                 ? t('character.story.goOn')
                 : t('character.story.enter')}
             </Button>
-          ) : currentEligible ? (
+          )}
+          {!currentClaimed && currentEligible && (
             <Button
               variant='default'
               size='lg'
@@ -419,7 +433,8 @@ export default function CharacterDetailPage() {
               {t('character.unlock')}
               {currentStage?.name}
             </Button>
-          ) : (
+          )}
+          {!currentClaimed && !currentEligible && (
             <Button
               variant='outline'
               size='lg'

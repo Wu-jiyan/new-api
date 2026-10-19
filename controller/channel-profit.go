@@ -84,12 +84,12 @@ func GetChannelProfit(c *gin.Context) {
 	for _, row := range trend {
 		revenue := float64(row.Revenue)
 		trendRows = append(trendRows, gin.H{
-			"bucket":     row.Bucket,
-			"revenue":    revenue,
-			"cost":       row.Cost,
-			"profit":     revenue - row.Cost,
+			"bucket":      row.Bucket,
+			"revenue":     revenue,
+			"cost":        row.Cost,
+			"profit":      revenue - row.Cost,
 			"profit_rate": profitRate(revenue, row.Cost),
-			"count":      row.Count,
+			"count":       row.Count,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{

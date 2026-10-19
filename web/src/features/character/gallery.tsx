@@ -19,10 +19,21 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
-import { fetchCharacterPet, fetchCharacters, setCharacterPet, unlockCharacter } from './api'
+import {
+  fetchCharacterPet,
+  fetchCharacters,
+  setCharacterPet,
+  unlockCharacter,
+} from './api'
 import { Lightbox } from './components/lightbox'
 import { StoryPlayer } from './components/story-player'
 import type { CharacterStageView, CharacterView } from './types'
+
+/** 骨架屏占位键：固定文本，避免用数组下标当 key。 */
+const GALLERY_SKELETON_KEYS = Array.from(
+  { length: 10 },
+  (_, index) => `skeleton-${index}`
+)
 
 function formatTokens(tokens: number): string {
   if (tokens >= 1_000_000_000) return `${(tokens / 1_000_000_000).toFixed(1)}B`
@@ -162,11 +173,9 @@ function CharacterCard(props: CharacterCardProps) {
                 : 'bg-background/85 text-muted-foreground'
             )}
           >
-            {claimed
-              ? (currentStage?.name ?? t('character.unlocked'))
-              : eligibleStage
-                ? t('character.unlockReady')
-                : t('character.gallery.locked')}
+            {claimed && (currentStage?.name ?? t('character.unlocked'))}
+            {!claimed && eligibleStage && t('character.unlockReady')}
+            {!claimed && !eligibleStage && t('character.gallery.locked')}
           </span>
           {imageUrl && (
             <span className='pointer-events-none absolute right-2 bottom-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[11px] text-white opacity-0 backdrop-blur-sm transition-opacity group-hover/image:opacity-100'>
@@ -266,7 +275,9 @@ function CharacterCard(props: CharacterCardProps) {
                 ) : (
                   <PawPrint className='mr-1.5 h-4 w-4' />
                 )}
-                {props.isPet ? t('character.pet.deactivate') : t('character.pet.activate')}
+                {props.isPet
+                  ? t('character.pet.deactivate')
+                  : t('character.pet.activate')}
               </Button>
             )}
           </div>
@@ -307,7 +318,8 @@ export default function CharacterGalleryPage() {
 
   const [petPending, setPetPending] = useState(false)
   const petMutation = useMutation({
-    mutationFn: ({ modelName }: { modelName: string }) => setCharacterPet(modelName),
+    mutationFn: ({ modelName }: { modelName: string }) =>
+      setCharacterPet(modelName),
     onMutate: () => setPetPending(true),
     onSettled: () => setPetPending(false),
     onSuccess: (next) => {
@@ -351,8 +363,8 @@ export default function CharacterGalleryPage() {
               <Skeleton className='h-24 rounded-xl' />
             </div>
             <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'>
-              {Array.from({ length: 10 }).map((_, index) => (
-                <Skeleton key={index} className='aspect-[3/4] rounded-xl' />
+              {GALLERY_SKELETON_KEYS.map((key) => (
+                <Skeleton key={key} className='aspect-[3/4] rounded-xl' />
               ))}
             </div>
           </div>
@@ -409,7 +421,10 @@ export default function CharacterGalleryPage() {
                 <CharacterCard
                   key={character.id}
                   character={character}
-                  isPet={pet?.active === true && pet.model_name === character.model_name}
+                  isPet={
+                    pet?.active === true &&
+                    pet.model_name === character.model_name
+                  }
                   petPending={petPending}
                   onTogglePet={togglePet}
                   onClick={() =>

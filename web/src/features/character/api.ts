@@ -55,8 +55,9 @@ export async function unlockCharacter(
     { stage },
     { skipErrorHandler: true }
   )
-  if (!res.data?.success)
+  if (!res.data?.success) {
     throw new Error(res.data?.message ?? 'Failed to unlock')
+  }
   return res.data?.data
 }
 
@@ -64,8 +65,9 @@ export async function forgetCharacter(modelName: string): Promise<void> {
   const res = await api.post(
     `/api/character/${encodeURIComponent(modelName)}/forget`
   )
-  if (!res.data?.success)
+  if (!res.data?.success) {
     throw new Error(res.data?.message ?? 'Failed to forget')
+  }
 }
 
 export async function fetchCharacterChatMeta(
@@ -116,8 +118,9 @@ export async function setCharacterPet(
     { model_name: modelName },
     { skipErrorHandler: true }
   )
-  if (!res.data?.success)
+  if (!res.data?.success) {
     throw new Error(res.data?.message ?? 'Failed to update desk pet')
+  }
   return res.data?.data ?? { active: false }
 }
 

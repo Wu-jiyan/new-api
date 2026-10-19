@@ -22,7 +22,6 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 
 import { formatGroupRatioLabel } from '../lib/group-ratio'
-
 import { StatusBadge, type StatusBadgeProps } from './status-badge'
 import { Badge } from './ui/badge'
 

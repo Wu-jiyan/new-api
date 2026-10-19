@@ -56,12 +56,14 @@ export function Profile() {
     captchaProvider = 'turnstile'
   }
   const captchaEnabled = captchaProvider !== null
-  const captchaSiteKey =
-    captchaProvider === 'corptcha'
-      ? status?.corptcha_site_id || ''
-      : captchaProvider === 'geetest'
-        ? status?.geetest_captcha_id || ''
-        : status?.turnstile_site_key || ''
+  let captchaSiteKey = ''
+  if (captchaProvider === 'corptcha') {
+    captchaSiteKey = status?.corptcha_site_id || ''
+  } else if (captchaProvider === 'geetest') {
+    captchaSiteKey = status?.geetest_captcha_id || ''
+  } else if (captchaProvider === 'turnstile') {
+    captchaSiteKey = status?.turnstile_site_key || ''
+  }
   const canConfigureSidebar = permissions?.sidebar_settings !== false
   // Older cached status payloads lack these fields; the site default is on.
   const quotaRemindEnabled = status?.quota_remind_enabled !== false

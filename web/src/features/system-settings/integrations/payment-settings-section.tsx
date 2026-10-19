@@ -1152,9 +1152,7 @@ export function PaymentSettingsSection({
                     render={({ field }) => (
                       <SettingsSwitchItem>
                         <SettingsSwitchContent>
-                          <FormLabel>
-                            {t('Enable range discount')}
-                          </FormLabel>
+                          <FormLabel>{t('Enable range discount')}</FormLabel>
                           <FormDescription>
                             {t(
                               'Apply the highest tier discount not exceeding the recharge amount (e.g. with 20/0.9 and 50/0.8, charging 35 uses 0.9 and 60 uses 0.8)'

@@ -309,8 +309,12 @@ describe('character gallery desk pet activation', () => {
     await user.click(
       await screen.findByRole('button', { name: 'character.pet.activate' })
     )
-    expect(post).toHaveBeenCalledWith('/api/character/pet', {
-      model_name: MODEL_NAME,
-    }, { skipErrorHandler: true })
+    expect(post).toHaveBeenCalledWith(
+      '/api/character/pet',
+      {
+        model_name: MODEL_NAME,
+      },
+      { skipErrorHandler: true }
+    )
   })
 })

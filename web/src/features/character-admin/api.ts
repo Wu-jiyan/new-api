@@ -2,35 +2,47 @@ import { api } from '@/lib/api'
 
 import type { CharacterAdminItem } from './types'
 
-export async function fetchAdminCharacters(keyword?: string): Promise<CharacterAdminItem[]> {
+export async function fetchAdminCharacters(
+  keyword?: string
+): Promise<CharacterAdminItem[]> {
   const params = keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''
-  const res = await api.get<{ success: boolean; message?: string; data: CharacterAdminItem[] }>(
-    `/api/character/admin/characters${params}`,
-    { skipErrorHandler: true }
-  )
-  if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to load characters')
+  const res = await api.get<{
+    success: boolean
+    message?: string
+    data: CharacterAdminItem[]
+  }>(`/api/character/admin/characters${params}`, { skipErrorHandler: true })
+  if (!res.data?.success) {
+    throw new Error(res.data?.message ?? 'Failed to load characters')
+  }
   return res.data?.data ?? []
 }
 
 export async function createCharacter(
   data: Partial<CharacterAdminItem>
 ): Promise<CharacterAdminItem> {
-  const res = await api.post<{ success: boolean; message?: string; data: CharacterAdminItem }>(
-    '/api/character/admin/characters',
-    data,
-    { skipErrorHandler: true }
-  )
-  if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to create character')
+  const res = await api.post<{
+    success: boolean
+    message?: string
+    data: CharacterAdminItem
+  }>('/api/character/admin/characters', data, { skipErrorHandler: true })
+  if (!res.data?.success) {
+    throw new Error(res.data?.message ?? 'Failed to create character')
+  }
   return res.data?.data
 }
 
-export async function updateCharacter(id: number, data: Partial<CharacterAdminItem>): Promise<void> {
+export async function updateCharacter(
+  id: number,
+  data: Partial<CharacterAdminItem>
+): Promise<void> {
   const res = await api.put<{ success: boolean; message?: string }>(
     `/api/character/admin/characters/${id}`,
     data,
     { skipErrorHandler: true }
   )
-  if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to update character')
+  if (!res.data?.success) {
+    throw new Error(res.data?.message ?? 'Failed to update character')
+  }
 }
 
 export async function deleteCharacter(id: number): Promise<void> {
@@ -98,25 +110,37 @@ export interface GlobalBackgroundItem {
   updated_at: number
 }
 
-export async function fetchBackgroundLibrary(): Promise<GlobalBackgroundItem[]> {
-  const res = await api.get<{ success: boolean; message?: string; data: GlobalBackgroundItem[] }>(
-    '/api/character/admin/backgrounds',
-    { skipErrorHandler: true }
-  )
-  if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to load backgrounds')
+export async function fetchBackgroundLibrary(): Promise<
+  GlobalBackgroundItem[]
+> {
+  const res = await api.get<{
+    success: boolean
+    message?: string
+    data: GlobalBackgroundItem[]
+  }>('/api/character/admin/backgrounds', { skipErrorHandler: true })
+  if (!res.data?.success) {
+    throw new Error(res.data?.message ?? 'Failed to load backgrounds')
+  }
   return res.data?.data ?? []
 }
 
-export async function uploadBackground(name: string, file: File): Promise<GlobalBackgroundItem> {
+export async function uploadBackground(
+  name: string,
+  file: File
+): Promise<GlobalBackgroundItem> {
   const form = new FormData()
   form.append('name', name)
   form.append('file', file)
-  const res = await api.post<{ success: boolean; message?: string; data: GlobalBackgroundItem }>(
-    '/api/character/admin/backgrounds/upload',
-    form,
-    { skipErrorHandler: true }
-  )
-  if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to upload background')
+  const res = await api.post<{
+    success: boolean
+    message?: string
+    data: GlobalBackgroundItem
+  }>('/api/character/admin/backgrounds/upload', form, {
+    skipErrorHandler: true,
+  })
+  if (!res.data?.success) {
+    throw new Error(res.data?.message ?? 'Failed to upload background')
+  }
   return res.data?.data
 }
 
@@ -124,12 +148,18 @@ export async function generateBackground(
   name: string,
   prompt: string
 ): Promise<GlobalBackgroundItem> {
-  const res = await api.post<{ success: boolean; message?: string; data: GlobalBackgroundItem }>(
+  const res = await api.post<{
+    success: boolean
+    message?: string
+    data: GlobalBackgroundItem
+  }>(
     '/api/character/admin/backgrounds/generate',
     { name, prompt },
     { skipErrorHandler: true }
   )
-  if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to generate background')
+  if (!res.data?.success) {
+    throw new Error(res.data?.message ?? 'Failed to generate background')
+  }
   return res.data?.data
 }
 
@@ -142,10 +172,16 @@ export async function saveCharacterScript(
   stageIndex: number,
   script: { speaker: string; text: string }[]
 ): Promise<void> {
-  await api.post(`/api/character/admin/characters/${id}/stages/${stageIndex}/script`, { script })
+  await api.post(
+    `/api/character/admin/characters/${id}/stages/${stageIndex}/script`,
+    { script }
+  )
 }
 
-export async function updateCharacterThresholds(stage2: number, stage3: number): Promise<void> {
+export async function updateCharacterThresholds(
+  stage2: number,
+  stage3: number
+): Promise<void> {
   await api.put('/api/character/admin/thresholds', {
     stage2_tokens: stage2,
     stage3_tokens: stage3,
@@ -161,12 +197,18 @@ export async function generateCharacterPetImage(
   prompt?: string,
   style?: string
 ): Promise<CharacterPetImageResult> {
-  const res = await api.post<{ success: boolean; message?: string; data: CharacterPetImageResult }>(
+  const res = await api.post<{
+    success: boolean
+    message?: string
+    data: CharacterPetImageResult
+  }>(
     `/api/character/admin/characters/${id}/pet/generate`,
     { prompt, style },
     { skipErrorHandler: true }
   )
-  if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to generate pet image')
+  if (!res.data?.success) {
+    throw new Error(res.data?.message ?? 'Failed to generate pet image')
+  }
   return res.data?.data ?? {}
 }
 
@@ -176,11 +218,15 @@ export async function uploadCharacterPetImage(
 ): Promise<CharacterPetImageResult> {
   const form = new FormData()
   form.append('file', file)
-  const res = await api.post<{ success: boolean; message?: string; data: CharacterPetImageResult }>(
-    `/api/character/admin/characters/${id}/pet/image`,
-    form,
-    { skipErrorHandler: true }
-  )
-  if (!res.data?.success) throw new Error(res.data?.message ?? 'Failed to upload pet image')
+  const res = await api.post<{
+    success: boolean
+    message?: string
+    data: CharacterPetImageResult
+  }>(`/api/character/admin/characters/${id}/pet/image`, form, {
+    skipErrorHandler: true,
+  })
+  if (!res.data?.success) {
+    throw new Error(res.data?.message ?? 'Failed to upload pet image')
+  }
   return res.data?.data ?? {}
 }

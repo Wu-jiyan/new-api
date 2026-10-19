@@ -24,13 +24,12 @@ import { useTranslation } from 'react-i18next'
 import { FadeIn } from '@/components/page-transition'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { getChannelProfit } from '@/features/dashboard/api'
 import {
   TIME_GRANULARITY_OPTIONS,
   TIME_RANGE_PRESETS,
 } from '@/features/dashboard/constants'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
-
-import { getChannelProfit } from '@/features/dashboard/api'
 
 import { ChannelProfitTable } from './channel-profit-table'
 import { ModelProfitChart } from './model-profit-chart'
@@ -50,7 +49,12 @@ export function ProfitSection() {
   }, [selectedRange])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['channel-profit', timeRange.start_timestamp, timeRange.end_timestamp, granularity],
+    queryKey: [
+      'channel-profit',
+      timeRange.start_timestamp,
+      timeRange.end_timestamp,
+      granularity,
+    ],
     queryFn: () =>
       getChannelProfit({
         start_timestamp: timeRange.start_timestamp,
@@ -104,10 +108,7 @@ export function ProfitSection() {
       </div>
 
       <FadeIn>
-        <ProfitSummaryCards
-          summary={data?.data.summary}
-          loading={isLoading}
-        />
+        <ProfitSummaryCards summary={data?.data.summary} loading={isLoading} />
       </FadeIn>
       <FadeIn delay={0.05}>
         <ChannelProfitTable rows={data?.data.by_channel} loading={isLoading} />

@@ -10,7 +10,10 @@ export interface FlashState {
 const FLASH_DURATION = 420
 
 /** 当 effect 为 black/white 时触发一次闪屏；triggerKey 变化（如台词游标推进）允许同效果重复触发 */
-export function useSceneFlash(effect?: string, triggerKey?: unknown): FlashState | null {
+export function useSceneFlash(
+  effect?: string,
+  triggerKey?: unknown
+): FlashState | null {
   const [flash, setFlash] = useState<FlashState | null>(null)
   useEffect(() => {
     if (!isFlashEffect(effect)) {

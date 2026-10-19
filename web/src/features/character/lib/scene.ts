@@ -1,7 +1,10 @@
 import type { CharacterStageView, CharacterView } from '../types'
 
 /** 姿态立绘 URL：指定 pose → 阶段 poses 匹配；否则阶段第一姿态 */
-export function resolvePose(stage?: CharacterStageView, pose?: string): string | undefined {
+export function resolvePose(
+  stage?: CharacterStageView,
+  pose?: string
+): string | undefined {
   if (!stage) return undefined
   if (pose) {
     const hit = stage.poses?.find((p) => p.name === pose)

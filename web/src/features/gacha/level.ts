@@ -79,7 +79,11 @@ export const MERGE_BADGE_META: Record<
   MergeBadge,
   { icon: typeof Star; className: string; label: string }
 > = {
-  star: { icon: Star, className: 'fill-yellow-400 text-yellow-400', label: '⭐' },
+  star: {
+    icon: Star,
+    className: 'fill-yellow-400 text-yellow-400',
+    label: '⭐',
+  },
   moon: { icon: Moon, className: 'fill-sky-300 text-sky-300', label: '🌙' },
   sun: { icon: Sun, className: 'fill-orange-400 text-orange-400', label: '☀️' },
 }

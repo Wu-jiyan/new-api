@@ -62,7 +62,11 @@ function useGroupRatios(): {
       if (!res.success || !res.data) return { ratios, forcedPrices }
       for (const [group, info] of Object.entries(res.data)) {
         const forced = info.forced_price
-        if (typeof forced === 'number' && Number.isFinite(forced) && forced > 0) {
+        if (
+          typeof forced === 'number' &&
+          Number.isFinite(forced) &&
+          forced > 0
+        ) {
           forcedPrices[group] = forced
           continue
         }
@@ -248,6 +252,15 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
         meta: { pinned: 'right' as const },
       },
     ],
-    [t, quotaUnit, now, groupRatios, groupForcedPrices, shouldReduceMotion, locale, justNowLabel]
+    [
+      t,
+      quotaUnit,
+      now,
+      groupRatios,
+      groupForcedPrices,
+      shouldReduceMotion,
+      locale,
+      justNowLabel,
+    ]
   )
 }

@@ -30,7 +30,9 @@ export function GlassSelect({
   useEffect(() => {
     if (!open) return
     const onDocDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
     }
     document.addEventListener('mousedown', onDocDown)
     return () => document.removeEventListener('mousedown', onDocDown)
@@ -49,7 +51,10 @@ export function GlassSelect({
         <span className='max-w-[13rem] truncate'>{value || '…'}</span>
         <svg
           viewBox='0 0 24 24'
-          className={cn('size-3 shrink-0 text-white/50 transition-transform', open && 'rotate-180')}
+          className={cn(
+            'size-3 shrink-0 text-white/50 transition-transform',
+            open && 'rotate-180'
+          )}
           fill='none'
           stroke='currentColor'
           strokeWidth='2'
@@ -71,7 +76,9 @@ export function GlassSelect({
               type='button'
               className={cn(
                 'block w-full px-3 py-1.5 text-left text-xs whitespace-nowrap transition-colors',
-                o === value ? 'text-primary bg-white/10' : 'text-white/80 hover:bg-white/10'
+                o === value
+                  ? 'text-primary bg-white/10'
+                  : 'text-white/80 hover:bg-white/10'
               )}
               onClick={() => {
                 onChange(o)

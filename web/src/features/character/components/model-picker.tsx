@@ -26,7 +26,12 @@ interface ModelPickerProps {
  * 进入 AI 剧情阶段时的模型/分组选择弹窗。
  * 默认分组 auto（无则第一个），默认模型取角色配置，未配置则取列表第一个。
  */
-export function ModelPicker({ open, modelPrefix, defaultModel, onConfirm }: ModelPickerProps) {
+export function ModelPicker({
+  open,
+  modelPrefix,
+  defaultModel,
+  onConfirm,
+}: ModelPickerProps) {
   const { t } = useTranslation()
   const [groups, setGroups] = useState<string[]>([])
   const [group, setGroup] = useState('')
@@ -38,12 +43,19 @@ export function ModelPicker({ open, modelPrefix, defaultModel, onConfirm }: Mode
   useEffect(() => {
     if (!open) return
     let cancelled = false
-    getUserGroups().then((gs) => {
-      if (cancelled) return
-      const values = gs.map((g) => g.value)
-      setGroups(values)
-      setGroup((prev) => prev || (values.includes('auto') ? 'auto' : (values[0] ?? '')))
-    })
+    getUserGroups()
+      .then((gs) => {
+        if (cancelled) return
+        const values = gs.map((g) => g.value)
+        setGroups(values)
+        setGroup(
+          (prev) =>
+            prev || (values.includes('auto') ? 'auto' : (values[0] ?? ''))
+        )
+      })
+      .catch(() => {
+        // 分组加载失败时保持空列表，弹窗不再展示可选分组
+      })
     return () => {
       cancelled = true
     }
@@ -54,16 +66,23 @@ export function ModelPicker({ open, modelPrefix, defaultModel, onConfirm }: Mode
     if (!open || !group) return
     let cancelled = false
     setLoading(true)
-    getUserModels(group)
+    void getUserModels(group)
       .then((ms) => {
         if (cancelled) return
-        const filtered = ms.map((m) => m.value).filter((v) => v.startsWith(modelPrefix))
+        const filtered = ms
+          .map((m) => m.value)
+          .filter((v) => v.startsWith(modelPrefix))
         setModels(filtered)
         setModel((prev) => {
           if (prev && filtered.includes(prev)) return prev
-          if (defaultModel && filtered.includes(defaultModel)) return defaultModel
+          if (defaultModel && filtered.includes(defaultModel)) {
+            return defaultModel
+          }
           return filtered[0] ?? ''
         })
+      })
+      .catch(() => {
+        // 模型加载失败时保持空列表，弹窗会提示「无可用模型」
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -75,32 +94,45 @@ export function ModelPicker({ open, modelPrefix, defaultModel, onConfirm }: Mode
 
   return (
     <Dialog open={open}>
-      <DialogContent className='z-[120] sm:max-w-sm' onClick={(e) => e.stopPropagation()}>
+      <DialogContent
+        className='z-[120] sm:max-w-sm'
+        onClick={(e) => e.stopPropagation()}
+      >
         <DialogHeader>
           <DialogTitle>{t('character.story.modelTitle')}</DialogTitle>
-          <DialogDescription>{t('character.story.modelTitleHint')}</DialogDescription>
+          <DialogDescription>
+            {t('character.story.modelTitleHint')}
+          </DialogDescription>
         </DialogHeader>
 
         <div className='space-y-1.5'>
-          <div className='text-muted-foreground text-xs'>{t('character.story.groupLabel')}</div>
+          <div className='text-muted-foreground text-xs'>
+            {t('character.story.groupLabel')}
+          </div>
           <GlassSelect
             value={group}
             options={groups}
             onChange={setGroup}
             dropUp={false}
-            className='w-full [&>button]:w-full [&>button]:justify-between [&>button]:bg-background [&>button]:text-foreground'
+            className='[&>button]:bg-background [&>button]:text-foreground w-full [&>button]:w-full [&>button]:justify-between'
           />
         </div>
 
         <div className='space-y-1.5'>
-          <div className='text-muted-foreground text-xs'>{t('character.story.modelLabel')}</div>
-          {loading ? (
-            <div className='text-muted-foreground py-4 text-center text-xs'>…</div>
-          ) : models.length === 0 ? (
+          <div className='text-muted-foreground text-xs'>
+            {t('character.story.modelLabel')}
+          </div>
+          {loading && (
+            <div className='text-muted-foreground py-4 text-center text-xs'>
+              …
+            </div>
+          )}
+          {!loading && models.length === 0 && (
             <div className='text-muted-foreground py-4 text-center text-xs'>
               {t('character.story.noModels')}
             </div>
-          ) : (
+          )}
+          {!loading && models.length > 0 && (
             <div className='max-h-56 space-y-1 overflow-y-auto pr-1'>
               {models.map((m) => (
                 <button
@@ -125,7 +157,7 @@ export function ModelPicker({ open, modelPrefix, defaultModel, onConfirm }: Mode
         <button
           type='button'
           disabled={!model}
-          className='bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs w-full rounded-full py-2 text-sm font-semibold transition-colors disabled:opacity-50'
+          className='bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-full py-2 text-sm font-semibold shadow-xs transition-colors disabled:opacity-50'
           onClick={() => model && onConfirm(model, group)}
         >
           {t('character.story.confirmStart')}

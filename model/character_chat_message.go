@@ -14,19 +14,19 @@ type CharacterChatVisual struct {
 
 // CharacterChatMessage 单条对话消息（content 仅存纯台词文本）
 type CharacterChatMessage struct {
-	Id            int    `json:"id"`
-	SessionId     int    `json:"session_id" gorm:"index"`
-	UserId        int    `json:"user_id" gorm:"index"`
-	ModelName     string `json:"model_name" gorm:"size:128"`
-	Role          string `json:"role" gorm:"size:16"`
-	Content       string `json:"content" gorm:"type:text"`
-	Pose          string `json:"pose,omitempty" gorm:"size:64"`
-	Effect        string `json:"effect,omitempty" gorm:"size:16"`
-	Background    string `json:"background,omitempty" gorm:"size:64"`
-	AffinityDelta int    `json:"affinity_delta" gorm:"default:0"`
-	ChoicesJSON   string                `json:"-" gorm:"type:text"`          // assistant 回复携带的回答选项（JSON 数组）
-	Choices       []CharacterChatChoice `json:"choices,omitempty" gorm:"-"`  // AfterFind 回填
-	CreatedAt     int64  `json:"created_at" gorm:"bigint"`
+	Id            int                   `json:"id"`
+	SessionId     int                   `json:"session_id" gorm:"index"`
+	UserId        int                   `json:"user_id" gorm:"index"`
+	ModelName     string                `json:"model_name" gorm:"size:128"`
+	Role          string                `json:"role" gorm:"size:16"`
+	Content       string                `json:"content" gorm:"type:text"`
+	Pose          string                `json:"pose,omitempty" gorm:"size:64"`
+	Effect        string                `json:"effect,omitempty" gorm:"size:16"`
+	Background    string                `json:"background,omitempty" gorm:"size:64"`
+	AffinityDelta int                   `json:"affinity_delta" gorm:"default:0"`
+	ChoicesJSON   string                `json:"-" gorm:"type:text"`         // assistant 回复携带的回答选项（JSON 数组）
+	Choices       []CharacterChatChoice `json:"choices,omitempty" gorm:"-"` // AfterFind 回填
+	CreatedAt     int64                 `json:"created_at" gorm:"bigint"`
 }
 
 // AfterFind 把 ChoicesJSON 回填为结构化 Choices（解析失败静默为空）

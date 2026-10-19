@@ -336,7 +336,9 @@ export function BotProtectionSection({
                           {t('Cloudflare Turnstile')}
                         </SelectItem>
                         <SelectItem value='geetest'>{t('GeeTest')}</SelectItem>
-                        <SelectItem value='corptcha'>{t('Corptcha')}</SelectItem>
+                        <SelectItem value='corptcha'>
+                          {t('Corptcha')}
+                        </SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>

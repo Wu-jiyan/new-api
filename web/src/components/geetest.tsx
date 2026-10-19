@@ -101,14 +101,14 @@ export function GeeTest({
       init()
     } else {
       const scriptId = 'gt4-geetest'
-      let script = document.getElementById(scriptId) as HTMLScriptElement | null
+      let script = document.querySelector<HTMLScriptElement>(`#${scriptId}`)
       if (!script) {
         script = document.createElement('script')
         script.id = scriptId
         script.src = 'https://static.geetest.com/v4/gt4.js'
         script.async = true
         script.defer = true
-        script.onload = () => init()
+        script.addEventListener('load', () => init())
         document.head.appendChild(script)
       } else {
         script.addEventListener('load', () => init())

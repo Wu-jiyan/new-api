@@ -185,7 +185,12 @@ export function ConversationArchiveSection({
                   <FormItem className='max-w-sm'>
                     <FormLabel>{t('Retention (hours)')}</FormLabel>
                     <FormControl>
-                      <Input type='number' min={0} placeholder='24' {...field} />
+                      <Input
+                        type='number'
+                        min={0}
+                        placeholder='24'
+                        {...field}
+                      />
                     </FormControl>
                     <FormDescription>
                       {t(
@@ -209,7 +214,9 @@ export function ConversationArchiveSection({
                           <Input
                             type='text'
                             className='font-mono text-xs'
-                            placeholder={t('Leave empty to disable pull access')}
+                            placeholder={t(
+                              'Leave empty to disable pull access'
+                            )}
                             {...field}
                           />
                         </FormControl>

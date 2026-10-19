@@ -38,7 +38,9 @@ export function isGroupSortMode(value: unknown): value is GroupSortMode {
   )
 }
 
-export function getGroupSortLabels(t: TFunction): Record<GroupSortMode, string> {
+export function getGroupSortLabels(
+  t: TFunction
+): Record<GroupSortMode, string> {
   return {
     auto: t('Auto group chain'),
     name: t('Group name (A-Z)'),

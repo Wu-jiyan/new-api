@@ -21,6 +21,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { GroupBadge } from '@/components/group-badge'
 import {
   StatusBadge,
   dotColorMap,
@@ -28,7 +29,6 @@ import {
 } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { GroupBadge } from '@/components/group-badge'
 import { Progress } from '@/components/ui/progress'
 import {
   Select,

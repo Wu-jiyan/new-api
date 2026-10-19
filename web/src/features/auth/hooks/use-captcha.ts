@@ -68,12 +68,14 @@ export function useCaptcha(scene?: CaptchaScene) {
   if (!sceneEnabled) provider = null
 
   const isCaptchaEnabled = provider !== null
-  const captchaSiteKey =
-    provider === 'corptcha'
-      ? status?.corptcha_site_id || ''
-      : provider === 'geetest'
-        ? status?.geetest_captcha_id || ''
-        : status?.turnstile_site_key || ''
+  let captchaSiteKey = ''
+  if (provider === 'corptcha') {
+    captchaSiteKey = status?.corptcha_site_id || ''
+  } else if (provider === 'geetest') {
+    captchaSiteKey = status?.geetest_captcha_id || ''
+  } else if (provider === 'turnstile') {
+    captchaSiteKey = status?.turnstile_site_key || ''
+  }
 
   const captcha: CaptchaPayload | undefined =
     provider && captchaToken

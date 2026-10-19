@@ -8,7 +8,9 @@ import type {
 } from './types'
 
 export async function fetchGachaPools(): Promise<GachaPool[]> {
-  const res = await api.get<{ success: boolean; data: GachaPool[] }>('/api/gacha/pools')
+  const res = await api.get<{ success: boolean; data: GachaPool[] }>(
+    '/api/gacha/pools'
+  )
   return res.data?.data ?? []
 }
 
@@ -52,6 +54,8 @@ export async function fetchGachaEntitlements(
 }
 
 export async function fetchGachaStats(): Promise<GachaStats | null> {
-  const res = await api.get<{ success: boolean; data: GachaStats }>('/api/gacha/stats')
+  const res = await api.get<{ success: boolean; data: GachaStats }>(
+    '/api/gacha/stats'
+  )
   return res.data?.data ?? null
 }

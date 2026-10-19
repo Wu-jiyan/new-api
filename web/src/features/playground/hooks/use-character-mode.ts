@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -40,9 +40,9 @@ export function useCharacterMode(modelName: string) {
     enabled: modelName !== '',
   })
 
-  const exitCharacterMode = () => {
+  const exitCharacterMode = useCallback(() => {
     navigate({ to: '/playground', search: { character: '' }, replace: true })
-  }
+  }, [navigate])
 
   useEffect(() => {
     if (!modelName || isLoading) return
@@ -56,7 +56,7 @@ export function useCharacterMode(modelName: string) {
       exitCharacterMode()
       return
     }
-  }, [modelName, isLoading, character, t])
+  }, [modelName, isLoading, character, t, exitCharacterMode])
 
   if (!modelName) {
     return {

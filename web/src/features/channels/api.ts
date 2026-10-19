@@ -750,9 +750,7 @@ export async function getChannelProfitSummary(): Promise<{
  * plus the models the upstream did not price (these fall back to the global
  * model price times the channel discount).
  */
-export async function syncChannelCostPrices(
-  channelId: number
-): Promise<{
+export async function syncChannelCostPrices(channelId: number): Promise<{
   success: boolean
   message?: string
   data?: {

@@ -31,7 +31,9 @@ export function extractStreamText(raw: string): string {
     const data = trimmed.slice(5).trim()
     if (!data || data === '[DONE]') continue
     try {
-      const chunk = JSON.parse(data) as { choices?: { delta?: { content?: string } }[] }
+      const chunk = JSON.parse(data) as {
+        choices?: { delta?: { content?: string } }[]
+      }
       for (const choice of chunk.choices ?? []) {
         out += choice.delta?.content ?? ''
       }
@@ -46,7 +48,9 @@ function cleanChoices(raw: unknown): CharacterReplyChoice[] | undefined {
   if (!Array.isArray(raw)) return undefined
   const cleaned = raw
     .map((c) =>
-      c && typeof c === 'object' ? String((c as Record<string, unknown>).text ?? '').trim() : ''
+      c && typeof c === 'object'
+        ? String((c as Record<string, unknown>).text ?? '').trim()
+        : ''
     )
     .filter(Boolean)
     .slice(0, 4)
@@ -69,10 +73,7 @@ export function splitLongLine(text: string): string[] {
     if (inParen && (ch === '）' || ch === ')')) {
       inParen = false
       end = true
-    } else if (
-      !inParen &&
-      '。！？!?；;\n'.includes(ch)
-    ) {
+    } else if (!inParen && '。！？!?；;\n'.includes(ch)) {
       end = true
     }
     if (end) {
@@ -90,7 +91,9 @@ export function splitLongLine(text: string): string[] {
 function normalizeLineObjs(l: unknown): CharacterReplyLine[] {
   if (!l || typeof l !== 'object') return []
   const rec = l as Record<string, unknown>
-  const text = String(rec.text ?? '').trim().slice(0, 300)
+  const text = String(rec.text ?? '')
+    .trim()
+    .slice(0, 300)
   if (!text) return []
   const speaker = String(rec.speaker ?? '').trim() || undefined
   const pose = String(rec.pose ?? '').trim() || undefined
@@ -112,7 +115,10 @@ function normalizeLineObjs(l: unknown): CharacterReplyLine[] {
  * 流式增量解析：从累积的原始文本中提取 lines[] 里「已完整闭合」的台词对象，
  * 返回第 skipCount 句之后的新增部分。解析出的句子可立即上屏，无需等整段 JSON 结束。
  */
-export function extractStreamedLines(raw: string, skipCount: number): CharacterReplyLine[] {
+export function extractStreamedLines(
+  raw: string,
+  skipCount: number
+): CharacterReplyLine[] {
   const arrIdx = raw.indexOf('"lines"')
   if (arrIdx < 0) return []
   const bracketIdx = raw.indexOf('[', arrIdx)
@@ -143,7 +149,9 @@ export function extractStreamedLines(raw: string, skipCount: number): CharacterR
     if (ch === '}') {
       depth -= 1
       if (depth === 0 && objStart >= 0) {
-        complete.push(...normalizeLineObjs(safeParse(raw.slice(objStart, i + 1))))
+        complete.push(
+          ...normalizeLineObjs(safeParse(raw.slice(objStart, i + 1)))
+        )
         objStart = -1
       }
       continue
@@ -182,20 +190,19 @@ export function parseCharacterReply(text: string): CharacterReply | null {
   const rawLines = (obj as Record<string, unknown>).lines
   let lines: CharacterReplyLine[] | undefined
   if (Array.isArray(rawLines)) {
-    const cleaned = rawLines
-      .flatMap(normalizeLineObjs)
-      .slice(-12)
+    const cleaned = rawLines.flatMap(normalizeLineObjs).slice(-12)
     if (cleaned.length > 0) lines = cleaned
   }
   if (!lines && !topReply) return null
   const reply = lines ? lines[0].text : topReply
-    return {
+  return {
     reply,
     lines,
     pose: pick('pose'),
     effect: pick('effect'),
     background: pick('background'),
-    affinityDelta: typeof delta === 'number' && Number.isFinite(delta) ? delta : undefined,
+    affinityDelta:
+      typeof delta === 'number' && Number.isFinite(delta) ? delta : undefined,
     choices: cleanChoices((obj as Record<string, unknown>).choices),
   }
 }

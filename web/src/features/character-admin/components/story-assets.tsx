@@ -66,12 +66,21 @@ export function StoryAssetsEditor({
     if (!file) return
     onGeneratingChange('background')
     try {
-      const { background_url } = await uploadCharacterImage(characterId, stageIndex, file, {
-        type: 'background',
-      })
+      const { background_url } = await uploadCharacterImage(
+        characterId,
+        stageIndex,
+        file,
+        {
+          type: 'background',
+        }
+      )
       if (background_url) onChange({ backgroundUrl: background_url })
     } catch (e) {
-      toast.error(e instanceof Error && e.message ? e.message : t('character.admin.generateFailed'))
+      toast.error(
+        e instanceof Error && e.message
+          ? e.message
+          : t('character.admin.generateFailed')
+      )
     } finally {
       onGeneratingChange(null)
     }
@@ -84,10 +93,15 @@ export function StoryAssetsEditor({
     }
     onGeneratingChange(genKey('pose', pose.name))
     try {
-      const { image_url } = await generateCharacterImage(characterId, stageIndex, '', {
-        type: 'pose',
-        pose_name: pose.name.trim(),
-      })
+      const { image_url } = await generateCharacterImage(
+        characterId,
+        stageIndex,
+        '',
+        {
+          type: 'pose',
+          pose_name: pose.name.trim(),
+        }
+      )
       if (image_url) {
         onChange({
           poses: poses.map((p) =>
@@ -111,10 +125,15 @@ export function StoryAssetsEditor({
     }
     onGeneratingChange(genKey('pose', pose.name))
     try {
-      const { image_url } = await uploadCharacterImage(characterId, stageIndex, file, {
-        type: 'pose',
-        pose_name: pose.name.trim(),
-      })
+      const { image_url } = await uploadCharacterImage(
+        characterId,
+        stageIndex,
+        file,
+        {
+          type: 'pose',
+          pose_name: pose.name.trim(),
+        }
+      )
       if (image_url) {
         onChange({
           poses: poses.map((p) =>
@@ -123,14 +142,20 @@ export function StoryAssetsEditor({
         })
       }
     } catch (e) {
-      toast.error(e instanceof Error && e.message ? e.message : t('character.admin.generateFailed'))
+      toast.error(
+        e instanceof Error && e.message
+          ? e.message
+          : t('character.admin.generateFailed')
+      )
     } finally {
       onGeneratingChange(null)
     }
   }
 
   const updatePose = (index: number, patch: Partial<PoseDraft>) => {
-    onChange({ poses: poses.map((p, i) => (i === index ? { ...p, ...patch } : p)) })
+    onChange({
+      poses: poses.map((p, i) => (i === index ? { ...p, ...patch } : p)),
+    })
   }
 
   const removePose = (index: number) => {
@@ -146,7 +171,7 @@ export function StoryAssetsEditor({
       <div className='flex items-center justify-between'>
         <span className='font-medium'>{t('character.admin.storyAssets')}</span>
         <div className='flex items-center gap-2'>
-          <Label className='whitespace-nowrap text-xs text-muted-foreground'>
+          <Label className='text-muted-foreground text-xs whitespace-nowrap'>
             {t('character.admin.defaultEffect')}
           </Label>
           <Select
@@ -157,7 +182,9 @@ export function StoryAssetsEditor({
               <SelectValue>{effectLabel(defaultEffect || 'fade')}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value='none'>{t('character.admin.noEffect')}</SelectItem>
+              <SelectItem value='none'>
+                {t('character.admin.noEffect')}
+              </SelectItem>
               {EFFECTS.map((e) => (
                 <SelectItem key={e} value={e}>
                   {t(EFFECT_KEYS[e])}
@@ -170,19 +197,27 @@ export function StoryAssetsEditor({
 
       {/* 背景图 */}
       <div className='grid gap-3 sm:grid-cols-[120px_1fr]'>
-        <div className='aspect-[16/10] overflow-hidden rounded-md border bg-muted'>
+        <div className='bg-muted aspect-[16/10] overflow-hidden rounded-md border'>
           {backgroundUrl ? (
-            <img src={backgroundUrl} alt='bg' className='h-full w-full object-cover' />
+            <img
+              src={backgroundUrl}
+              alt='bg'
+              className='h-full w-full object-cover'
+            />
           ) : (
-            <div className='flex h-full items-center justify-center text-xs text-muted-foreground'>
+            <div className='text-muted-foreground flex h-full items-center justify-center text-xs'>
               {t('character.admin.noImage')}
             </div>
           )}
         </div>
         <div className='flex items-end gap-2'>
           <div className='space-y-1'>
-            <Label className='text-xs text-muted-foreground'>{t('character.admin.background')}</Label>
-            <p className='text-xs text-muted-foreground'>{t('character.admin.backgroundHint')}</p>
+            <Label className='text-muted-foreground text-xs'>
+              {t('character.admin.background')}
+            </Label>
+            <p className='text-muted-foreground text-xs'>
+              {t('character.admin.backgroundHint')}
+            </p>
           </div>
           <div className='flex gap-2'>
             <Button
@@ -209,9 +244,14 @@ export function StoryAssetsEditor({
 
       {/* 姿态列表 */}
       <div className='space-y-2'>
-        <Label className='text-xs text-muted-foreground'>{t('character.admin.poses')}</Label>
+        <Label className='text-muted-foreground text-xs'>
+          {t('character.admin.poses')}
+        </Label>
         {poses.map((pose, i) => (
-          <div key={i} className='flex flex-wrap items-center gap-2 rounded-md border p-2'>
+          <div
+            key={pose.name}
+            className='flex flex-wrap items-center gap-2 rounded-md border p-2'
+          >
             <Input
               className='w-28'
               value={pose.name}
@@ -255,7 +295,11 @@ export function StoryAssetsEditor({
                 className='hidden'
                 onChange={(e) => onUploadPose(pose, e.target.files?.[0])}
               />
-              <Button variant='ghost' size='icon-xs' onClick={() => removePose(i)}>
+              <Button
+                variant='ghost'
+                size='icon-xs'
+                onClick={() => removePose(i)}
+              >
                 <Trash2 className='h-4 w-4' />
               </Button>
             </div>

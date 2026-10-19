@@ -110,8 +110,7 @@ export function GroupRatioBadge(props: GroupRatioBadgeProps) {
           : undefined
       }
       label={
-        forcedLabel ??
-        (typeof props.ratio === 'number' ? undefined : t('Auto'))
+        forcedLabel ?? (typeof props.ratio === 'number' ? undefined : t('Auto'))
       }
       className={cn(
         props.isAuto &&

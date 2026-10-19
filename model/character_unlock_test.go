@@ -109,7 +109,7 @@ func TestGetUserCharacterStateNoAutoUnlock(t *testing.T) {
 	st, err = GetUserCharacterState(uid, ch)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), st.Calls)
-	require.Equal(t, -1, st.MaxStage) // 关键：不再自动推进
+	require.Equal(t, -1, st.MaxStage)                                  // 关键：不再自动推进
 	require.True(t, st.IsStageEligible(stagesFixture().Stages[0], 0))  // calls=1、token0、好感0 -> 达标
 	require.False(t, st.IsStageEligible(stagesFixture().Stages[1], 0)) // token 不足 10M / 好感门槛 50
 }
@@ -142,7 +142,7 @@ func TestUnlockUserCharacterStageFlow(t *testing.T) {
 	require.Equal(t, 1, newMax)
 
 	st.MaxStage = 1
-	st.Tokens = 50000000 // 满足 stage2 token 门槛，单独验证角色好感门槛
+	st.Tokens = 50000000                                                 // 满足 stage2 token 门槛，单独验证角色好感门槛
 	_, err = UnlockUserCharacterStage(uid, modelName, st, 85, stages, 2) // 角色门槛 85 > 好感 60
 	require.ErrorIs(t, err, ErrUnlockNotEligible)
 

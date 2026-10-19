@@ -168,7 +168,9 @@ export function SidebarModulesSection({
       },
       model_rating: {
         title: t('Model Rating'),
-        description: t('Score models across DeepSWE and Artificial Analysis dimensions.'),
+        description: t(
+          'Score models across DeepSWE and Artificial Analysis dimensions.'
+        ),
       },
       gacha_admin: {
         title: t('Gacha Admin'),

@@ -1,6 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { ArrowLeft, Loader2, PawPrint, Plus, Sparkles, Upload } from 'lucide-react'
+import {
+  ArrowLeft,
+  Loader2,
+  PawPrint,
+  Plus,
+  Sparkles,
+  Upload,
+} from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -320,7 +327,7 @@ export default function CharacterEditorPage() {
           i === stage ? { ...d, imageUrl: image_url ?? '' } : d
         )
       )
-    } catch (e) {
+    } catch {
       toast.error(t('character.admin.generateFailed'))
     }
   }
@@ -338,7 +345,9 @@ export default function CharacterEditorPage() {
       qc.invalidateQueries({ queryKey: ['character-admin'] })
       toast.success(t('character.admin.generateDone'))
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('character.admin.generateFailed'))
+      toast.error(
+        e instanceof Error ? e.message : t('character.admin.generateFailed')
+      )
     } finally {
       setPetGenerating(false)
     }
@@ -351,7 +360,9 @@ export default function CharacterEditorPage() {
       if (pet_image_url) setPetImageUrl(pet_image_url)
       qc.invalidateQueries({ queryKey: ['character-admin'] })
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('character.admin.generateFailed'))
+      toast.error(
+        e instanceof Error ? e.message : t('character.admin.generateFailed')
+      )
     }
   }
 
@@ -555,7 +566,11 @@ export default function CharacterEditorPage() {
               </div>
 
               {drafts.map((stage, i) => (
-                <div key={i} className='rounded-lg border p-4'>
+                <div
+                  // eslint-disable-next-line react/no-array-index-key -- 位置型列表：阶段草稿按下标就地编辑
+                  key={i}
+                  className='rounded-lg border p-4'
+                >
                   <div className='mb-3 flex items-center justify-between'>
                     <span className='font-medium'>
                       {t('character.admin.stage')} {i + 1} · {stage.name}
@@ -676,6 +691,7 @@ export default function CharacterEditorPage() {
                           <Label>{t('character.admin.script')}</Label>
                           {stage.script.map((line, li) => (
                             <ScriptLineEditor
+                              // eslint-disable-next-line react/no-array-index-key -- 位置型列表：台词按下标就地编辑
                               key={li}
                               index={li}
                               line={line}

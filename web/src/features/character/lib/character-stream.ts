@@ -48,39 +48,35 @@ export function sendCharacterChatStream(
         method: 'POST',
         payload: JSON.stringify(payload),
       }) as unknown as SSE
-      source.addEventListener(
-        'message',
-        (event: Event & { data?: string }) => {
-          if (completed) return
-          // sse.js 的 event.data 已剥离 "data:" 前缀，直接是原始帧字符串：
-          // 要么是 OpenAI chunk JSON（{"choices":[{delta:{content}}]}），要么是 [DONE]。
-          // 与 playground parseStreamMessageUpdates 相同的解析路径（JSON.parse(data)），
-          // 因此这里不用 extractStreamText（那是聚合多行 data: 文本用的）。
-          const data = (event as unknown as { data?: string }).data ?? ''
-          if (data === '[DONE]') {
-            completed = true
-            source?.close()
-            callbacks.onDone()
-            return
-          }
-          let delta = ''
-          try {
-            const chunk = JSON.parse(data) as {
-              choices?: { delta?: { content?: string } }[]
-            }
-            delta = chunk.choices?.[0]?.delta?.content ?? ''
-          } catch {
-            return // 忽略无法解析的帧（如空行/心跳）
-          }
-          if (delta) callbacks.onChunk(delta)
+      source.addEventListener('message', (event: Event & { data?: string }) => {
+        if (completed) return
+        // sse.js 的 event.data 已剥离 "data:" 前缀，直接是原始帧字符串：
+        // 要么是 OpenAI chunk JSON（{"choices":[{delta:{content}}]}），要么是 [DONE]。
+        // 与 playground parseStreamMessageUpdates 相同的解析路径（JSON.parse(data)），
+        // 因此这里不用 extractStreamText（那是聚合多行 data: 文本用的）。
+        const data = (event as unknown as { data?: string }).data ?? ''
+        if (data === '[DONE]') {
+          completed = true
+          source?.close()
+          callbacks.onDone()
+          return
         }
-      )
+        let delta = ''
+        try {
+          const chunk = JSON.parse(data) as {
+            choices?: { delta?: { content?: string } }[]
+          }
+          delta = chunk.choices?.[0]?.delta?.content ?? ''
+        } catch {
+          return // 忽略无法解析的帧（如空行/心跳）
+        }
+        if (delta) callbacks.onChunk(delta)
+      })
       source.addEventListener(
         'readystatechange',
         (event: Event & { readyState?: number }) => {
           if (completed) return
-          const ready = (event as unknown as { readyState?: number })
-            .readyState
+          const ready = (event as unknown as { readyState?: number }).readyState
           if (ready === 2) {
             // 服务端正常关闭（ReadyState CLOSED）
             completed = true

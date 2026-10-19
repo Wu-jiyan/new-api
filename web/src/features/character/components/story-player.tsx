@@ -4,9 +4,8 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { cn } from '@/lib/utils'
 import { getUserGroups, getUserModels } from '@/features/playground/api'
-import { GlassSelect } from './glass-select'
+import { cn } from '@/lib/utils'
 
 import {
   fetchCharacterChatMessages,
@@ -14,17 +13,22 @@ import {
   fetchCharacterScript,
 } from '../api'
 import { useSceneFlash } from '../hooks/use-scene-flash'
-import { extractStreamedLines, parseCharacterReply, splitLongLine } from '../lib/character-reply'
-import type { CharacterReplyLine } from '../lib/character-reply'
+import {
+  extractStreamedLines,
+  parseCharacterReply,
+  splitLongLine,
+  type CharacterReplyLine,
+} from '../lib/character-reply'
 import { sendCharacterChatStream } from '../lib/character-stream'
 import { resolveBackground, resolvePose } from '../lib/scene'
-import { ModelPicker } from './model-picker'
 import type {
   CharacterChatMessageItem,
   CharacterScript,
   CharacterStageView,
   CharacterView,
 } from '../types'
+import { GlassSelect } from './glass-select'
+import { ModelPicker } from './model-picker'
 
 interface PlayLineChoice {
   text: string
@@ -61,14 +65,16 @@ export function StoryPlayer({
 
   const stage: CharacterStageView | undefined = useMemo(
     () =>
-      character.stages.find((s) => s.index === (stageIndex ?? character.max_stage)) ??
-      character.stages[0],
+      character.stages.find(
+        (s) => s.index === (stageIndex ?? character.max_stage)
+      ) ?? character.stages[0],
     [character, stageIndex]
   )
 
   const { data: script } = useQuery({
     queryKey: ['character-script', character.model_name, stage?.index],
-    queryFn: () => fetchCharacterScript(character.model_name, stage?.index ?? 0),
+    queryFn: () =>
+      fetchCharacterScript(character.model_name, stage?.index ?? 0),
     enabled: open && !!stage,
   })
 
@@ -86,7 +92,9 @@ export function StoryPlayer({
   // 流式生成状态：已上屏句数 / 本轮首句索引（好感角标）/ 失败重试参数 / 流活跃标记
   const emittedRef = useRef(0)
   const roundFirstIdxRef = useRef<number | null>(null)
-  const lastGenRef = useRef<{ content: string; fromStory: boolean } | null>(null)
+  const lastGenRef = useRef<{ content: string; fromStory: boolean } | null>(
+    null
+  )
   const streamingRef = useRef(false)
   // AI 阶段选定的具体模型/分组（角色 model_name 为前缀，玩家在可用范围内选择）
   const [chatModel, setChatModel] = useState('')
@@ -175,7 +183,11 @@ export function StoryPlayer({
   const flash = useSceneFlash(current?.effect || stage?.default_effect, cursor)
 
   // AI 台词追加到同一台词流（echo 为用户发言回显，开场白无 echo）
-  const generate = (content: string, echo: string | null, fromStory = false) => {
+  const generate = (
+    content: string,
+    echo: string | null,
+    fromStory = false
+  ) => {
     if (thinking || streamingRef.current || !stage) return
     setThinking(true)
     setGenError(false)
@@ -266,10 +278,16 @@ export function StoryPlayer({
             )
           }
           setChosen(false)
-          qc.invalidateQueries({ queryKey: ['character', character.model_name] })
+          qc.invalidateQueries({
+            queryKey: ['character', character.model_name],
+          })
           // 同步会话缓存：重开播放器时续谈判定依据最新的 meta/history
-          qc.invalidateQueries({ queryKey: ['character-chat-meta', character.model_name] })
-          qc.invalidateQueries({ queryKey: ['character-chat-history', character.model_name] })
+          qc.invalidateQueries({
+            queryKey: ['character-chat-meta', character.model_name],
+          })
+          qc.invalidateQueries({
+            queryKey: ['character-chat-history', character.model_name],
+          })
         },
         onError: () => {
           streamingRef.current = false
@@ -282,7 +300,8 @@ export function StoryPlayer({
   }
 
   const toLine = (m: CharacterChatMessageItem): PlayLine => ({
-    speaker: m.role === 'user' ? t('character.story.you') : character.display_name,
+    speaker:
+      m.role === 'user' ? t('character.story.you') : character.display_name,
     text: m.content,
     pose: m.pose || undefined,
     effect: m.effect || undefined,
@@ -312,7 +331,9 @@ export function StoryPlayer({
     }
     if (aiIdx < 0) return // 历史异常：等玩家用点击继续推进
     const seed: PlayLine[] = []
-    if (aiIdx > 0 && items[aiIdx - 1].role === 'user') seed.push(toLine(items[aiIdx - 1]))
+    if (aiIdx > 0 && items[aiIdx - 1].role === 'user') {
+      seed.push(toLine(items[aiIdx - 1]))
+    }
     seed.push(toLine(items[aiIdx]))
     const base = lines.length
     setLines((prev) => [...prev, ...seed])
@@ -346,10 +367,14 @@ export function StoryPlayer({
   useEffect(() => {
     if (!open || phase !== 'chat') return
     let cancelled = false
-    getUserGroups().then((gs) => {
-      if (cancelled) return
-      setGroupOptions(gs.map((g) => g.value))
-    })
+    getUserGroups()
+      .then((gs) => {
+        if (cancelled) return
+        setGroupOptions(gs.map((g) => g.value))
+      })
+      .catch(() => {
+        // 分组下拉加载失败时保持空列表，不打断剧情播放
+      })
     return () => {
       cancelled = true
     }
@@ -358,20 +383,27 @@ export function StoryPlayer({
   useEffect(() => {
     if (!open || phase !== 'chat' || !chatGroup) return
     let cancelled = false
-    getUserModels(chatGroup).then((ms) => {
-      if (cancelled) return
-      const filtered = ms.map((m) => m.value).filter((v) => v.startsWith(character.model_name))
-      setModelOptions(filtered)
-      setChatModel((prev) => {
-        if (prev && filtered.includes(prev)) return prev
-        const next =
-          character.default_model && filtered.includes(character.default_model)
-            ? character.default_model
-            : (filtered[0] ?? '')
-        chatModelRef.current = next
-        return next
+    void getUserModels(chatGroup)
+      .then((ms) => {
+        if (cancelled) return
+        const filtered = ms
+          .map((m) => m.value)
+          .filter((v) => v.startsWith(character.model_name))
+        setModelOptions(filtered)
+        setChatModel((prev) => {
+          if (prev && filtered.includes(prev)) return prev
+          const next =
+            character.default_model &&
+            filtered.includes(character.default_model)
+              ? character.default_model
+              : (filtered[0] ?? '')
+          chatModelRef.current = next
+          return next
+        })
       })
-    })
+      .catch(() => {
+        // 模型下拉加载失败时保持空列表，不打断剧情播放
+      })
     return () => {
       cancelled = true
     }
@@ -385,6 +417,24 @@ export function StoryPlayer({
   const showChoices =
     hasChoices && isDone && !chosen && !thinking && cursor >= lines.length - 1
   const currentEffect = current?.effect || stage.default_effect
+  // 底部提示：台词没说完不提示；说完且有选项时提示选择，否则提示点击继续
+  let continueHint = ''
+  if (isDone) {
+    if (showChoices) {
+      continueHint = t('character.story.chooseHint')
+    } else if (
+      current?.isReply ||
+      cursor + 1 < lines.length ||
+      phase === 'chat'
+    ) {
+      continueHint = t('character.clickToContinue')
+    }
+  }
+  // 模型下拉：优先用分组下的可用模型，没有时至少保留当前已选模型
+  let chatModelOptions = modelOptions
+  if (chatModelOptions.length === 0 && chatModel) {
+    chatModelOptions = [chatModel]
+  }
 
   const poseImg = resolvePose(stage, current?.pose)
   // 背景：台词指定背景（查全局背景库）→ 无则回退阶段背景
@@ -502,16 +552,18 @@ export function StoryPlayer({
       )}
 
       {/* 对话区 */}
-      <div className='relative z-20 mt-auto px-4 pb-6 pt-24 sm:px-10'>
-        {thinking ? (
+      <div className='relative z-20 mt-auto px-4 pt-24 pb-6 sm:px-10'>
+        {thinking && (
           /* 生成中：思考中动画（替代当前台词展示，明确反馈） */
           <div className='mx-auto max-w-3xl'>
             <div className='rounded-2xl border border-white/10 bg-black/60 px-6 py-5 backdrop-blur-md'>
-              <div className='mb-1 text-sm font-semibold text-primary'>
+              <div className='text-primary mb-1 text-sm font-semibold'>
                 {character.display_name}
               </div>
               <div className='flex min-h-[4rem] items-center gap-2'>
-                <span className='text-base text-white/70'>{t('character.story.thinking')}</span>
+                <span className='text-base text-white/70'>
+                  {t('character.story.thinking')}
+                </span>
                 <span className='flex items-end gap-1 pb-1'>
                   {[0, 1, 2].map((i) => (
                     <span
@@ -529,14 +581,15 @@ export function StoryPlayer({
               </div>
             </div>
           </div>
-        ) : current ? (
+        )}
+        {!thinking && current && (
           <div className='mx-auto max-w-3xl'>
             {/* 选项（台词结束后显示；AI 阶段点击即作为发言继续） */}
             {showChoices && current.choices && (
               <div className='mb-4 flex flex-col gap-2'>
-                {current.choices.map((c, i) => (
+                {current.choices.map((c) => (
                   <button
-                    key={i}
+                    key={c.text}
                     type='button'
                     className='w-fit rounded-full border border-white/40 bg-black/50 px-5 py-2 text-left text-sm text-white backdrop-blur-sm transition-colors hover:bg-white/20'
                     onClick={(e) => {
@@ -550,7 +603,7 @@ export function StoryPlayer({
               </div>
             )}
             <div className='rounded-2xl border border-white/10 bg-black/60 px-6 py-5 backdrop-blur-md'>
-              <div className='mb-1 text-sm font-semibold text-primary'>
+              <div className='text-primary mb-1 text-sm font-semibold'>
                 {current.speaker || t('character.unknownSpeaker')}
               </div>
               <p className='min-h-[4rem] text-lg leading-relaxed text-white'>
@@ -567,22 +620,20 @@ export function StoryPlayer({
                 <span>
                   {cursor + 1}/{lines.length}
                 </span>
-                {isDone &&
-                  (showChoices
-                    ? t('character.story.chooseHint')
-                    : current.isReply || cursor + 1 < lines.length || phase === 'chat'
-                      ? t('character.clickToContinue')
-                      : '')}
+                {continueHint}
               </div>
             </div>
           </div>
-        ) : genError ? (
+        )}
+        {!thinking && !current && genError && (
           <div className='mx-auto max-w-3xl'>
             <div className='rounded-2xl border border-white/10 bg-black/60 px-6 py-5 backdrop-blur-md'>
-              <div className='mb-1 text-sm font-semibold text-primary'>
+              <div className='text-primary mb-1 text-sm font-semibold'>
                 {character.display_name}
               </div>
-              <p className='min-h-[4rem] text-lg text-white'>{t('character.chat.failed')}</p>
+              <p className='min-h-[4rem] text-lg text-white'>
+                {t('character.chat.failed')}
+              </p>
               <button
                 type='button'
                 className='mt-2 inline-flex items-center gap-1 rounded-full border border-white/40 px-3 py-1 text-xs text-white hover:bg-white/10'
@@ -595,7 +646,8 @@ export function StoryPlayer({
               </button>
             </div>
           </div>
-        ) : (
+        )}
+        {!thinking && !current && !genError && (
           <div className='mx-auto max-w-3xl text-center text-white/60'>
             {t('character.noScript')}
           </div>
@@ -639,13 +691,12 @@ export function StoryPlayer({
             </span>
             <GlassSelect
               value={chatModel}
-              options={modelOptions.length > 0 ? modelOptions : chatModel ? [chatModel] : []}
+              options={chatModelOptions}
               onChange={(m) => setModelPair(m, chatGroupRef.current)}
               menuClassName='min-w-64'
             />
           </div>
         )}
-
       </div>
 
       {/* 模型/分组选择（新会话首次进入 AI 阶段时） */}

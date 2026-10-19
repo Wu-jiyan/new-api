@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
 import { Layers, PackageOpen } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
@@ -14,9 +14,8 @@ import {
   rarityName,
 } from '@/features/gacha/level'
 import { MergeBadgeView } from '@/features/gacha/merge-badge'
-import { formatQuotaWithCurrency } from '@/lib/currency'
-
 import type { GachaEntitlement } from '@/features/gacha/types'
+import { formatQuotaWithCurrency } from '@/lib/currency'
 
 type StatusFilter = 'all' | 'active' | 'expired'
 
@@ -29,7 +28,9 @@ function StatusBadge({ status }: { status: string }) {
       <Badge className='bg-green-500/15 text-green-600'>{t('Active')}</Badge>
     )
   }
-  return <Badge className='bg-slate-500/15 text-slate-500'>{t('Expired')}</Badge>
+  return (
+    <Badge className='bg-slate-500/15 text-slate-500'>{t('Expired')}</Badge>
+  )
 }
 
 /** 模型范围折叠：超过 3 个时只显示前几个并给出 +N。 */
@@ -45,13 +46,13 @@ function ModelRange({ models }: { models: string[] }) {
       {shown.map((model) => (
         <code
           key={model}
-          className='max-w-full truncate rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]'
+          className='bg-muted max-w-full truncate rounded px-1.5 py-0.5 font-mono text-[11px]'
         >
           {model}
         </code>
       ))}
       {rest > 0 && (
-        <span className='text-[11px] text-muted-foreground'>
+        <span className='text-muted-foreground text-[11px]'>
           {t('+{{count}} more', { count: rest })}
         </span>
       )}
@@ -73,7 +74,7 @@ function EntitlementView({
   const remain = Math.max(entitlement.amount_total - entitlement.amount_used, 0)
   return (
     <Card
-      className={`relative flex flex-col gap-3 overflow-hidden border-2 p-4 shadow-lg shadow-primary/5 ${RARITY_CARD_CLASS[rarity] ?? 'border-border/70 bg-card/80'}`}
+      className={`shadow-primary/5 relative flex flex-col gap-3 overflow-hidden border-2 p-4 shadow-lg ${RARITY_CARD_CLASS[rarity] ?? 'border-border/70 bg-card/80'}`}
     >
       <span
         className={`absolute top-2 right-3 text-[11px] font-black tracking-widest ${RARITY_TEXT_CLASS[rarity] ?? 'text-muted-foreground'}`}
@@ -86,15 +87,22 @@ function EntitlementView({
         </span>
         <StatusBadge status={entitlement.status} />
       </div>
-      <MergeBadgeView count={entitlement.merge_count} className='absolute top-9 right-3' />
+      <MergeBadgeView
+        count={entitlement.merge_count}
+        className='absolute top-9 right-3'
+      />
       <div className='space-y-1'>
-        <span className='text-[11px] text-muted-foreground'>{t('Model range')}</span>
+        <span className='text-muted-foreground text-[11px]'>
+          {t('Model range')}
+        </span>
         <ModelRange models={models} />
       </div>
       {groups.length > 0 && (
         <div className='flex items-center justify-between text-xs'>
           <span className='text-muted-foreground'>{t('Group')}</span>
-          <code className='rounded bg-muted px-1.5 py-0.5'>{groups.join(', ')}</code>
+          <code className='bg-muted rounded px-1.5 py-0.5'>
+            {groups.join(', ')}
+          </code>
         </div>
       )}
       <div className='flex items-center justify-between text-sm'>
@@ -102,14 +110,16 @@ function EntitlementView({
         <span className='font-semibold'>{formatQuotaWithCurrency(remain)}</span>
       </div>
       {remain !== entitlement.amount_total && (
-        <div className='flex items-center justify-between text-[11px] text-muted-foreground'>
+        <div className='text-muted-foreground flex items-center justify-between text-[11px]'>
           <span>{t('Total granted')}</span>
           <span>{formatQuotaWithCurrency(entitlement.amount_total)}</span>
         </div>
       )}
-      <div className='flex items-center justify-between text-xs text-muted-foreground'>
+      <div className='text-muted-foreground flex items-center justify-between text-xs'>
         <span>{t('Expires at')}</span>
-        <span>{new Date(entitlement.end_time * 1000).toLocaleDateString()}</span>
+        <span>
+          {new Date(entitlement.end_time * 1000).toLocaleDateString()}
+        </span>
       </div>
     </Card>
   )
@@ -170,7 +180,7 @@ export default function GachaEntitlementsPage() {
     }
     if (entitlements.length === 0) {
       return (
-        <div className='flex flex-col items-center gap-3 rounded-2xl border border-dashed py-16 text-muted-foreground'>
+        <div className='text-muted-foreground flex flex-col items-center gap-3 rounded-2xl border border-dashed py-16'>
           <PackageOpen className='size-10' />
           <p>{t('No entitlements yet — try your luck on the gacha page')}</p>
         </div>
@@ -207,26 +217,26 @@ export default function GachaEntitlementsPage() {
         </div>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
-      <div className='space-y-6'>
-        <div className='space-y-1'>
-          <div className='flex items-center gap-2 text-sm font-semibold tracking-[0.2em] text-primary uppercase'>
-            <Layers className='size-4' /> My Entitlements
+        <div className='space-y-6'>
+          <div className='space-y-1'>
+            <div className='text-primary flex items-center gap-2 text-sm font-semibold tracking-[0.2em] uppercase'>
+              <Layers className='size-4' /> My Entitlements
+            </div>
+            <p className='text-muted-foreground text-sm'>
+              {t(
+                'Pulled quota is a subscription restricted to its model range. Use your own API token — the balance is deducted automatically.'
+              )}
+            </p>
+            <p className='text-muted-foreground text-xs'>
+              {t('Total {{total}} · Active on this page {{active}}', {
+                total,
+                active: activeCount,
+              })}
+            </p>
           </div>
-          <p className='text-sm text-muted-foreground'>
-            {t(
-              'Pulled quota is a subscription restricted to its model range. Use your own API token — the balance is deducted automatically.'
-            )}
-          </p>
-          <p className='text-xs text-muted-foreground'>
-            {t('Total {{total}} · Active on this page {{active}}', {
-              total,
-              active: activeCount,
-            })}
-          </p>
-        </div>
 
-        {renderEntitlements()}
-      </div>
+          {renderEntitlements()}
+        </div>
       </SectionPageLayout.Content>
     </SectionPageLayout>
   )

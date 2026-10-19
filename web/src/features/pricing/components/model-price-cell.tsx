@@ -97,7 +97,8 @@ export function ModelPriceCell(props: {
   )
   if (forcedPrice !== undefined) {
     const displayPrice = options.showRechargePrice
-      ? (forcedPrice * (options.priceRate ?? 1)) / (options.usdExchangeRate ?? 1)
+      ? (forcedPrice * (options.priceRate ?? 1)) /
+        (options.usdExchangeRate ?? 1)
       : forcedPrice
     return (
       <span className='block max-w-full min-w-0'>

@@ -20,10 +20,9 @@ import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { PanelWrapper } from '@/features/dashboard/components/ui/panel-wrapper'
+import type { ChannelProfitRow } from '@/features/dashboard/types'
 import { formatLogQuota, formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
-
-import type { ChannelProfitRow } from '@/features/dashboard/types'
 
 export function ChannelProfitTable(props: {
   rows?: ChannelProfitRow[]

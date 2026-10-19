@@ -115,12 +115,13 @@ export function Playground() {
     <div className='relative flex size-full min-h-0 flex-col overflow-hidden'>
       {/* Full-width scroll container: scrolling works even over side whitespace */}
       <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
-        {isLoadingCharacter ? (
-          <div className='mx-auto flex w-full max-w-4xl items-center gap-2 px-1 py-3 text-sm text-muted-foreground'>
+        {isLoadingCharacter && (
+          <div className='text-muted-foreground mx-auto flex w-full max-w-4xl items-center gap-2 px-1 py-3 text-sm'>
             <Sparkles className='size-4 animate-pulse' />
             {t('playground.loadingCharacter')}
           </div>
-        ) : isCharacterMode && character ? (
+        )}
+        {!isLoadingCharacter && isCharacterMode && character && (
           <div className='bg-muted/40 mx-auto mt-2 flex w-full max-w-4xl items-center justify-between gap-3 rounded-lg border px-3 py-2'>
             <div className='flex min-w-0 items-center gap-2 text-sm'>
               <Sparkles className='text-primary size-4 shrink-0' />
@@ -142,7 +143,7 @@ export function Playground() {
               {t('playground.exitCharacterMode')}
             </Button>
           </div>
-        ) : null}
+        )}
         <PlaygroundChat
           messages={messages}
           isLoadingMessages={isLoadingMessages}

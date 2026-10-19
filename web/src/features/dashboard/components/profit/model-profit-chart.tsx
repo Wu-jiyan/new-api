@@ -85,7 +85,11 @@ export function ModelProfitChart(props: {
         xField: 'Time',
         yField: 'Profit',
         axes: [
-          { orient: 'left', type: 'linear', label: { formatMethod: formatProfitChartValue } },
+          {
+            orient: 'left',
+            type: 'linear',
+            label: { formatMethod: formatProfitChartValue },
+          },
           { orient: 'bottom', type: 'band' },
         ],
         title: {

@@ -93,14 +93,14 @@ export function Corptcha({
       render()
     } else {
       const scriptId = 'corptcha-sdk'
-      let script = document.getElementById(scriptId) as HTMLScriptElement | null
+      let script = document.querySelector<HTMLScriptElement>(`#${scriptId}`)
       if (!script) {
         script = document.createElement('script')
         script.id = scriptId
         script.src = 'https://res.25y.cn/corptcha/corptcha.iife.js'
         script.async = true
         script.defer = true
-        script.onload = () => render()
+        script.addEventListener('load', () => render())
         document.head.appendChild(script)
       } else {
         script.addEventListener('load', () => render())

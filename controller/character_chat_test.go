@@ -569,8 +569,8 @@ func TestCharacterChatMetaAndMessages(t *testing.T) {
 	r.ServeHTTP(w4, httptest.NewRequest(http.MethodGet, "/api/character/"+modelName+"/chat/messages?limit=1", nil))
 	var page struct {
 		Data struct {
-			Items  []model.CharacterChatMessage `json:"items"`
-			HasMore bool                        `json:"has_more"`
+			Items   []model.CharacterChatMessage `json:"items"`
+			HasMore bool                         `json:"has_more"`
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(w4.Body.Bytes(), &page))

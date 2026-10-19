@@ -61,15 +61,15 @@ func TestParseCharacterChatReplyChoices(t *testing.T) {
 	require.True(t, ok)
 	require.Len(t, r.Choices, 4)
 	require.Equal(t, "陪她看星星", r.Choices[0].Text) // 去首尾空白
-	require.Equal(t, "转身离开", r.Choices[1].Text) // 空文案被剔除
-	require.Equal(t, "沉默不语", r.Choices[3].Text) // 超出上限截断
+	require.Equal(t, "转身离开", r.Choices[1].Text)  // 空文案被剔除
+	require.Equal(t, "沉默不语", r.Choices[3].Text)  // 超出上限截断
 
 	// 超长文案截断到 100 rune
 	long := make([]rune, 150)
 	for i := range long {
 		long[i] = '选'
 	}
-	r2, ok := ParseCharacterChatReply(`{"reply":"嗯","choices":[{"text":"`+string(long)+`"}]}`)
+	r2, ok := ParseCharacterChatReply(`{"reply":"嗯","choices":[{"text":"` + string(long) + `"}]}`)
 	require.True(t, ok)
 	require.Len(t, r2.Choices, 1)
 	require.Len(t, []rune(r2.Choices[0].Text), 100)
@@ -124,8 +124,8 @@ func TestParseCharacterChatReplySplitsLongLine(t *testing.T) {
 	require.True(t, ok)
 	require.Len(t, r.Lines, 3)
 	require.Equal(t, "（愣了一下，尾巴微微翘起）", r.Lines[0].Text) // 动作独立成句
-	require.Equal(t, "shy", r.Lines[0].Pose)                          // 首句继承姿态
-	require.Equal(t, "……抱、拥抱？", r.Lines[1].Text)                      // 省略号不切分
+	require.Equal(t, "shy", r.Lines[0].Pose)           // 首句继承姿态
+	require.Equal(t, "……抱、拥抱？", r.Lines[1].Text)       // 省略号不切分
 	require.Equal(t, "这不在服务范围内啦！", r.Lines[2].Text)
 	require.Len(t, r.Lines[2].Choices, 1) // 选项挂在拆分后的末句
 	require.Empty(t, r.Lines[0].Choices)

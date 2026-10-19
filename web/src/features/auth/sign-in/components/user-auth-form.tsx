@@ -25,9 +25,9 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { z } from 'zod'
 
+import { Captcha } from '@/components/captcha'
 import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
-import { Captcha } from '@/components/captcha'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -415,7 +415,7 @@ export function UserAuthForm({
             <Button
               type='submit'
               className='mt-2 w-full justify-center gap-2'
-disabled={
+              disabled={
                 isLoading ||
                 (requiresLegalConsent && !agreedToLegal) ||
                 !captchaReady

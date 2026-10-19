@@ -60,7 +60,7 @@ export function ScriptPlayer({ scripts, onEnded }: ScriptPlayerProps) {
 
   return (
     <div
-      className='relative cursor-pointer rounded-lg border bg-background/80 px-5 py-4 backdrop-blur-sm'
+      className='bg-background/80 relative cursor-pointer rounded-lg border px-5 py-4 backdrop-blur-sm'
       onClick={next}
       role='button'
       tabIndex={0}
@@ -68,13 +68,13 @@ export function ScriptPlayer({ scripts, onEnded }: ScriptPlayerProps) {
         if (e.key === 'Enter' || e.key === ' ') next()
       }}
     >
-      <div className='mb-1 text-sm font-semibold text-primary'>
+      <div className='text-primary mb-1 text-sm font-semibold'>
         {current.speaker || t('character.unknownSpeaker')}
       </div>
       <p className='min-h-[3.5rem] text-base leading-relaxed'>
         {current.text.slice(0, typed)}
       </p>
-      <div className='mt-1 flex items-center justify-between text-xs text-muted-foreground'>
+      <div className='text-muted-foreground mt-1 flex items-center justify-between text-xs'>
         <span>
           {t('character.scriptProgress')} {index + 1}/{scripts.length}
         </span>

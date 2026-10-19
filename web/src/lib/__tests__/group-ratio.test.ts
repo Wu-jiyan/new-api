@@ -18,10 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, it } from 'vitest'
 
-import {
-  formatGroupRatioLabel,
-  isFreeGroupRatio,
-} from '@/lib/group-ratio'
+import { formatGroupRatioLabel, isFreeGroupRatio } from '@/lib/group-ratio'
 
 const FREE = 'Free of charge'
 

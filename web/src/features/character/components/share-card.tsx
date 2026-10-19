@@ -33,7 +33,10 @@ function truncateText(
 ): string {
   if (ctx.measureText(text).width <= maxWidth) return text
   let truncated = text
-  while (truncated.length > 0 && ctx.measureText(`${truncated}…`).width > maxWidth) {
+  while (
+    truncated.length > 0 &&
+    ctx.measureText(`${truncated}…`).width > maxWidth
+  ) {
     truncated = truncated.slice(0, -1)
   }
   return `${truncated}…`
@@ -49,8 +52,8 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
     } catch {
       // 忽略 URL 解析错误
     }
-    img.onload = () => resolve(img)
-    img.onerror = () => resolve(null)
+    img.addEventListener('load', () => resolve(img))
+    img.addEventListener('error', () => resolve(null))
     img.src = src
   })
 }
@@ -118,50 +121,63 @@ export function ShareCard({
             )
             const dw = img.naturalWidth * scale
             const dh = img.naturalHeight * scale
-            ctx.drawImage(img, (CARD_WIDTH - dw) / 2, (IMAGE_HEIGHT - dh) / 2, dw, dh)
+            ctx.drawImage(
+              img,
+              (CARD_WIDTH - dw) / 2,
+              (IMAGE_HEIGHT - dh) / 2,
+              dw,
+              dh
+            )
           }
         }
         if (cancelled) return
 
-      // 文字区
-      const textTop = IMAGE_HEIGHT + 44
-      ctx.textAlign = 'left'
-      ctx.textBaseline = 'alphabetic'
+        // 文字区
+        const textTop = IMAGE_HEIGHT + 44
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'alphabetic'
 
-      // 角色名
-      ctx.fillStyle = 'rgba(255,255,255,0.96)'
-      ctx.font = '600 44px system-ui, sans-serif'
-      ctx.fillText(truncateText(ctx, displayName, CARD_WIDTH - 96), 48, textTop + 44)
+        // 角色名
+        ctx.fillStyle = 'rgba(255,255,255,0.96)'
+        ctx.font = '600 44px system-ui, sans-serif'
+        ctx.fillText(
+          truncateText(ctx, displayName, CARD_WIDTH - 96),
+          48,
+          textTop + 44
+        )
 
-      // 称号
-      if (title) {
-        ctx.fillStyle = 'rgba(255,255,255,0.6)'
-        ctx.font = '400 24px system-ui, sans-serif'
-        ctx.fillText(truncateText(ctx, title, CARD_WIDTH - 96), 48, textTop + 96)
-      }
+        // 称号
+        if (title) {
+          ctx.fillStyle = 'rgba(255,255,255,0.6)'
+          ctx.font = '400 24px system-ui, sans-serif'
+          ctx.fillText(
+            truncateText(ctx, title, CARD_WIDTH - 96),
+            48,
+            textTop + 96
+          )
+        }
 
-      // 阶段名徽章
-      if (stageName) {
-        ctx.font = '500 22px system-ui, sans-serif'
-        const badgeText = stageName
-        const badgeWidth = ctx.measureText(badgeText).width + 36
-        const badgeY = textTop + 136
-        ctx.fillStyle = 'rgba(255,255,255,0.12)'
-        roundRectPath(ctx, 48, badgeY, badgeWidth, 46, 23)
-        ctx.fill()
-        ctx.fillStyle = 'rgba(255,255,255,0.85)'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(badgeText, 48 + badgeWidth / 2, badgeY + 23 + 1)
-      }
+        // 阶段名徽章
+        if (stageName) {
+          ctx.font = '500 22px system-ui, sans-serif'
+          const badgeText = stageName
+          const badgeWidth = ctx.measureText(badgeText).width + 36
+          const badgeY = textTop + 136
+          ctx.fillStyle = 'rgba(255,255,255,0.12)'
+          roundRectPath(ctx, 48, badgeY, badgeWidth, 46, 23)
+          ctx.fill()
+          ctx.fillStyle = 'rgba(255,255,255,0.85)'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillText(badgeText, 48 + badgeWidth / 2, badgeY + 23 + 1)
+        }
 
-      // 署名
-      ctx.textAlign = 'right'
-      ctx.textBaseline = 'alphabetic'
-      ctx.fillStyle = 'rgba(255,255,255,0.4)'
-      ctx.font = '400 20px system-ui, sans-serif'
-      ctx.fillText('AI Character', CARD_WIDTH - 48, CARD_HEIGHT - 44)
-
+        // 署名
+        ctx.textAlign = 'right'
+        ctx.textBaseline = 'alphabetic'
+        ctx.fillStyle = 'rgba(255,255,255,0.4)'
+        ctx.font = '400 20px system-ui, sans-serif'
+        ctx.fillText('AI Character', CARD_WIDTH - 48, CARD_HEIGHT - 44)
       } catch {
         // 绘制异常时也完成绘制，避免一直停留在加载态
       } finally {
@@ -200,8 +216,8 @@ export function ShareCard({
         <div className='relative overflow-hidden rounded-lg'>
           <canvas ref={canvasRef} className='block h-auto w-full' />
           {!ready && (
-            <div className='absolute inset-0 flex items-center justify-center bg-background/70'>
-              <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
+            <div className='bg-background/70 absolute inset-0 flex items-center justify-center'>
+              <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
             </div>
           )}
         </div>

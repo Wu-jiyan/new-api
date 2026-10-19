@@ -3817,7 +3817,7 @@
     "Never used an API Gateway?": "APIゲートウェイを一度も使用したことがありませんか？",
     "NEW": "NEW",
     "New API": "新しいAPI",
-    "New API &lt;noreply@example.com&gt;": "新しいAPI __ PH_0 __",
+    "New API &lt;noreply@example.com&gt;": "新しいAPI &lt;noreply@example.com&gt;",
     "New API Project Repository:": "New APIプロジェクトリポジトリ:",
     "New API's flexible channel lets you configure upstream addresses and authentication per endpoint, choose native forwarding or supported protocol conversions, and configure model listing and balance queries independently": "New API の柔軟な接続チャネルでは、エンドポイントごとに上流アドレスと認証方式を設定し、ネイティブ転送または対応するプロトコル変換を選択できます。モデル一覧と残高照会も個別に設定できます",
     "New domain: {{domain}}": "新しいドメイン：{{domain}}",
