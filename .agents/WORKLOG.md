@@ -668,6 +668,40 @@ compose（`/www/wwwroot/new-api`，new-api + redis + postgres:15），部署命�
   `glm-5.3` 仍是链内价 ¥0.4/1M；`?group=free` 仍是 9 个模型、全 `$0`、成功率全红
 - 上游新模型 `deepseek-v4.1-flash` / `minimax-m3.1-flash` 已出现在广场
 
+### 历史债清理（2026-10-20 凌晨）
 
+- ja.json：修复上游 bug —— `"New API &lt;noreply@example.com&gt;"` 的日文译文原为
+  `新しいAPI __ PH_0 __`（i18next-parser 的保护占位符，运行时不会还原），邮箱被吞掉
+- gofmt：格式化 7 个合并前就已脏的 Go 文件（`controller/channel-profit.go`、
+  `controller/character_chat_test.go`、`controller/character_test.go`、
+  `model/character_chat_message.go`、`model/character_chat_stream_test.go`、
+  `model/character_unlock.go`、`model/character_unlock_test.go`）
+- oxlint：清理本 fork 自有目录的 54 个 error + 10 个 warning（嵌套三元 20、curly 21、
+  数组下标 key 7、未处理的 promise 4、重复导入 2、hook 依赖 1、button type 1 等），
+  全部为等价改写，不改行为
+- oxfmt：格式化本 fork 自有的 57 个文件；上游自有文件（19 个格式脏、139 个 lint error）
+  一律不动，避免污染后续上游同步
+- 位置型可编辑列表（剧本行、选项、阶段草稿）没有稳定 id，按内容做 key 会串输入状态，
+  改用带理由的 `eslint-disable-next-line react/no-array-index-key`
 
+### 踩坑
 
+- `read` 工具在脚本/格式化器改写文件之后可能返回旧版本内容：批量改写必须对每处 old
+  文本断言“恰好命中 1 次”，0 命中就是读到了陈旧内容，以 `git diff` 复核
+- oxlint 的 `eslint(curly)` 报的是语句体所在行，不是 `if` 那一行；
+  `promise/catch-or-return` 要求链以 `.catch()` 结尾（后面再挂 `.finally()` 仍报错），
+  `react/no-array-index-key` 连 `${index}:${text}` 组合键也会报
+- `JSON.parse(JSON.stringify(x))` 会丢掉值为 `undefined` 的键：测试里用它镜像线上报文
+  时不能换成 `structuredClone`，否则断言语义会变（`settings.test.tsx` 踩过）
+- Hook 必须放在提前 return 之前：`useMemo` 写在 `if (!open || !stage) return null` 之后
+  会被 `react-hooks(rules-of-hooks)` 判为条件式调用
+
+### 验证
+
+- `go build ./...` 通过；`go test -count=1 ./controller/... ./model/...` 全绿，
+  controller/relay/setting/pkg/middleware/service 亦全绿
+- `tsgo -b` 通过；`vitest run` **222 files / 2567 tests** 全通过（退出码 0）；
+  `rsbuild build` 通过
+- 提交 `0c32bfd17` → GHCR run `39292327441`（success，镜像 created
+  `2026-10-20 01:16:57 +0800`）→ 香港PCCW 部署；容器 healthy、restarts=0、
+  本地与公网 `/api/status` 均 200，`/api/pricing` 正常返回 `auto_group_chain`
