@@ -917,4 +917,8 @@ export const STATIC_I18N_KEYS = [
   'Audio',
   'Video',
   'File',
+  // Channel priority ordering API errors.
+  'Channel priorities changed. Refresh and try again.',
+  'Invalid channel priority move',
+  'Channel priority is outside the sortable range',
 ] as const

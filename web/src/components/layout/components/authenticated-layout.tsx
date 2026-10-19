@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { CommandMenu } from '@/components/command-menu'
 import { AnimatedOutlet } from '@/components/page-transition'
 import { SkipToMain } from '@/components/skip-to-main'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
@@ -57,6 +58,7 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
           {/* 桌宠用 fixed 定位，必须挂在 SidebarInset 之外，否则会被其 overflow-hidden 裁掉 */}
           <CharacterPetWidget />
         </SidebarProvider>
+        <CommandMenu />
       </SearchProvider>
     </LayoutProvider>
   )
