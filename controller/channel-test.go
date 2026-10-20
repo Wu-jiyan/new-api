@@ -409,6 +409,10 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			convertedRequest, err = adaptor.ConvertClaudeRequest(c, info, req)
 		case *dto.GeminiChatRequest:
 			convertedRequest, err = adaptor.ConvertGeminiRequest(c, info, req)
+		case *dto.DeepSeekToolsRequest:
+			// The DeepSeek tools endpoints forward their raw body verbatim;
+			// there is no chat-shaped conversion for them.
+			convertedRequest = req
 		default:
 			return testResult{
 				context:     c,
@@ -425,7 +429,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			newAPIError: types.NewError(err, types.ErrorCodeConvertRequestFailed),
 		}
 	}
-	jsonData, err := common.Marshal(convertedRequest)
+	jsonData, err := marshalTestRequestBody(convertedRequest)
 	if err != nil {
 		return testResult{
 			context:     c,
@@ -805,11 +809,17 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				},
 			}
 		case constant.EndpointTypeDeepSeekToolsSearch:
-			// The Search endpoint takes a query, not a chat message.
-			return &deepSeekToolsTestRequest{Query: "new-api channel test", Count: 1}
+			// The Search endpoint forwards its raw body, so the test body must
+			// carry the fields the upstream expects.
+			return &dto.DeepSeekToolsRequest{
+				Model:   model,
+				RawBody: json.RawMessage(`{"query":"new-api channel test","count":1}`),
+			}
 		case constant.EndpointTypeDeepSeekToolsFetch:
-			// The Fetch endpoint takes a URL to extract.
-			return &deepSeekToolsTestRequest{URL: "https://example.com"}
+			return &dto.DeepSeekToolsRequest{
+				Model:   model,
+				RawBody: json.RawMessage(`{"url":"https://example.com"}`),
+			}
 		case constant.EndpointTypeOpenAI:
 			req := &dto.GeneralOpenAIRequest{
 				Model:  model,
@@ -887,6 +897,19 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	}
 
 	return testRequest
+}
+
+// marshalTestRequestBody renders the request body the relay would send. The
+// DeepSeek tools endpoints forward their raw body unchanged, so it must not
+// be re-marshalled from the routing struct.
+func marshalTestRequestBody(convertedRequest any) ([]byte, error) {
+	if req, ok := convertedRequest.(*dto.DeepSeekToolsRequest); ok {
+		if len(req.RawBody) == 0 {
+			return nil, errors.New("empty deepseek tools request body")
+		}
+		return req.RawBody, nil
+	}
+	return common.Marshal(convertedRequest)
 }
 
 func TestChannel(c *gin.Context) {

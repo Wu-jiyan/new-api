@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 func TestBuildTestRequestForDeepSeekTools(t *testing.T) {
@@ -18,7 +19,11 @@ func TestBuildTestRequestForDeepSeekTools(t *testing.T) {
 	}
 	for _, tc := range cases {
 		req := buildTestRequest(tc.model, tc.endpointType, nil, false)
-		body, err := json.Marshal(req)
+		toolsReq, ok := req.(*dto.DeepSeekToolsRequest)
+		if !ok {
+			t.Fatalf("%s: request type = %T, want *dto.DeepSeekToolsRequest", tc.endpointType, req)
+		}
+		body, err := marshalTestRequestBody(toolsReq)
 		if err != nil {
 			t.Fatalf("%s: marshal: %v", tc.endpointType, err)
 		}
