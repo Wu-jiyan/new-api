@@ -42,10 +42,19 @@ type testResult struct {
 	newAPIError *types.NewAPIError
 }
 
-func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) string {
+func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string, testModel string) string {
 	normalized := strings.TrimSpace(endpointType)
 	if normalized != "" {
 		return normalized
+	}
+	// The DeepSeek routing models serve exactly one endpoint each, and their
+	// bodies are not chat messages, so the endpoint has to be derived from the
+	// model instead of the default chat path.
+	switch strings.TrimSpace(testModel) {
+	case constant.DeepSeekSearchModel:
+		return string(constant.EndpointTypeDeepSeekToolsSearch)
+	case constant.DeepSeekFetchModel:
+		return string(constant.EndpointTypeDeepSeekToolsFetch)
 	}
 	if channel != nil && channel.Type == constant.ChannelTypeCodex {
 		return string(constant.EndpointTypeOpenAIResponse)
@@ -113,7 +122,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 	}
 
-	endpointType = normalizeChannelTestEndpoint(channel, endpointType)
+	endpointType = normalizeChannelTestEndpoint(channel, endpointType, testModel)
 
 	requestPath := "/v1/chat/completions"
 
@@ -795,6 +804,12 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 					MaxOutputTokens: lo.ToPtr(uint(3000)),
 				},
 			}
+		case constant.EndpointTypeDeepSeekToolsSearch:
+			// The Search endpoint takes a query, not a chat message.
+			return &deepSeekToolsTestRequest{Query: "new-api channel test", Count: 1}
+		case constant.EndpointTypeDeepSeekToolsFetch:
+			// The Fetch endpoint takes a URL to extract.
+			return &deepSeekToolsTestRequest{URL: "https://example.com"}
 		case constant.EndpointTypeOpenAI:
 			req := &dto.GeneralOpenAIRequest{
 				Model:  model,
