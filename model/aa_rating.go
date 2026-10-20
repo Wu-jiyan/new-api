@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"net/http"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -47,9 +48,16 @@ type AAScores struct {
 	Agentic      map[string]float64
 }
 
+// aaCheckpointSuffix 匹配 AA 用来标记检查点日期的结尾后缀（-0420 / -1017 / -20241022）。
+// AA 的 slug 命名并不统一：有的检查点带日期（deepseek-v4-1-flash-1017），
+// 有的基础版反而占用裸名（deepseek-v4-flash），系统里的模型名通常不带日期。
+var aaCheckpointSuffix = regexp.MustCompile(`-\d{4}$|-\d{8}$`)
+
 // aaModelKeys 返回一行 AA 数据可用于匹配的名字，按可靠性排序：
 // slug 最干净（gpt-oss-20b），name 带厂商前缀与推理档位（gpt-oss-20B (high)）。
 // 括号里的推理档位后缀必须剥掉，否则带 (high) 的条目永远匹配不上系统模型名。
+// 带检查点日期的行额外登记一个去掉日期的别名：系统模型名不带日期时
+// （deepseek-v4.1-flash）只能命中裸名那条旧检查点，别名让它命中最新检查点。
 // 同一分数登记到所有名字下，让精确匹配与归一化匹配都有机会命中。
 func aaModelKeys(row AAModelRow) []string {
 	var keys []string
@@ -59,6 +67,12 @@ func aaModelKeys(row AAModelRow) []string {
 	name, _, _ := strings.Cut(row.Name, "(")
 	if name = normalizeDeepSweName(strings.TrimSpace(name)); name != "" && !slices.Contains(keys, name) {
 		keys = append(keys, name)
+	}
+	for _, key := range slices.Clone(keys) {
+		base := aaCheckpointSuffix.ReplaceAllString(key, "")
+		if base != key && base != "" && !slices.Contains(keys, base) {
+			keys = append(keys, base)
+		}
 	}
 	return keys
 }

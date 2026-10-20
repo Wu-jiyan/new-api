@@ -44,6 +44,40 @@ func TestParseAAPages(t *testing.T) {
 	require.Equal(t, 48.0, scores.Intelligence["deepseek-v4-pro"])
 }
 
+// AA 的检查点 slug 带日期后缀时（deepseek-v4-1-flash-1017），系统里不带日期的
+// 模型名（deepseek-v4.1-flash）必须命中它，而不是只拿到旧检查点的基础分；
+// 不带日期后缀的型号名（-non-reasoning）不能被当成检查点别名。
+func TestAAPagesMatchCheckpointDate(t *testing.T) {
+	page := []byte(`{
+	  "pagination": {"page": 1, "has_more": false},
+	  "data": [
+	    {"name": "DeepSeek V4.1 Flash 1017 (Max)", "slug": "deepseek-v4-1-flash-1017",
+	     "evaluations": {"artificial_analysis_intelligence_index": 45.1}},
+	    {"name": "DeepSeek V4.1 Flash (Max)", "slug": "deepseek-v4-1-flash",
+	     "evaluations": {"artificial_analysis_intelligence_index": 39.5}},
+	    {"name": "DeepSeek V4.1 Flash (Non-reasoning)", "slug": "deepseek-v4-1-flash-non-reasoning",
+	     "evaluations": {"artificial_analysis_intelligence_index": 24.7}}
+	  ]
+	}`)
+
+	scores, err := ParseAAPages([][]byte{page})
+	require.NoError(t, err)
+
+	// 不带日期的系统模型名命中最新检查点（1017），而不是旧检查点的 39.5
+	score, ok := matchDeepSweScore("deepseek-v4.1-flash", scores.Intelligence)
+	require.True(t, ok)
+	require.Equal(t, 45.1, score)
+
+	// 带日期的完整名仍然精确命中自己的分
+	score, ok = matchDeepSweScore("deepseek-v4-1-flash-1017", scores.Intelligence)
+	require.True(t, ok)
+	require.Equal(t, 45.1, score)
+
+	// 推理档位不是日期后缀，不能被剥成别名
+	require.Equal(t, 24.7, scores.Intelligence["deepseek-v4-1-flash-non-reasoning"])
+	require.NotContains(t, scores.Intelligence, "deepseek-v4-1-flash-non")
+}
+
 // 各维度量纲不同（DeepSWE 是 pass@1 百分比，AA 是指数），阈值必须相互独立：
 // 同一个分数在不同维度落到的档位应该不同，否则说明阈值被错误地共用了。
 func TestMapScoreToRatingPerDimension(t *testing.T) {
