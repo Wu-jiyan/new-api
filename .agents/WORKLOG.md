@@ -705,3 +705,55 @@ compose（`/www/wwwroot/new-api`，new-api + redis + postgres:15），部署命�
 - 提交 `0c32bfd17` → GHCR run `39292327441`（success，镜像 created
   `2026-10-20 01:16:57 +0800`）→ 香港PCCW 部署；容器 healthy、restarts=0、
   本地与公网 `/api/status` 均 200，`/api/pricing` 正常返回 `auto_group_chain`
+
+### DeepSWE 分数：上游榜单冻结 + 人工补分（2026-10-21）
+
+**诊断：同步链路是健康的，是上游榜单冻结了。**
+
+- 81 个在册模型里 54 个有 DeepSWE 分；手动触发 `POST /api/admin/model-rating/sync/deepswe`
+  返回 200；启动时与 24h 定时任务都跑完（日志 `deepswe rating sync done`）。
+- 上游 `https://deepswe.datacurve.ai/artifacts/v1.1/leaderboard-live.json`（官网 SPA 用的同一路径，
+  v1.2+ 不存在）的 `generated_at=2026-09-22`，最后一批评测 job
+  `20260901-deep-swe-1-1-gpt-6-astra` 于 **2026-09-01** 完成，70 行 / 28 个模型 / 113 个任务；
+  更老的 `v1` artifact 是 2026-06-20 的另一套任务集（21 个模型，与 v1.1 有 13 个不重叠）。
+  官方自 2026-09-03 起未再上新模型。
+- 榜单里没有的模型自然无分可同步：`gpt-6-sol`/`gpt-6-luna`/`gpt-6.1-sol`（榜上只有 `gpt-6-astra`）、
+  `grok-4.7`（只有 4-5/4-6）、`minimax-m3.1-flash`（v1.1 无 minimax，v1 只有 `minimax-m3`）。
+
+**本轮动作**
+
+1. **C：清掉两个手填值回归自动来源。** `claude-opus-5-5`（手填 74.20，榜单 `claude-opus-5`=73.65）
+   清空后由同步回填 73.65；`minimax-m3.1-flash`（手填 73.72 没有任何公开出处）清空为 0。
+2. **人工补分**（来源：deepswe.dev tracker 的 `data/deepswe-1.1.csv`，逐条带 source_url，
+   2026-10-09/10 在原始出处核对过）：
+
+   | 模型 | 分数 | 档位 | 来源 | 档位 / 框架 |
+   | --- | --- | --- | --- | --- |
+   | gpt-6-sol | 70.50 | UR | Mercor APEX 独立跑分 | max / mini-swe-agent（OpenAI 自报 [max] 68.8） |
+   | gpt-6-luna | 67.00 | UR | Mercor APEX 独立跑分 | max / mini-swe-agent（OpenAI 自报 [max] 66.6） |
+   | gpt-6.1-sol | 75.22 | UR | OpenAI 官方发布 | high / lab-internal |
+   | grok-4.7 | 73.00 | UR | Artificial Analysis 评测文章 | xhigh / Grok Build（xAI 自报 [high] 71.0） |
+   | step-5-preview | 67.70 | UR | StepFun 官方公告 | high / mini-swe-agent |
+
+3. **修正前缀继承串味。** `matchDeepSweScore` 的最长前缀规则会让 `claude-sonnet-5-5` 命中
+   `claude-sonnet-5`（53.85）、`claude-opus-5-5` 命中 `claude-opus-5`（73.65）、
+   `claude-fable-5-1` 命中 `claude-fable-5`（69.91）。这三个型号在 AA 侧都有独立行
+   （slug `claude-sonnet-5-5` / `claude-opus-5-5` / `claude-fable-5-1`），已改用对应型号的
+   官方自报分：**71.00 / 74.20 / 67.40**（Anthropic 三份 system card）。
+
+**未填的（没有任何公开读数，保留 0）**
+
+- `minimax-m3.1-flash`；`gpt-oss-20b`/`gpt-oss-120b`（唯一读数是 Mercor 的 0% / 0.6%，属跑挂不是能力）；
+  `qwen3.8-27b-nonthinking`（只有兄弟型号 Qwen3.8-27B=42.2，且是 thinking 档）；
+  `nemotron-3.5-lightning`/`nemotron-3.5-super-vl`；`mimo-v2.5`（榜上是 MiMo-V2.5-Pro，
+  AA slug `mimo-v2-5-0424` 说明我们是 0424 非 Pro）；`ling-3.0-flash-fin`/`ling-3.1-flash`；
+  `jev-1.13`；`longcat-2.5-preview`；以及全部图像/音频/风控/自有模型
+  （`gpt-image-*`、`whisper-*`、`llama-prompt-guard-*`、`z-image-*`、`ernie-image-turbo`、
+  `deepseek-search/fetch/webchat`、`auto-china`、`big-pickle`、`cat-jam`、`fledge-alpha`、
+  `space-bunny` 等）。
+
+**保留的人工分**：库里 33 条 `rating_source='manual'`，其中 19 条没有公开出处（属人为判断的
+自有/别名模型），本轮未改动；要清空可在「模型分级」页逐个清，或走 `ResetGachaRatings`。
+
+**产出**：81 个模型里 58 个有 DeepSWE 分（25 自动 + 33 人工），`claude-sonnet-5-5` 档位 SR → UR；
+DeepSWE 阈值未动（{UR:65, SSR:55, SR:45, R:30}）。
