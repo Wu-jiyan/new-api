@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -205,6 +207,48 @@ func TestOriginalPricePersistsThroughUpdate(t *testing.T) {
 	require.NotNil(t, original)
 	assert.Equal(t, "CNY", original.Currency)
 	assert.InDelta(t, 12.0, original.Input, 1e-9)
+}
+
+// TestPricingExposesOriginalPrice 守住前端契约：定价接口必须把元信息里的原价
+// 带到 per-model 的 original_price 上，否则模型广场永远算不出折扣。
+func TestPricingExposesOriginalPrice(t *testing.T) {
+	setupCharacterChatModelDB(t)
+	require.NoError(t, DB.AutoMigrate(&Model{}, &Channel{}, &Ability{}, &Vendor{}, &Option{}))
+	InvalidatePricingCache()
+	t.Cleanup(InvalidatePricingCache)
+
+	require.NoError(t, DB.Create(&Channel{
+		Id: 1, Type: 1, Key: "sk-test", Name: "catalog-channel",
+		Models: "original-price-model", Group: "default", Status: common.ChannelStatusEnabled,
+	}).Error)
+	require.NoError(t, DB.Create(&Ability{
+		Group: "default", Model: "original-price-model", ChannelId: 1, Enabled: true,
+	}).Error)
+	require.NoError(t, (&Model{
+		ModelName:             "original-price-model",
+		Status:                1,
+		OriginalPriceCurrency: "CNY",
+		OriginalPriceInput:    12,
+		OriginalPriceOutput:   32,
+	}).Insert())
+
+	var priced *Pricing
+	for _, item := range GetPricing() {
+		if item.ModelName == "original-price-model" {
+			priced = &item
+			break
+		}
+	}
+	require.NotNil(t, priced, "model is missing from the pricing payload")
+	require.NotNil(t, priced.OriginalPrice)
+	assert.Equal(t, "CNY", priced.OriginalPrice.Currency)
+	assert.InDelta(t, 12.0, priced.OriginalPrice.Input, 1e-9)
+	assert.InDelta(t, 32.0, priced.OriginalPrice.Output, 1e-9)
+
+	encoded, err := common.Marshal(*priced)
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), `"original_price":{`)
+	assert.Contains(t, string(encoded), `"currency":"CNY"`)
 }
 
 // legacyModel 是「上一版」models 表的形状：有元信息与评分列，
