@@ -20,7 +20,11 @@ import type { CurrencyDisplayType } from '@/stores/system-config-store'
 
 import { FILTER_ALL, QUOTA_TYPE_VALUES } from '../constants'
 import type { OriginalPrice, PricingModel } from '../types'
-import { hasTaskUsageSchema, isDynamicPricingModel } from './dynamic-price'
+import {
+  getDynamicPricingSummary,
+  hasTaskUsageSchema,
+  isDynamicPricingModel,
+} from './dynamic-price'
 import {
   getAutoChainGroups,
   getConfiguredGroupRatio,
@@ -120,6 +124,17 @@ const TOKEN_PRICE_TYPES: {
   { priceType: 'cache', originalKey: 'cacheRead' },
   { priceType: 'create_cache', originalKey: 'cacheWrite' },
 ]
+
+/** Official amount field behind each price type, for the expression path. */
+const OFFICIAL_FIELD_BY_PRICE_TYPE: Record<
+  TokenDiscountPriceType,
+  'input' | 'output' | 'cacheRead' | 'cacheWrite'
+> = {
+  input: 'input',
+  output: 'output',
+  cache: 'cacheRead',
+  create_cache: 'cacheWrite',
+}
 
 /**
  * Build the display-currency descriptor from the site currency settings.
@@ -253,16 +268,10 @@ function getGroupCandidates(
   official: OriginalPriceAmounts,
   context: OriginalPriceContext
 ): DiscountCandidate[] {
-  const usdFactor = context.display.usdFactor
-
   // A forced price replaces model pricing, so only the flat per-request price
   // can be compared, and only with a configured per-request official price.
-  const forcedPrice = getGroupForcedPrice(context.groupForcedPrice, group)
-  if (forcedPrice !== undefined) {
-    const ratio = candidateRatio(forcedPrice * usdFactor, official.request)
-    if (ratio === null) return []
-    return [{ ratio, group, priceType: 'request' }]
-  }
+  const forced = getForcedPriceCandidates(group, official, context)
+  if (forced) return forced
 
   const groupRatio = getConfiguredGroupRatio(
     context.groupRatio ?? model.group_ratio ?? {},
@@ -270,7 +279,8 @@ function getGroupCandidates(
   )
 
   if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
-    const paid = (model.model_price ?? Number.NaN) * groupRatio * usdFactor
+    const paid =
+      (model.model_price ?? Number.NaN) * groupRatio * context.display.usdFactor
     const ratio = candidateRatio(paid, official.request)
     if (ratio === null) return []
     return [{ ratio, group, priceType: 'request' }]
@@ -281,10 +291,84 @@ function getGroupCandidates(
     // calculateTokenPrice already returns NaN for a price type this model does
     // not price, so no separate ratio check is needed.
     const paid =
-      calculateTokenPrice(model, entry.priceType, groupRatio) * usdFactor
+      calculateTokenPrice(model, entry.priceType, groupRatio) *
+      context.display.usdFactor
     const ratio = candidateRatio(paid, official[entry.originalKey])
     if (ratio === null) continue
     candidates.push({ ratio, group, priceType: entry.priceType })
+  }
+  return candidates
+}
+
+/** Flat per-request group price, or null when the group charges normal pricing. */
+function getForcedPriceCandidates(
+  group: string,
+  official: OriginalPriceAmounts,
+  context: OriginalPriceContext
+): DiscountCandidate[] | null {
+  const forcedPrice = getGroupForcedPrice(context.groupForcedPrice, group)
+  if (forcedPrice === undefined) return null
+  const ratio = candidateRatio(
+    forcedPrice * context.display.usdFactor,
+    official.request
+  )
+  return ratio === null ? [] : [{ ratio, group, priceType: 'request' }]
+}
+
+/**
+ * Expression fields that describe the same price type as an official amount.
+ * Cache-1h, image-input and image-output prices have no official counterpart in
+ * the metadata form, so they are left out instead of being compared against a
+ * different quantity.
+ */
+const EXPRESSION_TOKEN_FIELDS: Record<string, TokenDiscountPriceType> = {
+  inputPrice: 'input',
+  outputPrice: 'output',
+  cacheReadPrice: 'cache',
+  cacheCreatePrice: 'create_cache',
+}
+
+/**
+ * Discounts for expression-priced (tiered) models.
+ *
+ * These models have no model_ratio; their sold price is whatever the billing
+ * expression evaluates to for the currently displayed tier. The expression is
+ * already per 1M tokens in system USD, so the same comparison applies after the
+ * group ratio.
+ */
+function getExpressionCandidates(
+  model: PricingModel,
+  group: string,
+  official: OriginalPriceAmounts,
+  context: OriginalPriceContext
+): DiscountCandidate[] {
+  const forced = getForcedPriceCandidates(group, official, context)
+  if (forced) return forced
+
+  const summary = getDynamicPricingSummary(model, { tokenUnit: 'M' })
+  if (!summary) return []
+  const groupRatio = getConfiguredGroupRatio(
+    context.groupRatio ?? model.group_ratio ?? {},
+    group
+  )
+  const candidates: DiscountCandidate[] = []
+  for (const entry of summary.entries) {
+    let priceType: DiscountPriceType | undefined
+    let officialAmount: number | undefined
+    if (entry.unit === 'token') {
+      priceType = EXPRESSION_TOKEN_FIELDS[entry.field]
+      if (!priceType) continue
+      officialAmount = official[OFFICIAL_FIELD_BY_PRICE_TYPE[priceType]]
+    } else if (entry.unit === 'request' || entry.unit === 'image') {
+      priceType = 'request'
+      officialAmount = official.request
+    } else {
+      continue
+    }
+    const paid = entry.value * groupRatio * context.display.usdFactor
+    const ratio = candidateRatio(paid, officialAmount)
+    if (ratio === null) continue
+    candidates.push({ ratio, group, priceType })
   }
   return candidates
 }
@@ -299,16 +383,21 @@ export function computeModelDiscount(
   model: PricingModel,
   context: OriginalPriceContext
 ): ModelDiscount | null {
-  // Expression and usage-based prices do not come from model_ratio, so the
-  // ratio math below cannot describe their discount.
-  if (isDynamicPricingModel(model) || hasTaskUsageSchema(model)) return null
+  // Task-plugin usage prices are quoted per unit of a usage schema (seconds,
+  // credits, images), not per token or per request, so the ratio math below
+  // cannot describe their discount.
+  if (hasTaskUsageSchema(model)) return null
 
   const official = getOriginalPriceAmounts(model.original_price, context)
   if (!official) return null
 
+  // Expression-priced models quote the evaluated tier instead of model_ratio.
+  const collect = isDynamicPricingModel(model)
+    ? getExpressionCandidates
+    : getGroupCandidates
   const candidates: DiscountCandidate[] = []
   for (const group of getDiscountGroups(model, context)) {
-    candidates.push(...getGroupCandidates(model, group, official, context))
+    candidates.push(...collect(model, group, official, context))
   }
   if (candidates.length === 0) return null
 

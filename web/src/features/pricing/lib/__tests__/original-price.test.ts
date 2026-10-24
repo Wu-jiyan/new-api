@@ -283,10 +283,15 @@ describe('computeModelDiscount', () => {
     ).toBe(0)
   })
 
-  it('shows nothing for a model priced by a billing expression', () => {
+  // Task-plugin prices are quoted per usage unit (seconds, credits, images), so
+  // they have no per-token official price to compare against.
+  it('shows nothing for a task-usage priced model', () => {
     const model = pricingModel({
       billing_mode: 'tiered_expr',
-      billing_expr: 'tier("base", p * 1 + c * 3)',
+      billing_expr: 'tier("base", seconds * 0.1)',
+      billing_usage_schema: {
+        seconds: { type: 'number', unit: 'second', description: 'Duration' },
+      },
       original_price: { currency: 'USD', input: 2.5 },
     })
 
@@ -325,4 +330,56 @@ describe('discountLabelValue', () => {
       expect(discountLabelValue(ratio, language)).toBe(expected)
     }
   )
+})
+
+// The billing expression already quotes system USD per 1M tokens, so the
+// discount compares the evaluated tier against the official price instead of
+// model_ratio. This is what most of the catalogue is billed by.
+describe('computeModelDiscount for expression-priced models', () => {
+  const expressionModel = (overrides: Partial<PricingModel> = {}) =>
+    pricingModel({
+      model_ratio: 0,
+      completion_ratio: 0,
+      billing_mode: 'tiered_expr',
+      billing_expr: 'tier("base", p * 10 + c * 50 + cr * 1)',
+      original_price: { currency: 'USD', input: 20, output: 100 },
+      ...overrides,
+    })
+
+  it('compares the evaluated tier price with the official price', () => {
+    expect(computeModelDiscount(expressionModel(), context())).toEqual({
+      ratio: 0.5,
+      exact: true,
+      group: 'default',
+      priceType: 'input',
+    })
+  })
+
+  it('applies the group ratio to the evaluated price', () => {
+    const discount = computeModelDiscount(
+      expressionModel(),
+      context({ groupRatio: { default: 0.8 } })
+    )
+
+    expect(discount?.ratio).toBe(0.4)
+  })
+
+  it('compares a fixed per-request expression with the official request price', () => {
+    const model = expressionModel({
+      quota_type: 1,
+      billing_expr: 'tier("image", fixed(0.06)) * image_count',
+      original_price: { currency: 'USD', request: 0.12 },
+    })
+
+    expect(computeModelDiscount(model, context())?.ratio).toBe(0.5)
+  })
+
+  it('stays hidden when the expression cannot be read', () => {
+    expect(
+      computeModelDiscount(
+        expressionModel({ billing_expr: 'tier("base", p * ' }),
+        context()
+      )
+    ).toBeNull()
+  })
 })
