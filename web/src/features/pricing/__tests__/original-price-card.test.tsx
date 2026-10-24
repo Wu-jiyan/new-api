@@ -100,7 +100,7 @@ describe('model card original price', () => {
 
     // 2 / 2.5 = 6 / 7.5 = 0.8, so every price type agrees on 20% off.
     expect(screen.getByText('20% off')).toBeVisible()
-    expect(screen.getByText(/Original price/)).toBeVisible()
+    expect(screen.getByText(/Official price/)).toBeVisible()
     expect(screen.getByText(/\$2\.5 \/ \$7\.5/)).toBeVisible()
   })
 
@@ -130,7 +130,7 @@ describe('model card original price', () => {
     )
 
     expect(screen.queryByText('20% off')).not.toBeInTheDocument()
-    expect(screen.queryByText(/Original price/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Official price/)).not.toBeInTheDocument()
   })
 
   it('renders nothing when the model has no original price', () => {
@@ -142,6 +142,6 @@ describe('model card original price', () => {
       />
     )
 
-    expect(screen.queryByText(/Original price/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Official price/)).not.toBeInTheDocument()
   })
 })

@@ -126,11 +126,11 @@ describe('original price settings', () => {
     const client = renderCard()
     const user = userEvent.setup()
 
-    const toggle = screen.getByRole('switch', { name: 'Show original price' })
+    const toggle = screen.getByRole('switch', { name: 'Show official price' })
     expect(toggle).toBeChecked()
     await user.click(toggle)
     await user.click(
-      screen.getByRole('button', { name: 'Save original price settings' })
+      screen.getByRole('button', { name: 'Save official price settings' })
     )
     await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
     expect(put).toHaveBeenCalledWith('/api/option/', {
@@ -152,7 +152,7 @@ describe('original price settings', () => {
     await user.clear(baseUrl)
     await user.type(baseUrl, 'https://er-api.25y.cn/v6/latest')
     await user.click(
-      screen.getByRole('button', { name: 'Save original price settings' })
+      screen.getByRole('button', { name: 'Save official price settings' })
     )
     await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
     expect(put).toHaveBeenCalledWith('/api/option/', {
@@ -182,7 +182,7 @@ describe('original price settings', () => {
     await user.type(baseUrl, 'https://mirror.example/v6/latest')
     await user.clear(screen.getByLabelText('Sync interval (hours)'))
     await user.click(
-      screen.getByRole('button', { name: 'Save original price settings' })
+      screen.getByRole('button', { name: 'Save official price settings' })
     )
     await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
     // The cleared field keeps the previous whole hour, so no interval write

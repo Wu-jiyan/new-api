@@ -212,13 +212,13 @@ export function OriginalPriceSettingsCard(
     : t('Never synced')
 
   return (
-    <SettingsSection title={t('Original price & exchange rate')}>
+    <SettingsSection title={t('Official price & exchange rate')}>
       <Form {...form}>
         <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
           <SettingsPageFormActions
             onSave={form.handleSubmit(onSubmit)}
             isSaving={updateOption.isPending}
-            saveLabel='Save original price settings'
+            saveLabel='Save official price settings'
           />
           <FormField
             control={form.control}
@@ -226,10 +226,10 @@ export function OriginalPriceSettingsCard(
             render={({ field }) => (
               <SettingsSwitchItem>
                 <SettingsSwitchContent>
-                  <FormLabel>{t('Show original price')}</FormLabel>
+                  <FormLabel>{t('Show official price')}</FormLabel>
                   <FormDescription>
                     {t(
-                      'Master switch for the model square. When off, neither the original price nor the discount is shown.'
+                      'Master switch for the model square. When off, neither the official price nor the discount is shown.'
                     )}
                   </FormDescription>
                 </SettingsSwitchContent>

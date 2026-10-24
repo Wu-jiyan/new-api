@@ -717,7 +717,7 @@ export function ModelMutateDrawer(props: {
                         square discount. It never affects billing. */}
                     <SideDrawerSection>
                       <h3 className='text-sm font-semibold'>
-                        {t('Original price')}
+                        {t('Official price')}
                       </h3>
                       <FormDescription>
                         {t(
@@ -730,7 +730,7 @@ export function ModelMutateDrawer(props: {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>
-                              {t('Original price currency')}
+                              {t('Official price currency')}
                             </FormLabel>
                             <FormControl>
                               <Combobox
@@ -741,7 +741,7 @@ export function ModelMutateDrawer(props: {
                                 }
                                 className='w-full sm:w-[240px]'
                                 placeholder={t('Not configured')}
-                                aria-label={t('Original price currency')}
+                                aria-label={t('Official price currency')}
                               />
                             </FormControl>
                             <FormDescription>

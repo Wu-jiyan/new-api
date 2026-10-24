@@ -129,7 +129,7 @@ describe('model details original price', () => {
 
     const heading = screen.getByRole('heading', {
       level: 2,
-      name: 'Original price',
+      name: 'Official price',
     })
     const section = heading.closest('section')
     if (!section) throw new Error('Missing original price section')
@@ -153,11 +153,29 @@ describe('model details original price', () => {
     ).toBeInTheDocument()
   })
 
+  it('shows each group its own discount on expression-priced group cards', () => {
+    renderDetails(
+      pricingModel({
+        model_ratio: 0,
+        completion_ratio: 0,
+        billing_mode: 'tiered_expr',
+        billing_expr: 'tier("base", p * 2 + c * 8)',
+        original_price: { currency: 'USD', input: 2.5, output: 10 },
+      }),
+      originalPriceContext()
+    )
+
+    // default: 2 / 2.5 = 8 / 10 = 0.8. premium: 0.5 x that = 0.4 → 60% off.
+    // Each group card carries its own chip instead of only the section header.
+    expect(screen.getByText('20% off')).toBeVisible()
+    expect(screen.getByText('60% off')).toBeVisible()
+  })
+
   it('hides every discount when the feature is off', () => {
     renderDetails(pricingModel())
 
     expect(
-      screen.queryByRole('heading', { level: 2, name: 'Original price' })
+      screen.queryByRole('heading', { level: 2, name: 'Official price' })
     ).not.toBeInTheDocument()
     expect(
       screen.queryByRole('columnheader', { name: 'Discount' })

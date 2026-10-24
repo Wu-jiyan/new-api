@@ -92,7 +92,7 @@ describe('model original price', () => {
     expect(screen.getByLabelText('Cache write price')).toHaveValue(0.1875)
     expect(screen.getByLabelText('Per-request price')).toHaveValue(0.002)
     expect(
-      screen.getByRole('combobox', { name: 'Original price currency' })
+      screen.getByRole('combobox', { name: 'Official price currency' })
     ).toHaveValue('USD')
 
     await user.click(screen.getByRole('button', { name: 'Save metadata' }))
@@ -138,7 +138,7 @@ describe('model original price', () => {
     expect(await screen.findByLabelText('Input price')).toBeDisabled()
     expect(screen.getByLabelText('Per-request price')).toBeDisabled()
     expect(
-      screen.getByRole('combobox', { name: 'Original price currency' })
+      screen.getByRole('combobox', { name: 'Official price currency' })
     ).toHaveValue('Not configured')
     client.clear()
   })

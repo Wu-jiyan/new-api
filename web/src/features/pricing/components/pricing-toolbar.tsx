@@ -260,13 +260,13 @@ export function PricingToolbar(props: PricingToolbarProps) {
                 size='sm'
                 checked={props.showOriginalPrice ?? false}
                 onCheckedChange={props.onOriginalPriceChange}
-                aria-label={t('Show original price')}
+                aria-label={t('Show official price')}
               />
               <Label
                 htmlFor='pricing-show-original-price'
                 className='text-muted-foreground text-xs font-normal'
               >
-                {t('Show original price')}
+                {t('Show official price')}
               </Label>
             </div>
           )}

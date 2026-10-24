@@ -1014,13 +1014,15 @@ type OriginalPriceRow = {
 }
 
 /**
- * Official price card: what the model costs without the site discount, in the
+ * Official price block: what the model costs without the site discount, in the
  * currency the operator configured it in, plus the discount of the site price.
+ *
+ * Rendered whenever the model has an official price, so an operator can see the
+ * baseline even when the paid price happens to match it.
  */
 function OriginalPriceSection(props: {
   model: PricingModel
-  context: OriginalPriceContext
-  discount: ModelDiscount
+  discount: ModelDiscount | null
   tokenUnit: TokenUnit
 }) {
   const { t } = useTranslation()
@@ -1045,9 +1047,15 @@ function OriginalPriceSection(props: {
 
   return (
     <section>
-      <SectionTitle>{t('Original price')}</SectionTitle>
-      <div className='bg-muted/20 rounded-lg border px-3 py-2.5'>
-        <div className='space-y-1.5'>
+      <SectionTitle>{t('Official price')}</SectionTitle>
+      <div className='overflow-hidden rounded-lg border'>
+        <div className='bg-muted/20 flex items-center justify-between gap-3 border-b px-3 py-2'>
+          <span className='text-muted-foreground font-mono text-xs'>
+            {original.currency}
+          </span>
+          {props.discount && <OriginalPriceBadge discount={props.discount} />}
+        </div>
+        <div className='space-y-1.5 px-3 py-2.5'>
           {rows.map((row) => (
             <div
               key={row.key}
@@ -1068,16 +1076,12 @@ function OriginalPriceSection(props: {
             </div>
           ))}
         </div>
+        {quotesTokens && (
+          <p className='text-muted-foreground/40 border-t px-3 py-1.5 text-[10px]'>
+            {t('Prices shown per {{unit}} tokens', { unit: tokenUnitLabel })}
+          </p>
+        )}
       </div>
-      <div className='mt-2 flex flex-wrap items-center justify-between gap-2'>
-        <span className='text-muted-foreground text-xs'>{t('Discount')}</span>
-        <OriginalPriceBadge discount={props.discount} />
-      </div>
-      {quotesTokens && (
-        <p className='text-muted-foreground/40 mt-1.5 text-[10px]'>
-          {t('Prices shown per {{unit}} tokens', { unit: tokenUnitLabel })}
-        </p>
-      )}
     </section>
   )
 }
@@ -1450,11 +1454,23 @@ function ProviderGroupPricingSection(
             const formattedPricesByTier =
               formattedPricesByGroup.get(group) ??
               new Map<DynamicPricingTier, Map<string, string>>()
+            // 每个分组展示它自己的实际折扣（而不是标题里的最低折扣）。
+            const groupDiscount = originalPrice
+              ? computeModelDiscount(props.model, {
+                  ...originalPrice,
+                  selectedGroup: group,
+                })
+              : null
 
             return (
               <div key={group} className='overflow-hidden rounded-lg border'>
-                <div className='bg-muted/20 flex items-center justify-between gap-3 border-b px-3 py-2'>
-                  <GroupBadge group={group} size='sm' />
+                <div className='bg-muted/20 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-3 py-2'>
+                  <div className='flex min-w-0 flex-wrap items-center gap-2'>
+                    <GroupBadge group={group} size='sm' />
+                    {groupDiscount && (
+                      <OriginalPriceBadge discount={groupDiscount} />
+                    )}
+                  </div>
                   <span className='text-muted-foreground font-mono text-xs'>
                     {formatGroupRatioLabel(ratio, t('Free of charge'))}
                   </span>
@@ -1875,10 +1891,9 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
                 }}
               />
             )}
-            {props.originalPrice && originalDiscount && (
+            {props.originalPrice && (
               <OriginalPriceSection
                 model={props.model}
-                context={props.originalPrice}
                 discount={originalDiscount}
                 tokenUnit={props.tokenUnit}
               />

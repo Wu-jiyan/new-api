@@ -93,7 +93,7 @@ describe('original price toggle in the toolbar', () => {
       />
     )
 
-    const toggle = screen.getByRole('switch', { name: 'Show original price' })
+    const toggle = screen.getByRole('switch', { name: 'Show official price' })
     expect(toggle).toHaveAttribute('aria-checked', 'false')
 
     await user.click(toggle)
@@ -112,7 +112,7 @@ describe('original price toggle in the toolbar', () => {
     )
 
     expect(
-      screen.getByRole('switch', { name: 'Show original price' })
+      screen.getByRole('switch', { name: 'Show official price' })
     ).toHaveAttribute('aria-checked', 'true')
   })
 
@@ -120,7 +120,7 @@ describe('original price toggle in the toolbar', () => {
     render(<PricingToolbar {...toolbarProps()} />)
 
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
-    expect(screen.queryByText('Show original price')).not.toBeInTheDocument()
+    expect(screen.queryByText('Show official price')).not.toBeInTheDocument()
   })
 })
 

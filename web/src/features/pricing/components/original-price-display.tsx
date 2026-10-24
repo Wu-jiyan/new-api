@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatLocalCurrencyAmount } from '@/lib/currency'
 import { cn } from '@/lib/utils'
@@ -31,21 +32,14 @@ import {
 } from '../lib/original-price'
 import type { OriginalPriceCurrency, PricingModel } from '../types'
 
-// Depth buckets. They are a display convention for how loud the pill looks, not
-// data-derived thresholds. The label text stays on --foreground because
-// --warning and --destructive fall below WCAG AA 4.5:1 once they sit on a
-// tinted background, so the depth is carried by tint, border and weight.
+// Depth buckets. They are a display convention for how loud the chip looks, not
+// data-derived thresholds: a deep discount uses the destructive chip, a mid one
+// the warning chip, a shallow one the neutral secondary chip, which keeps the
+// pill in the same visual vocabulary as the rest of the console.
 const STRONG_PERCENT_OFF = 30
 const MEDIUM_PERCENT_OFF = 10
 
-const DEPTH_STYLES = {
-  strong:
-    'border-destructive/40 bg-destructive/10 text-foreground font-semibold',
-  medium: 'border-warning/50 bg-warning/10 text-foreground',
-  light: 'border-border bg-muted text-muted-foreground',
-} as const
-
-type DiscountDepth = keyof typeof DEPTH_STYLES
+type DiscountDepth = 'strong' | 'medium' | 'light'
 
 function depthOf(percentOff: number): DiscountDepth {
   if (percentOff >= STRONG_PERCENT_OFF) return 'strong'
@@ -53,7 +47,13 @@ function depthOf(percentOff: number): DiscountDepth {
   return 'light'
 }
 
-/** Compact discount pill, with the "from" wording when the depth varies. */
+const DEPTH_VARIANTS = {
+  strong: 'destructive',
+  medium: 'warning',
+  light: 'secondary',
+} as const
+
+/** Compact discount chip, with the "from" wording when the depth varies. */
 export function OriginalPriceBadge(props: {
   discount: ModelDiscount
   className?: string
@@ -70,15 +70,12 @@ export function OriginalPriceBadge(props: {
     : t('From {{value}}% off', { value: labelValue })
 
   return (
-    <span
-      className={cn(
-        'inline-flex max-w-full items-center rounded-md border px-1.5 py-0.5 text-[11px] leading-none whitespace-nowrap tabular-nums',
-        DEPTH_STYLES[depthOf(percentOff)],
-        props.className
-      )}
+    <Badge
+      variant={DEPTH_VARIANTS[depthOf(percentOff)]}
+      className={cn('shrink-0 tabular-nums', props.className)}
     >
       {label}
-    </span>
+    </Badge>
   )
 }
 
@@ -134,7 +131,7 @@ export function OriginalPriceSummary(props: {
         props.className
       )}
     >
-      {t('Original price')} {formatted}
+      {t('Official price')} {formatted}
       {` / ${unit}`}
     </span>
   )

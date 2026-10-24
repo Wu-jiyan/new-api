@@ -67,7 +67,7 @@ const MODELS_SECTIONS = [
 
   {
     id: 'original-price',
-    titleKey: 'Original price & exchange rate',
+    titleKey: 'Official price & exchange rate',
     build: (settings: ModelSettings) => (
       <OriginalPriceSettingsCard
         defaultValues={{
