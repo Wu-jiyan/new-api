@@ -67,6 +67,8 @@ import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { DEFAULT_TOKEN_UNIT, FILTER_ALL } from '../constants'
 import { useBillingTime } from '../hooks/use-billing-time'
+import { useOriginalPriceContext } from '../hooks/use-original-price-context'
+import { useOriginalPriceToggle } from '../hooks/use-original-price-toggle'
 import { usePricingData } from '../hooks/use-pricing-data'
 import type { ParsedTaskTier } from '../lib/billing-expr'
 import { formatBillingCondition } from '../lib/billing-expression/condition-display'
@@ -89,6 +91,11 @@ import {
   getGroupForcedPrice,
   isTokenBasedModel,
 } from '../lib/model-helpers'
+import {
+  computeModelDiscount,
+  type ModelDiscount,
+  type OriginalPriceContext,
+} from '../lib/original-price'
 import { withPluginPricing } from '../lib/plugin-pricing'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
 import {
@@ -122,6 +129,10 @@ import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelDetailsApi } from './model-details-api'
 import { ModelDetailsPerformance } from './model-details-performance'
 import { ModelScores } from './model-scores'
+import {
+  OriginalPriceAmount,
+  OriginalPriceBadge,
+} from './original-price-display'
 import { RatingBadge } from './rating-badge'
 import { TokenCountValue } from './token-count-value'
 
@@ -137,17 +148,24 @@ function SectionTitle(props: { children: React.ReactNode }) {
   )
 }
 
-/** 分组小节标题：带排序控件时把控件放到同一行右侧，避免重复出现标题。 */
+/** 分组小节标题：同一行右侧可放排序控件，标题旁可放该小节的最佳折扣。 */
 function GroupSectionHeading(props: {
   title: string
   control?: React.ReactNode
+  discount?: ModelDiscount | null
 }) {
+  const title = (
+    <div className='flex min-w-0 flex-wrap items-center gap-2'>
+      <SectionTitle>{props.title}</SectionTitle>
+      {props.discount && <OriginalPriceBadge discount={props.discount} />}
+    </div>
+  )
   if (!props.control) {
-    return <SectionTitle>{props.title}</SectionTitle>
+    return title
   }
   return (
     <div className='flex items-center justify-between gap-2'>
-      <SectionTitle>{props.title}</SectionTitle>
+      {title}
       {props.control}
     </div>
   )
@@ -986,6 +1004,85 @@ function PriceSection(props: {
 }
 
 // ----------------------------------------------------------------------------
+// Original (official) price
+// ----------------------------------------------------------------------------
+
+type OriginalPriceRow = {
+  key: string
+  label: string
+  amount: number
+}
+
+/**
+ * Official price card: what the model costs without the site discount, in the
+ * currency the operator configured it in, plus the discount of the site price.
+ */
+function OriginalPriceSection(props: {
+  model: PricingModel
+  context: OriginalPriceContext
+  discount: ModelDiscount
+  tokenUnit: TokenUnit
+}) {
+  const { t } = useTranslation()
+  const original = props.model.original_price
+  if (!original) return null
+
+  const tokenUnitLabel = props.tokenUnit === 'K' ? '1K' : '1M'
+  const rows = [
+    { key: 'input', label: t('Input'), amount: original.input },
+    { key: 'output', label: t('Output'), amount: original.output },
+    { key: 'cache', label: t('Cached input'), amount: original.cache_read },
+    {
+      key: 'create-cache',
+      label: t('Cache write'),
+      amount: original.cache_write,
+    },
+    { key: 'request', label: t('Per request'), amount: original.request },
+  ].filter((row): row is OriginalPriceRow => row.amount !== undefined)
+
+  if (rows.length === 0) return null
+  const quotesTokens = rows.some((row) => row.key !== 'request')
+
+  return (
+    <section>
+      <SectionTitle>{t('Original price')}</SectionTitle>
+      <div className='bg-muted/20 rounded-lg border px-3 py-2.5'>
+        <div className='space-y-1.5'>
+          {rows.map((row) => (
+            <div
+              key={row.key}
+              className='flex min-w-0 items-baseline justify-between gap-4'
+            >
+              <span className='text-muted-foreground/70 text-sm'>
+                {row.label}
+              </span>
+              <span className='text-muted-foreground min-w-0 text-right text-sm break-words'>
+                <OriginalPriceAmount
+                  amount={row.amount}
+                  currency={original.currency}
+                />
+                <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
+                  / {row.key === 'request' ? t('request') : tokenUnitLabel}
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className='mt-2 flex flex-wrap items-center justify-between gap-2'>
+        <span className='text-muted-foreground text-xs'>{t('Discount')}</span>
+        <OriginalPriceBadge discount={props.discount} />
+      </div>
+      {quotesTokens && (
+        <p className='text-muted-foreground/40 mt-1.5 text-[10px]'>
+          {t('Prices shown per {{unit}} tokens', { unit: tokenUnitLabel })}
+        </p>
+      )}
+    </section>
+  )
+}
+
+// ----------------------------------------------------------------------------
 // Auto group chain (used inside group pricing section)
 // ----------------------------------------------------------------------------
 
@@ -1065,6 +1162,8 @@ type GroupPricingSectionProps = {
   usdExchangeRate: number
   tokenUnit: TokenUnit
   showRechargePrice?: boolean
+  /** Original-price scope; undefined keeps discounts out of this section */
+  originalPrice?: OriginalPriceContext
 }
 
 function GroupPricingSection(props: GroupPricingSectionProps) {
@@ -1106,12 +1205,28 @@ function GroupPricingSection(props: GroupPricingSectionProps) {
       />
     )
   }
+
+  // 每个供应商变体的价格不同，标题展示所有变体中的最低折扣。
+  let bestDiscount: ModelDiscount | null = null
+  if (props.originalPrice) {
+    for (const variant of variants) {
+      const discount = computeModelDiscount(
+        withPluginPricing(props.model, variant),
+        props.originalPrice
+      )
+      if (discount && (!bestDiscount || discount.ratio < bestDiscount.ratio)) {
+        bestDiscount = discount
+      }
+    }
+  }
+
   return (
     <section>
-      <div className='flex items-center gap-2'>
-        <SectionTitle>{t('Pricing by Group')}</SectionTitle>
-        {sortControl}
-      </div>
+      <GroupSectionHeading
+        title={t('Pricing by Group')}
+        discount={bestDiscount}
+        control={sortControl}
+      />
       <Tabs key={props.model.model_name} defaultValue={variants[0].plugin_key}>
         <TabsList
           aria-label={t('Provider')}
@@ -1211,12 +1326,19 @@ function ProviderGroupPricingSection(
     return types
   }, [props.model, t])
 
+  // 标题展示该模型的实际最低折扣，分组行展示各分组自己的折扣。
+  const originalPrice = props.originalPrice
+  const bestDiscount = originalPrice
+    ? computeModelDiscount(props.model, originalPrice)
+    : null
+
   if (availableGroups.length === 0) {
     return (
       <section>
         {!props.hideTitle && (
           <GroupSectionHeading
             title={t('Pricing by Group')}
+            discount={bestDiscount}
             control={props.sortControl}
           />
         )}
@@ -1252,6 +1374,7 @@ function ProviderGroupPricingSection(
           {!props.hideTitle && (
             <GroupSectionHeading
               title={t('Pricing by Group')}
+              discount={bestDiscount}
               control={props.sortControl}
             />
           )}
@@ -1316,6 +1439,7 @@ function ProviderGroupPricingSection(
         {!props.hideTitle && (
           <GroupSectionHeading
             title={t('Pricing by Group')}
+            discount={bestDiscount}
             control={props.sortControl}
           />
         )}
@@ -1478,6 +1602,7 @@ function ProviderGroupPricingSection(
         {!props.hideTitle && (
           <GroupSectionHeading
             title={t('Pricing by Group')}
+            discount={bestDiscount}
             control={props.sortControl}
           />
         )}
@@ -1532,6 +1657,7 @@ function ProviderGroupPricingSection(
       {!props.hideTitle && (
         <GroupSectionHeading
           title={t('Pricing by Group')}
+          discount={bestDiscount}
           control={props.sortControl}
         />
       )}
@@ -1594,6 +1720,27 @@ function ProviderGroupPricingSection(
                   cell: renderFixedGroupPrice,
                 },
               ]),
+          ...(originalPrice
+            ? [
+                {
+                  id: 'discount',
+                  header: t('Discount'),
+                  className: `${thClass} text-right`,
+                  cellClassName: 'py-2.5 text-right',
+                  // 每个分组展示它自己的实际折扣，而不是小节标题里的最低折扣。
+                  cell: (group: string) => {
+                    const discount = computeModelDiscount(props.model, {
+                      ...originalPrice,
+                      selectedGroup: group,
+                    })
+                    if (!discount) {
+                      return <span className='text-muted-foreground/50'>—</span>
+                    }
+                    return <OriginalPriceBadge discount={discount} />
+                  },
+                },
+              ]
+            : []),
         ]}
       />
       <div className='-mx-4 sm:mx-0'>
@@ -1647,6 +1794,11 @@ export interface ModelDetailsContentProps {
   hasAutoGroupChain?: boolean
   /** Selected score dimension: drives the tier badge and the highlighted score */
   dimension?: ScoreDimension
+  /**
+   * Original-price scope. Undefined when the feature is off site-wide or the
+   * visitor turned it off, which hides every original price and discount.
+   */
+  originalPrice?: OriginalPriceContext
 }
 
 export function ModelDetailsContent(props: ModelDetailsContentProps) {
@@ -1672,6 +1824,10 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
     !props.model.billing_usage_schema ||
     simpleTaskPricing ||
     taskTiers.length === 0
+
+  const originalDiscount = props.originalPrice
+    ? computeModelDiscount(props.model, props.originalPrice)
+    : null
 
   return (
     <div className='@container/details space-y-4'>
@@ -1719,6 +1875,14 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
                 }}
               />
             )}
+            {props.originalPrice && originalDiscount && (
+              <OriginalPriceSection
+                model={props.model}
+                context={props.originalPrice}
+                discount={originalDiscount}
+                tokenUnit={props.tokenUnit}
+              />
+            )}
             <GroupPricingSection
               model={props.model}
               groupRatio={props.groupRatio}
@@ -1729,6 +1893,7 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
               usdExchangeRate={props.usdExchangeRate}
               tokenUnit={props.tokenUnit}
               showRechargePrice={showRechargePrice}
+              originalPrice={props.originalPrice}
             />
           </section>
 
@@ -1801,11 +1966,26 @@ export function ModelDetails() {
     endpointMap,
     autoGroups,
     autoGroupChain,
+    originalPriceSettings,
     isLoading,
     priceRate,
     usdExchangeRate,
     defaults,
   } = usePricingData()
+
+  const [showOriginalPrice] = useOriginalPriceToggle(
+    originalPriceSettings?.show_by_default === true
+  )
+  // 独立详情页没有工具栏，开关沿用访客在模型广场保存的显示偏好。
+  const originalPriceContext = useOriginalPriceContext({
+    settings: originalPriceSettings,
+    visible: showOriginalPrice,
+    usdExchangeRate,
+    groupRatio,
+    groupForcedPrice,
+    selectedGroup: search.group,
+    autoGroups: autoGroupChain,
+  })
 
   const tokenUnit: TokenUnit =
     search.tokenUnit === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
@@ -1897,6 +2077,7 @@ export function ModelDetails() {
           showRechargePrice={search.rechargePrice ?? false}
           selectedGroup={search.group}
           hasAutoGroupChain={(autoGroupChain || []).length > 0}
+          originalPrice={originalPriceContext}
           endpointMap={
             (endpointMap as Record<
               string,

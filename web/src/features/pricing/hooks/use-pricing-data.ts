@@ -89,6 +89,7 @@ export function usePricingData(enabled = true) {
     autoGroupChain: data?.auto_group_chain ?? [],
     defaults: data?.defaults,
     filterDefaults: data?.filter_defaults,
+    originalPriceSettings: data?.original_price_settings,
     isLoading,
     error,
     refetch,

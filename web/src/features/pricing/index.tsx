@@ -33,7 +33,13 @@ import {
   ModelDetailsDrawer,
 } from './components'
 import { EXCLUDED_GROUPS, VIEW_MODES } from './constants'
-import { useCharacterMap, useFilters, usePricingData } from './hooks'
+import {
+  useCharacterMap,
+  useFilters,
+  useOriginalPriceContext,
+  useOriginalPriceToggle,
+  usePricingData,
+} from './hooks'
 import type { GroupSortMode } from './lib/group-sort'
 
 export function Pricing() {
@@ -55,6 +61,7 @@ export function Pricing() {
     autoGroupChain,
     defaults,
     filterDefaults,
+    originalPriceSettings,
     isLoading,
     priceRate,
     usdExchangeRate,
@@ -96,6 +103,21 @@ export function Pricing() {
     clearFilters,
     clearSearch,
   } = useFilters(models || [], defaults, autoGroupChain)
+
+  const originalPriceEnabled = originalPriceSettings?.enabled === true
+  const [showOriginalPrice, setShowOriginalPrice] = useOriginalPriceToggle(
+    originalPriceSettings?.show_by_default === true
+  )
+  // 原价与折扣只在后台开启且访客打开开关时计算；作用域跟随工具栏选中的分组。
+  const originalPriceContext = useOriginalPriceContext({
+    settings: originalPriceSettings,
+    visible: showOriginalPrice,
+    usdExchangeRate,
+    groupRatio,
+    groupForcedPrice,
+    selectedGroup: groupFilter,
+    autoGroups: autoGroupChain,
+  })
 
   // 角色 model_name 为前缀（如 deepseek），匹配该前缀下所有模型；多个角色覆盖同一模型时取最长前缀。
   const characterMap = useCharacterMap(models ?? [])
@@ -160,6 +182,7 @@ export function Pricing() {
           groupForcedPrice={groupForcedPrice}
           characterMap={characterMap}
           dimension={scoreDimension}
+          originalPrice={originalPriceContext}
         />
       )
     }
@@ -173,6 +196,7 @@ export function Pricing() {
         showRechargePrice={showRechargePrice}
         selectedGroup={groupFilter}
         groupForcedPrice={groupForcedPrice}
+        originalPrice={originalPriceContext}
         onModelClick={handleModelClick}
       />
     )
@@ -278,6 +302,10 @@ export function Pricing() {
                 onTokenUnitChange={setTokenUnit}
                 showRechargePrice={showRechargePrice}
                 onRechargePriceChange={setShowRechargePrice}
+                showOriginalPrice={showOriginalPrice}
+                onOriginalPriceChange={
+                  originalPriceEnabled ? setShowOriginalPrice : undefined
+                }
                 viewMode={viewMode}
                 onViewModeChange={setViewMode}
                 quotaTypeFilter={quotaTypeFilter}
@@ -336,6 +364,7 @@ export function Pricing() {
               usdExchangeRate={usdExchangeRate ?? 1}
               tokenUnit={tokenUnit}
               showRechargePrice={showRechargePrice}
+              originalPrice={originalPriceContext}
             />
           )}
         </PageTransition>

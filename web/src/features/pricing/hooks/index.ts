@@ -18,4 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 export { useCharacterMap } from './use-character-map'
 export { useFilters } from './use-filters'
+export { useOriginalPriceContext } from './use-original-price-context'
+export { useOriginalPriceToggle } from './use-original-price-toggle'
 export { usePricingData } from './use-pricing-data'

@@ -29,16 +29,24 @@ import { StatusBadge } from '@/components/status-badge'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
 import { parseTags } from '../lib/filters'
+import {
+  computeModelDiscount,
+  type OriginalPriceContext,
+} from '../lib/original-price'
 import type { PricingModel } from '../types'
 import { CachedPriceCell } from './cached-price-cell'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelPriceCell, type ModelPriceCellOptions } from './model-price-cell'
+import { OriginalPriceBadge } from './original-price-display'
 
 // ----------------------------------------------------------------------------
 // Pricing Table Columns
 // ----------------------------------------------------------------------------
 
-export type PricingColumnsOptions = ModelPriceCellOptions
+export type PricingColumnsOptions = ModelPriceCellOptions & {
+  /** Original-price scope; undefined hides the feature in the price column */
+  originalPrice?: OriginalPriceContext
+}
 
 export function usePricingColumns(
   options: PricingColumnsOptions = {}
@@ -88,9 +96,17 @@ export function usePricingColumns(
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Price')} />
       ),
-      cell: ({ row }) => (
-        <ModelPriceCell model={row.original} options={options} />
-      ),
+      cell: ({ row }) => {
+        const discount = options.originalPrice
+          ? computeModelDiscount(row.original, options.originalPrice)
+          : null
+        return (
+          <div className='flex min-w-0 flex-col items-start gap-1'>
+            <ModelPriceCell model={row.original} options={options} />
+            {discount && <OriginalPriceBadge discount={discount} />}
+          </div>
+        )
+      },
       size: 180,
       enableSorting: false,
     },

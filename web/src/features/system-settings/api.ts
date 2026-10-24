@@ -22,6 +22,7 @@ import type {
   ConfirmPaymentComplianceResponse,
   FetchUpstreamRatiosRequest,
   LogCleanupTask,
+  OriginalPriceSyncResponse,
   SystemOptionsResponse,
   SystemTaskListResponse,
   SystemTaskFilters,
@@ -122,6 +123,17 @@ export async function fetchUpstreamRatios(request: FetchUpstreamRatiosRequest) {
   const res = await api.post<UpstreamRatiosResponse>(
     '/api/ratio_sync/fetch',
     request
+  )
+  return res.data
+}
+
+/**
+ * Fetch the USD→CNY rate right now instead of waiting for the hourly sync.
+ */
+export async function syncOriginalPriceRate() {
+  const res = await api.post<OriginalPriceSyncResponse>(
+    '/api/option/original_price/sync',
+    {}
   )
   return res.data
 }

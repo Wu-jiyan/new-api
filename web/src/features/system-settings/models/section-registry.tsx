@@ -23,6 +23,7 @@ import { ClaudeSettingsCard } from './claude-settings-card'
 import { GeminiSettingsCard } from './gemini-settings-card'
 import { GlobalSettingsCard } from './global-settings-card'
 import { GrokSettingsCard } from './grok-settings-card'
+import { OriginalPriceSettingsCard } from './original-price-settings-card'
 
 function formatJsonForEditor(value: string, fallback: string) {
   const raw = (value ?? '').toString().trim()
@@ -59,6 +60,34 @@ const MODELS_SECTIONS = [
             ping_interval_seconds:
               settings['general_setting.ping_interval_seconds'],
           },
+        }}
+      />
+    ),
+  },
+
+  {
+    id: 'original-price',
+    titleKey: 'Original price & exchange rate',
+    build: (settings: ModelSettings) => (
+      <OriginalPriceSettingsCard
+        defaultValues={{
+          'original_price_setting.enabled':
+            settings['original_price_setting.enabled'],
+          'original_price_setting.show_by_default':
+            settings['original_price_setting.show_by_default'],
+          'original_price_setting.sync_enabled':
+            settings['original_price_setting.sync_enabled'],
+          'original_price_setting.sync_base_url':
+            settings['original_price_setting.sync_base_url'],
+          'original_price_setting.sync_interval_hours':
+            settings['original_price_setting.sync_interval_hours'],
+          'original_price_rate.usd_cny_rate':
+            settings['original_price_rate.usd_cny_rate'],
+          'original_price_rate.updated_at':
+            settings['original_price_rate.updated_at'],
+          'original_price_rate.source': settings['original_price_rate.source'],
+          'original_price_rate.last_error':
+            settings['original_price_rate.last_error'],
         }}
       />
     ),

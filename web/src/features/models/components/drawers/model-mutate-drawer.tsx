@@ -88,6 +88,39 @@ import {
 import type { Model } from '../../types'
 import { ModelConnections } from '../model-connections'
 
+/**
+ * Amounts of the display-only original price baseline. The key doubles as the
+ * form field name; every amount is per 1M tokens except the last one, which is
+ * per request.
+ */
+const ORIGINAL_PRICE_AMOUNT_FIELDS = [
+  {
+    name: 'original_price_input',
+    label: 'Input price',
+    hint: 'Per 1M input tokens.',
+  },
+  {
+    name: 'original_price_output',
+    label: 'Output price',
+    hint: 'Per 1M output tokens.',
+  },
+  {
+    name: 'original_price_cache',
+    label: 'Cache read price',
+    hint: 'Per 1M cached input tokens.',
+  },
+  {
+    name: 'original_price_cache_write',
+    label: 'Cache write price',
+    hint: 'Per 1M tokens written to the cache.',
+  },
+  {
+    name: 'original_price_request',
+    label: 'Per-request price',
+    hint: 'Per request. Only used by per-request billed models.',
+  },
+] as const
+
 export function ModelMutateDrawer(props: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -101,6 +134,14 @@ export function ModelMutateDrawer(props: {
         value: modality as string,
         label: t(CATALOG_MODALITY_LABELS[modality]),
       })),
+    [t]
+  )
+  const originalPriceCurrencyOptions = useMemo(
+    () => [
+      { value: '', label: t('Not configured') },
+      { value: 'USD', label: 'USD' },
+      { value: 'CNY', label: 'CNY' },
+    ],
     [t]
   )
   const queryClient = useQueryClient()
@@ -146,6 +187,7 @@ export function ModelMutateDrawer(props: {
   const selectedVendor = vendors.find(
     (vendor) => vendor.id === form.watch('vendor_id')
   )
+  const originalPriceConfigured = form.watch('original_price_currency') !== ''
   const modelQuery = useQuery({
     queryKey: modelsQueryKeys.detail(currentRow?.id ?? 0),
     queryFn: async () => {
@@ -669,6 +711,85 @@ export function ModelMutateDrawer(props: {
                             </FormItem>
                           )}
                         />
+                      </div>
+                    </SideDrawerSection>
+                    {/* Original price: a display-only baseline for the model
+                        square discount. It never affects billing. */}
+                    <SideDrawerSection>
+                      <h3 className='text-sm font-semibold'>
+                        {t('Original price')}
+                      </h3>
+                      <FormDescription>
+                        {t(
+                          'Display-only baseline used to compute the discount shown in the model square. It never affects billing. When a currency is set, the model square also converts the amounts between USD and CNY with the hourly synced exchange rate.'
+                        )}
+                      </FormDescription>
+                      <FormField
+                        control={form.control}
+                        name='original_price_currency'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              {t('Original price currency')}
+                            </FormLabel>
+                            <FormControl>
+                              <Combobox
+                                options={originalPriceCurrencyOptions}
+                                value={field.value}
+                                onValueChange={(value: string | null) =>
+                                  field.onChange(value ?? '')
+                                }
+                                className='w-full sm:w-[240px]'
+                                placeholder={t('Not configured')}
+                                aria-label={t('Original price currency')}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              {t(
+                                'Amounts without a currency are ignored. 0 means not configured.'
+                              )}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <div className='grid gap-4 sm:grid-cols-3'>
+                        {ORIGINAL_PRICE_AMOUNT_FIELDS.map((amount) => (
+                          <FormField
+                            key={amount.name}
+                            control={form.control}
+                            name={amount.name}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t(amount.label)}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type='number'
+                                    min={0}
+                                    step='any'
+                                    value={field.value ?? 0}
+                                    name={field.name}
+                                    ref={field.ref}
+                                    disabled={!originalPriceConfigured}
+                                    onBlur={field.onBlur}
+                                    onChange={(event) => {
+                                      const parsed = Number.parseFloat(
+                                        event.target.value
+                                      )
+                                      field.onChange(
+                                        Number.isFinite(parsed) ? parsed : 0
+                                      )
+                                    }}
+                                  />
+                                </FormControl>
+                                <FormDescription>
+                                  {t(amount.hint)}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        ))}
                       </div>
                     </SideDrawerSection>
                     {/* Status & Sync */}

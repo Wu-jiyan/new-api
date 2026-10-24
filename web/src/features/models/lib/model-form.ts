@@ -23,7 +23,7 @@ import {
   type CatalogModality,
 } from '@/lib/catalog-modalities'
 
-import type { Model } from '../types'
+import type { Model, OriginalPriceCurrency } from '../types'
 import { parseModelTags as parseTagsFromUtils } from './model-utils'
 
 // ============================================================================
@@ -46,6 +46,12 @@ export const modelFormSchema = z.object({
   max_output_tokens: z.number().int().min(0).default(0),
   input_modalities: z.array(z.enum(CATALOG_MODALITIES)).default([]),
   output_modalities: z.array(z.enum(CATALOG_MODALITIES)).default([]),
+  original_price_currency: z.enum(['', 'USD', 'CNY']).default(''),
+  original_price_input: z.number().finite().min(0).default(0),
+  original_price_output: z.number().finite().min(0).default(0),
+  original_price_cache: z.number().finite().min(0).default(0),
+  original_price_cache_write: z.number().finite().min(0).default(0),
+  original_price_request: z.number().finite().min(0).default(0),
   name_rule: z.number().min(0).max(3).default(0),
   status: z.boolean().default(true),
   sync_official: z.boolean().default(true),
@@ -93,6 +99,20 @@ export function transformModelToFormDefaults(model: Model): ModelFormValues {
     max_output_tokens: model.max_output_tokens || 0,
     input_modalities: parseModelModalities(model.input_modalities),
     output_modalities: parseModelModalities(model.output_modalities),
+    original_price_currency: parseOriginalPriceCurrency(
+      model.original_price_currency
+    ),
+    original_price_input: parseOriginalPriceAmount(model.original_price_input),
+    original_price_output: parseOriginalPriceAmount(
+      model.original_price_output
+    ),
+    original_price_cache: parseOriginalPriceAmount(model.original_price_cache),
+    original_price_cache_write: parseOriginalPriceAmount(
+      model.original_price_cache_write
+    ),
+    original_price_request: parseOriginalPriceAmount(
+      model.original_price_request
+    ),
     name_rule: model.name_rule || 0,
     status: model.status === 1,
     sync_official: model.sync_official === 1,
@@ -120,6 +140,12 @@ export function transformFormDataToModelPayload(
     max_output_tokens: formData.max_output_tokens,
     input_modalities: formatModelModalities(formData.input_modalities),
     output_modalities: formatModelModalities(formData.output_modalities),
+    original_price_currency: formData.original_price_currency,
+    original_price_input: formData.original_price_input,
+    original_price_output: formData.original_price_output,
+    original_price_cache: formData.original_price_cache,
+    original_price_cache_write: formData.original_price_cache_write,
+    original_price_request: formData.original_price_request,
     name_rule: formData.name_rule,
     status: formData.status ? 1 : 0,
     sync_official: formData.sync_official ? 1 : 0,
@@ -155,6 +181,24 @@ export function parseModelModalities(raw?: string): CatalogModality[] {
 export function formatModelModalities(values: CatalogModality[]): string {
   return values.length > 0 ? JSON.stringify(values) : ''
 }
+
+/**
+ * `0` is the documented "not configured" amount for the original price
+ * baseline, so a missing value must not be read through `||`: that would turn a
+ * configured `0` into a fallback as well.
+ */
+function parseOriginalPriceAmount(value?: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+/**
+ * The backend also stores the original price currency as free-form text, so an
+ * unknown value is dropped instead of being rendered into the currency control.
+ */
+function parseOriginalPriceCurrency(value?: string): OriginalPriceCurrency {
+  return value === 'USD' || value === 'CNY' ? value : ''
+}
+
 /**
  * Format tags array to string
  */

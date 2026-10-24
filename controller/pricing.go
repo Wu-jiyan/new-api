@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/original_price_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -81,6 +82,9 @@ func GetPricing(c *gin.Context) {
 		"defaults":         model.GetModelSquareDefaults(),
 		"filter_defaults":  model.GetModelSquareFilter(),
 		"pricing_version":  "gacha-rating-v1",
+		// 原价展示开关与市场汇率快照。折扣由前端按「实付价 ÷ 官方原价」计算，
+		// 后端只负责给出统一的开关与汇率口径。
+		"original_price_settings": original_price_setting.GetPublicOptions(),
 	})
 }
 

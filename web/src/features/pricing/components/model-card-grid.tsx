@@ -31,6 +31,7 @@ import {
   DEFAULT_TOKEN_UNIT,
   FILTER_ALL,
 } from '../constants'
+import type { OriginalPriceContext } from '../lib/original-price'
 import type { ScoreDimension } from '../lib/scores'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelCard } from './model-card'
@@ -48,6 +49,8 @@ export interface ModelCardGridProps {
   groupForcedPrice?: Record<string, number>
   characterMap?: ReadonlyMap<string, CharacterView>
   dimension?: ScoreDimension
+  /** Original-price scope; undefined hides the feature on every card */
+  originalPrice?: OriginalPriceContext
 }
 
 const EMPTY_CHARACTER_MAP = new Map<string, CharacterView>()
@@ -134,6 +137,7 @@ export const ModelCardGrid = memo(function ModelCardGrid(
             perf={perfMap.get(model.model_name || '')}
             character={characterMap.get(model.model_name || '')}
             dimension={props.dimension}
+            originalPrice={props.originalPrice}
             onClick={props.onModelClick}
           />
         ))}

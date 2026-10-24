@@ -37,6 +37,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Label } from '@/components/ui/label'
 import {
   Sheet,
   SheetContent,
@@ -44,6 +45,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 
@@ -78,6 +80,9 @@ export interface PricingToolbarProps {
   onTokenUnitChange: (value: TokenUnit) => void
   showRechargePrice: boolean
   onRechargePriceChange: (value: boolean) => void
+  /** Visitor display preference for the original price; omitted when the site disables the feature */
+  showOriginalPrice?: boolean
+  onOriginalPriceChange?: (value: boolean) => void
   viewMode: ViewMode
   onViewModeChange: (value: ViewMode) => void
   quotaTypeFilter: string
@@ -246,6 +251,25 @@ export function PricingToolbar(props: PricingToolbarProps) {
             <ToggleGroupItem value='M'>/1M</ToggleGroupItem>
             <ToggleGroupItem value='K'>/1K</ToggleGroupItem>
           </ToggleGroup>
+
+          {/* A display preference, so it never touches the URL filter state. */}
+          {props.onOriginalPriceChange && (
+            <div className='flex items-center gap-2'>
+              <Switch
+                id='pricing-show-original-price'
+                size='sm'
+                checked={props.showOriginalPrice ?? false}
+                onCheckedChange={props.onOriginalPriceChange}
+                aria-label={t('Show original price')}
+              />
+              <Label
+                htmlFor='pricing-show-original-price'
+                className='text-muted-foreground text-xs font-normal'
+              >
+                {t('Show original price')}
+              </Label>
+            </div>
+          )}
 
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger

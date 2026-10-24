@@ -28,6 +28,7 @@ import {
 } from '@/components/data-table'
 
 import { DEFAULT_PRICING_PAGE_SIZE, DEFAULT_TOKEN_UNIT } from '../constants'
+import type { OriginalPriceContext } from '../lib/original-price'
 import type { PricingModel, TokenUnit } from '../types'
 import { usePricingColumns } from './pricing-columns'
 
@@ -41,6 +42,8 @@ export interface PricingTableProps {
   selectedGroup?: string
   /** Groups that charge one flat USD price per request instead of a model price */
   groupForcedPrice?: Record<string, number>
+  /** Original-price scope; undefined hides the feature in the price column */
+  originalPrice?: OriginalPriceContext
   onModelClick?: (modelName: string) => void
 }
 
@@ -55,6 +58,7 @@ export function PricingTable(props: PricingTableProps) {
     showRechargePrice = false,
     selectedGroup,
     groupForcedPrice,
+    originalPrice,
     onModelClick,
   } = props
 
@@ -70,6 +74,7 @@ export function PricingTable(props: PricingTableProps) {
     showRechargePrice,
     selectedGroup,
     groupForcedPrice,
+    originalPrice,
   })
 
   const { table } = useDataTable({

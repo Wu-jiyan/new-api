@@ -35,6 +35,12 @@ export interface BoundChannel {
  */
 export type ModelSquareState = 'visible' | 'unavailable' | 'hidden' | 'partial'
 
+/**
+ * Closed set for the display-only original price baseline. An empty string
+ * means "not configured", so the amounts are ignored by the model square.
+ */
+export type OriginalPriceCurrency = '' | 'USD' | 'CNY'
+
 export interface Model {
   square_state?: ModelSquareState
   has_metadata?: boolean
@@ -52,6 +58,18 @@ export interface Model {
   max_output_tokens?: number
   input_modalities?: string
   output_modalities?: string
+  /**
+   * Display-only original price baseline used to compute the discount shown in
+   * the model square. Amounts are per 1M tokens except
+   * `original_price_request`, which is per request. `0` means not configured;
+   * the baseline never affects billing.
+   */
+  original_price_currency?: OriginalPriceCurrency
+  original_price_input?: number
+  original_price_output?: number
+  original_price_cache?: number
+  original_price_cache_write?: number
+  original_price_request?: number
   supported_endpoints?: string[]
   status: number
   sync_official: number

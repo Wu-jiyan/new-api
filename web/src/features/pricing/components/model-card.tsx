@@ -51,6 +51,10 @@ import {
   getDisplayGroupForcedPrice,
   isTokenBasedModel,
 } from '../lib/model-helpers'
+import {
+  computeModelDiscount,
+  type OriginalPriceContext,
+} from '../lib/original-price'
 import { formatPrice, formatRequestPrice } from '../lib/price'
 import {
   DEFAULT_SCORE_DIMENSION,
@@ -62,6 +66,10 @@ import type { PricingModel, PriceType, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
 import { ModelScores } from './model-scores'
+import {
+  OriginalPriceBadge,
+  OriginalPriceSummary,
+} from './original-price-display'
 import { RatingBadge } from './rating-badge'
 import { TokenCountValue } from './token-count-value'
 
@@ -79,6 +87,11 @@ export interface ModelCardProps {
   character?: CharacterView
   /** Selected score dimension: drives the tier badge and highlights one score */
   dimension?: ScoreDimension
+  /**
+   * Original-price scope. Present only when the visitor asked for it and the
+   * site enabled the feature; undefined renders no badge at all.
+   */
+  originalPrice?: OriginalPriceContext
 }
 
 export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
@@ -154,6 +167,13 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     // Currency is read indirectly by the price formatter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [props.model, dynamicPriceOptions, currency]
+  )
+  const originalDiscount = useMemo(
+    () =>
+      props.originalPrice
+        ? computeModelDiscount(props.model, props.originalPrice)
+        : null,
+    [props.model, props.originalPrice]
   )
   let priceSummary: ReactNode
   if (dynamicSummary) {
@@ -492,6 +512,16 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
           <div className='grid grid-cols-[repeat(auto-fit,minmax(88px,1fr))] gap-x-3 gap-y-2'>
             {priceSummary}
           </div>
+          {originalDiscount && props.originalPrice && (
+            <div className='flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1'>
+              <OriginalPriceBadge discount={originalDiscount} />
+              <OriginalPriceSummary
+                model={props.model}
+                context={props.originalPrice}
+                tokenUnitLabel={tokenUnitLabel}
+              />
+            </div>
+          )}
         </div>
         {(groups.length > 0 ||
           endpoints.length > 0 ||

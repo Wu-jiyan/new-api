@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"math"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -75,7 +76,64 @@ func (mi *Model) ValidateCatalogFields() error {
 	if err := ValidateModelModalities(mi.InputModalities); err != nil {
 		return err
 	}
-	return ValidateModelModalities(mi.OutputModalities)
+	if err := ValidateModelModalities(mi.OutputModalities); err != nil {
+		return err
+	}
+	return mi.ValidateOriginalPrice()
+}
+
+// 原价币种的闭集。空字符串表示「未配置原价」，此时所有金额字段必须为 0。
+const (
+	OriginalPriceCurrencyUSD = "USD"
+	OriginalPriceCurrencyCNY = "CNY"
+)
+
+// originalPriceCeiling 是单个原价金额的防御上限（每 100 万 token / 每次请求）。
+// 真实最贵的模型也在每百万 token 三位数美元量级，这里留足四个数量级，
+// 只用来挡住 1e308 这类会让前端算折扣时溢出成 Infinity 的误填。
+const originalPriceCeiling = 1_000_000
+
+// ValidateOriginalPrice 校验原价展示字段，并把币种统一成大写。
+// 规则：币种只能空/USD/CNY；填了金额就必须选币种；金额不可为负、不可非有限、
+// 不可超过防御上限。0 表示「该计价项未配置」，是合法状态。
+func (mi *Model) ValidateOriginalPrice() error {
+	currency := strings.ToUpper(strings.TrimSpace(mi.OriginalPriceCurrency))
+	switch currency {
+	case "", OriginalPriceCurrencyUSD, OriginalPriceCurrencyCNY:
+	default:
+		return errors.New("original price currency must be USD or CNY")
+	}
+	mi.OriginalPriceCurrency = currency
+
+	amounts := []struct {
+		name  string
+		value float64
+	}{
+		{"original_price_input", mi.OriginalPriceInput},
+		{"original_price_output", mi.OriginalPriceOutput},
+		{"original_price_cache", mi.OriginalPriceCache},
+		{"original_price_cache_write", mi.OriginalPriceCacheWrite},
+		{"original_price_request", mi.OriginalPriceRequest},
+	}
+	configured := false
+	for _, amount := range amounts {
+		if math.IsNaN(amount.value) || math.IsInf(amount.value, 0) {
+			return errors.New(amount.name + " must be a finite number")
+		}
+		if amount.value < 0 {
+			return errors.New(amount.name + " cannot be negative")
+		}
+		if amount.value > originalPriceCeiling {
+			return errors.New(amount.name + " is implausibly large")
+		}
+		if amount.value > 0 {
+			configured = true
+		}
+	}
+	if configured && currency == "" {
+		return errors.New("original price currency is required when an original price is set")
+	}
+	return nil
 }
 
 // validateTokenLimit 校验一个 token 限额字段。0 表示「未配置」，是合法状态，

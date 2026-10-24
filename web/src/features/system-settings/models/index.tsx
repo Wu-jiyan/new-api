@@ -67,6 +67,15 @@ const defaultModelSettings: ModelSettings = {
   'group_ratio_setting.group_forced_price': '{}',
   'model_deployment.ionet.api_key': '',
   'model_deployment.ionet.enabled': false,
+  'original_price_setting.enabled': true,
+  'original_price_setting.show_by_default': true,
+  'original_price_setting.sync_enabled': true,
+  'original_price_setting.sync_base_url': 'https://open.er-api.com/v6/latest',
+  'original_price_setting.sync_interval_hours': 1,
+  'original_price_rate.usd_cny_rate': 0,
+  'original_price_rate.updated_at': 0,
+  'original_price_rate.source': '',
+  'original_price_rate.last_error': '',
 }
 
 export function ModelSettings() {

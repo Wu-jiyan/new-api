@@ -65,6 +65,16 @@ type Model struct {
 	InputModalities  string `json:"input_modalities,omitempty" gorm:"type:text"`
 	OutputModalities string `json:"output_modalities,omitempty" gorm:"type:text"`
 
+	// 原价（官方标价）基准，同样只影响前台展示：模型广场用它算出「原价」与
+	// 「实际折扣」，不参与计费与转发判定。金额单位由 OriginalPriceCurrency
+	// 决定（USD / CNY），token 相关字段均按每 100 万 token 计，0 = 未配置。
+	OriginalPriceCurrency   string  `json:"original_price_currency,omitempty" gorm:"size:8;default:''"`
+	OriginalPriceInput      float64 `json:"original_price_input,omitempty" gorm:"default:0"`
+	OriginalPriceOutput     float64 `json:"original_price_output,omitempty" gorm:"default:0"`
+	OriginalPriceCache      float64 `json:"original_price_cache,omitempty" gorm:"default:0"`
+	OriginalPriceCacheWrite float64 `json:"original_price_cache_write,omitempty" gorm:"default:0"`
+	OriginalPriceRequest    float64 `json:"original_price_request,omitempty" gorm:"default:0"`
+
 	BoundChannels []BoundChannel `json:"bound_channels,omitempty" gorm:"-"`
 	EnableGroups  []string       `json:"enable_groups,omitempty" gorm:"-"`
 	QuotaTypes    []int          `json:"quota_types,omitempty" gorm:"-"`
@@ -325,6 +335,8 @@ func (mi *Model) Update() error {
 			Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule",
 				"context_length", "max_input_tokens", "max_output_tokens",
 				"input_modalities", "output_modalities",
+				"original_price_currency", "original_price_input", "original_price_output",
+				"original_price_cache", "original_price_cache_write", "original_price_request",
 				"updated_time").
 			Updates(mi).Error
 	})

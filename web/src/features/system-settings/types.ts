@@ -39,6 +39,18 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+export type OriginalPriceRateSync = {
+  usd_cny_rate: number
+  updated_at: number
+  source: string
+}
+
+export type OriginalPriceSyncResponse = {
+  success: boolean
+  message?: string
+  data: OriginalPriceRateSync
+}
+
 export interface PasskeyDomainChange {
   rp_id: string
   legacy_rp_ids: string
@@ -279,6 +291,15 @@ export type ModelSettings = {
   'group_ratio_setting.group_forced_price': string
   'model_deployment.ionet.api_key': string
   'model_deployment.ionet.enabled': boolean
+  'original_price_setting.enabled': boolean
+  'original_price_setting.show_by_default': boolean
+  'original_price_setting.sync_enabled': boolean
+  'original_price_setting.sync_base_url': string
+  'original_price_setting.sync_interval_hours': number
+  'original_price_rate.usd_cny_rate': number
+  'original_price_rate.updated_at': number
+  'original_price_rate.source': string
+  'original_price_rate.last_error': string
 }
 
 export type BillingSettings = {

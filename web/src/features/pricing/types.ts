@@ -29,6 +29,39 @@ export type PricingVendor = {
   description?: string
 }
 
+/** Currency the operator configured for a model's official price. */
+export type OriginalPriceCurrency = 'USD' | 'CNY'
+
+/**
+ * The model's official (list) price as configured by the operator.
+ *
+ * Token amounts are per 1M tokens, `request` is per request, and every field is
+ * in `currency`. Fields the operator did not configure are omitted, so the UI
+ * can skip those price types instead of inventing a number.
+ */
+export type OriginalPrice = {
+  currency: OriginalPriceCurrency
+  input?: number
+  output?: number
+  cache_read?: number
+  cache_write?: number
+  request?: number
+}
+
+/**
+ * Site-wide original-price settings.
+ *
+ * `usd_cny_rate` is the real market rate from the hourly sync (CNY per USD) and
+ * is 0 while the sync has produced no usable value.
+ */
+export type OriginalPriceSettings = {
+  enabled: boolean
+  show_by_default: boolean
+  usd_cny_rate: number
+  rate_updated_at?: number
+  rate_source?: string
+}
+
 export type BillingUsageUnit = 'second' | 'count' | 'token' | 'credit'
 
 export type BillingUsageFieldSchema = {
@@ -89,6 +122,8 @@ export type PricingModel = {
   auto_chain_ratio?: number
   /** Cheapest flat per-request price among the model's Auto Group Chain groups. */
   auto_chain_forced_price?: number
+  /** Operator-configured official price; omitted when the model has none. */
+  original_price?: OriginalPrice
   /** Billing mode (e.g. "tiered_expr") used to flag dynamic pricing */
   billing_mode?: string
   /** Raw expression describing dynamic / tiered billing */
@@ -173,6 +208,8 @@ export type PricingData = {
     /** 每个筛选组默认显示的选项个数；0 或缺失表示不折叠。 */
     visible_options?: number
   }
+  /** Site-wide original price / discount display settings */
+  original_price_settings?: OriginalPriceSettings
 }
 
 export type TokenUnit = 'M' | 'K'

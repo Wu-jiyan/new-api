@@ -62,6 +62,9 @@ type Pricing struct {
 	MaxOutputTokens        int                                  `json:"max_output_tokens,omitempty"`
 	InputModalities        []string                             `json:"input_modalities,omitempty"`
 	OutputModalities       []string                             `json:"output_modalities,omitempty"`
+	// OriginalPrice 是管理员配置的官方标价基准，仅用于展示原价与折扣；
+	// 未配置时为 nil。
+	OriginalPrice *PricingOriginalPrice `json:"original_price,omitempty"`
 }
 
 type PricingVendor struct {
@@ -69,6 +72,40 @@ type PricingVendor struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	Icon        string `json:"icon,omitempty"`
+}
+
+// PricingOriginalPrice 是模型的官方标价（展示基准）。金额单位由 Currency 决定，
+// token 相关金额按每 100 万 token 计，Request 是每次请求的价格。
+// 这里刻意保留配置币种、不做任何换算：换算需要市场汇率，由前端按展示币种
+// 统一处理，后端不重复兜一份可能与设置页不一样的汇率。
+type PricingOriginalPrice struct {
+	Currency   string  `json:"currency"`
+	Input      float64 `json:"input,omitempty"`
+	Output     float64 `json:"output,omitempty"`
+	CacheRead  float64 `json:"cache_read,omitempty"`
+	CacheWrite float64 `json:"cache_write,omitempty"`
+	Request    float64 `json:"request,omitempty"`
+}
+
+// buildPricingOriginalPrice 把元信息里的原价字段转成前端契约；未配置时返回 nil，
+// 让 JSON 里干脆没有 original_price，前端不需要判断「全 0」。
+func buildPricingOriginalPrice(meta *Model) *PricingOriginalPrice {
+	if meta.OriginalPriceCurrency == "" {
+		return nil
+	}
+	original := &PricingOriginalPrice{
+		Currency:   meta.OriginalPriceCurrency,
+		Input:      meta.OriginalPriceInput,
+		Output:     meta.OriginalPriceOutput,
+		CacheRead:  meta.OriginalPriceCache,
+		CacheWrite: meta.OriginalPriceCacheWrite,
+		Request:    meta.OriginalPriceRequest,
+	}
+	if original.Input == 0 && original.Output == 0 && original.CacheRead == 0 &&
+		original.CacheWrite == 0 && original.Request == 0 {
+		return nil
+	}
+	return original
 }
 
 var (
@@ -367,6 +404,7 @@ func updatePricing() {
 			pricing.MaxOutputTokens = meta.MaxOutputTokens
 			pricing.InputModalities = ParseModelModalities(meta.InputModalities)
 			pricing.OutputModalities = ParseModelModalities(meta.OutputModalities)
+			pricing.OriginalPrice = buildPricingOriginalPrice(meta)
 			// AA 档位不入库，按各维度当前阈值实时推导，阈值改动即时生效。
 			if meta.AAIntelligenceScore > 0 {
 				pricing.AAIntelligenceRating = MapScoreToRatingWith(meta.AAIntelligenceScore, RatingThresholdsFor(RatingDimensionAAIntelligence))

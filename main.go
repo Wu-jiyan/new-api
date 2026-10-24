@@ -141,6 +141,10 @@ func main() {
 	// Gacha tasks: DeepSWE model rating sync (daily)
 	service.StartGachaTasks()
 
+	// Model-square original price display depends on a market USD→CNY rate;
+	// refresh it on the interval configured in the admin settings.
+	service.StartOriginalPriceRateSync()
+
 	// Report this process as a system instance so the System Info page can show
 	// all currently alive nodes in multi-instance deployments.
 	service.StartSystemInstanceReporter()
