@@ -382,4 +382,52 @@ describe('computeModelDiscount for expression-priced models', () => {
       )
     ).toBeNull()
   })
+
+  // Time-of-use models publish a separate official price for the discounted
+  // bracket; quoting the peak price there would understate the discount.
+  const timeOfUseModel = (tierLabel: string, inputPrice: number) =>
+    expressionModel({
+      billing_expr: `tier("${tierLabel}", p * ${inputPrice} + c * ${inputPrice * 4})`,
+      original_price: {
+        currency: 'USD',
+        input: 4,
+        output: 16,
+        off_peak: { input: 2, output: 8 },
+      },
+    })
+
+  it('uses the off-peak official price when the active tier is off-peak', () => {
+    const discount = computeModelDiscount(
+      timeOfUseModel('空闲时段', 1),
+      context()
+    )
+
+    // 1 / 2 = 0.5 against the off-peak baseline, not 1 / 4 against the peak one.
+    expect(discount?.ratio).toBe(0.5)
+    expect(discount?.offPeak).toBe(true)
+  })
+
+  it('keeps the standard official price on the peak tier', () => {
+    const discount = computeModelDiscount(
+      timeOfUseModel('高峰时段', 3),
+      context()
+    )
+
+    // 3 / 4 = 0.75 against the peak baseline.
+    expect(discount?.ratio).toBe(0.75)
+    expect(discount?.offPeak).toBeUndefined()
+  })
+
+  it('falls back to the standard price when only the peak bracket is configured', () => {
+    const discount = computeModelDiscount(
+      expressionModel({
+        billing_expr: 'tier("空闲时段", p * 1 + c * 4)',
+        original_price: { currency: 'USD', input: 4, output: 16 },
+      }),
+      context()
+    )
+
+    expect(discount?.ratio).toBe(0.25)
+    expect(discount?.offPeak).toBeUndefined()
+  })
 })

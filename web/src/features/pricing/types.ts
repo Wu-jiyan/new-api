@@ -39,6 +39,13 @@ export type OriginalPriceCurrency = 'USD' | 'CNY'
  * in `currency`. Fields the operator did not configure are omitted, so the UI
  * can skip those price types instead of inventing a number.
  */
+/** Official price of the off-peak bracket of a time-of-use model. */
+export type OriginalPriceOffPeak = {
+  input?: number
+  output?: number
+  cache_read?: number
+}
+
 export type OriginalPrice = {
   currency: OriginalPriceCurrency
   input?: number
@@ -46,6 +53,11 @@ export type OriginalPrice = {
   cache_read?: number
   cache_write?: number
   request?: number
+  /**
+   * Time-of-use models (DeepSeek peak/off-peak) publish a second official price
+   * for the off-peak bracket. Present only when the operator configured it.
+   */
+  off_peak?: OriginalPriceOffPeak
 }
 
 /**

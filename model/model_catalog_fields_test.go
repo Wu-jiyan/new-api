@@ -152,6 +152,18 @@ func TestValidateOriginalPrice(t *testing.T) {
 			model:   Model{OriginalPriceCurrency: "CNY", OriginalPriceRequest: originalPriceCeiling + 1},
 			wantErr: "implausibly large",
 		},
+		{
+			name:    "negative off-peak amount is rejected",
+			model:   Model{OriginalPriceCurrency: "CNY", OriginalPriceInputOffPeak: -1},
+			wantErr: "original_price_input_off_peak cannot be negative",
+		},
+		{
+			name: "time-of-use prices are accepted",
+			model: Model{
+				OriginalPriceCurrency: "CNY", OriginalPriceInput: 2, OriginalPriceOutput: 8,
+				OriginalPriceInputOffPeak: 1, OriginalPriceOutputOffPeak: 4,
+			},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -181,15 +193,17 @@ func TestOriginalPricePersistsThroughUpdate(t *testing.T) {
 	t.Cleanup(func() { DB.Unscoped().Where("model_name = ?", "original-price-model").Delete(&Model{}) })
 
 	updated := &Model{
-		Id:                      created.Id,
-		ModelName:               "original-price-model",
-		Status:                  1,
-		SyncOfficial:            0,
-		OriginalPriceCurrency:   "CNY",
-		OriginalPriceInput:      12,
-		OriginalPriceOutput:     32,
-		OriginalPriceCache:      1.2,
-		OriginalPriceCacheWrite: 15,
+		Id:                         created.Id,
+		ModelName:                  "original-price-model",
+		Status:                     1,
+		SyncOfficial:               0,
+		OriginalPriceCurrency:      "CNY",
+		OriginalPriceInput:         12,
+		OriginalPriceOutput:        32,
+		OriginalPriceCache:         1.2,
+		OriginalPriceCacheWrite:    15,
+		OriginalPriceInputOffPeak:  1,
+		OriginalPriceOutputOffPeak: 4,
 	}
 	require.NoError(t, updated.Update())
 
@@ -200,6 +214,9 @@ func TestOriginalPricePersistsThroughUpdate(t *testing.T) {
 	assert.InDelta(t, 32.0, reloaded.OriginalPriceOutput, 1e-9)
 	assert.InDelta(t, 1.2, reloaded.OriginalPriceCache, 1e-9)
 	assert.InDelta(t, 15.0, reloaded.OriginalPriceCacheWrite, 1e-9)
+	// 分时价同样要走 Select 白名单，否则峰谷档会静默丢掉。
+	assert.InDelta(t, 1.0, reloaded.OriginalPriceInputOffPeak, 1e-9)
+	assert.InDelta(t, 4.0, reloaded.OriginalPriceOutputOffPeak, 1e-9)
 
 	// 卡片只看原价：元信息里没有币种时不该出现在定价接口上。
 	assert.Nil(t, buildPricingOriginalPrice(&Model{}))
@@ -207,6 +224,9 @@ func TestOriginalPricePersistsThroughUpdate(t *testing.T) {
 	require.NotNil(t, original)
 	assert.Equal(t, "CNY", original.Currency)
 	assert.InDelta(t, 12.0, original.Input, 1e-9)
+	require.NotNil(t, original.OffPeak)
+	assert.InDelta(t, 1.0, original.OffPeak.Input, 1e-9)
+	assert.InDelta(t, 4.0, original.OffPeak.Output, 1e-9)
 }
 
 // TestPricingExposesOriginalPrice 守住前端契约：定价接口必须把元信息里的原价
@@ -321,6 +341,7 @@ func TestOriginalPriceColumnsDatabaseMatrix(t *testing.T) {
 			for _, column := range []string{
 				"original_price_currency", "original_price_input", "original_price_output",
 				"original_price_cache", "original_price_cache_write", "original_price_request",
+				"original_price_input_off_peak", "original_price_output_off_peak", "original_price_cache_off_peak",
 			} {
 				assert.True(t, db.Migrator().HasColumn(&Model{}, column), "missing column %s on %s", column, dialect)
 			}

@@ -114,6 +114,9 @@ func (mi *Model) ValidateOriginalPrice() error {
 		{"original_price_cache", mi.OriginalPriceCache},
 		{"original_price_cache_write", mi.OriginalPriceCacheWrite},
 		{"original_price_request", mi.OriginalPriceRequest},
+		{"original_price_input_off_peak", mi.OriginalPriceInputOffPeak},
+		{"original_price_output_off_peak", mi.OriginalPriceOutputOffPeak},
+		{"original_price_cache_off_peak", mi.OriginalPriceCacheOffPeak},
 	}
 	configured := false
 	for _, amount := range amounts {

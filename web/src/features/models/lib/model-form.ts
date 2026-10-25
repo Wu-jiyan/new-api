@@ -52,6 +52,9 @@ export const modelFormSchema = z.object({
   original_price_cache: z.number().finite().min(0).default(0),
   original_price_cache_write: z.number().finite().min(0).default(0),
   original_price_request: z.number().finite().min(0).default(0),
+  original_price_input_off_peak: z.number().finite().min(0).default(0),
+  original_price_output_off_peak: z.number().finite().min(0).default(0),
+  original_price_cache_off_peak: z.number().finite().min(0).default(0),
   name_rule: z.number().min(0).max(3).default(0),
   status: z.boolean().default(true),
   sync_official: z.boolean().default(true),
@@ -113,6 +116,15 @@ export function transformModelToFormDefaults(model: Model): ModelFormValues {
     original_price_request: parseOriginalPriceAmount(
       model.original_price_request
     ),
+    original_price_input_off_peak: parseOriginalPriceAmount(
+      model.original_price_input_off_peak
+    ),
+    original_price_output_off_peak: parseOriginalPriceAmount(
+      model.original_price_output_off_peak
+    ),
+    original_price_cache_off_peak: parseOriginalPriceAmount(
+      model.original_price_cache_off_peak
+    ),
     name_rule: model.name_rule || 0,
     status: model.status === 1,
     sync_official: model.sync_official === 1,
@@ -146,6 +158,9 @@ export function transformFormDataToModelPayload(
     original_price_cache: formData.original_price_cache,
     original_price_cache_write: formData.original_price_cache_write,
     original_price_request: formData.original_price_request,
+    original_price_input_off_peak: formData.original_price_input_off_peak,
+    original_price_output_off_peak: formData.original_price_output_off_peak,
+    original_price_cache_off_peak: formData.original_price_cache_off_peak,
     name_rule: formData.name_rule,
     status: formData.status ? 1 : 0,
     sync_official: formData.sync_official ? 1 : 0,

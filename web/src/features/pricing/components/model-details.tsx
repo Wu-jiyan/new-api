@@ -1030,20 +1030,48 @@ function OriginalPriceSection(props: {
   if (!original) return null
 
   const tokenUnitLabel = props.tokenUnit === 'K' ? '1K' : '1M'
-  const rows = [
-    { key: 'input', label: t('Input'), amount: original.input },
-    { key: 'output', label: t('Output'), amount: original.output },
-    { key: 'cache', label: t('Cached input'), amount: original.cache_read },
-    {
-      key: 'create-cache',
-      label: t('Cache write'),
-      amount: original.cache_write,
-    },
-    { key: 'request', label: t('Per request'), amount: original.request },
-  ].filter((row): row is OriginalPriceRow => row.amount !== undefined)
+  const bracketRows = (source: Record<string, number | undefined>) =>
+    [
+      { key: 'input', label: t('Input'), amount: source.input },
+      { key: 'output', label: t('Output'), amount: source.output },
+      { key: 'cache', label: t('Cached input'), amount: source.cacheRead },
+      {
+        key: 'create-cache',
+        label: t('Cache write'),
+        amount: source.cacheWrite,
+      },
+      { key: 'request', label: t('Per request'), amount: source.request },
+    ].filter((row): row is OriginalPriceRow => row.amount !== undefined)
 
-  if (rows.length === 0) return null
-  const quotesTokens = rows.some((row) => row.key !== 'request')
+  // 分时定价模型给出峰谷两档官方价，避免只看到高峰价却按平峰计费。
+  const brackets = [
+    {
+      key: 'standard',
+      label: t('Standard'),
+      rows: bracketRows({
+        input: original.input,
+        output: original.output,
+        cacheRead: original.cache_read,
+        cacheWrite: original.cache_write,
+        request: original.request,
+      }),
+    },
+    ...(original.off_peak
+      ? [
+          {
+            key: 'off_peak',
+            label: t('Off-peak'),
+            rows: bracketRows({
+              input: original.off_peak.input ?? original.input,
+              output: original.off_peak.output ?? original.output,
+              cacheRead: original.off_peak.cache_read ?? original.cache_read,
+            }),
+          },
+        ]
+      : []),
+  ]
+  if (brackets[0].rows.length === 0) return null
+  const quotesTokens = brackets[0].rows.some((row) => row.key !== 'request')
 
   return (
     <section>
@@ -1055,27 +1083,40 @@ function OriginalPriceSection(props: {
           </span>
           {props.discount && <OriginalPriceBadge discount={props.discount} />}
         </div>
-        <div className='space-y-1.5 px-3 py-2.5'>
-          {rows.map((row) => (
+        {brackets.map((bracket, index) => {
+          if (bracket.rows.length === 0) return null
+          return (
             <div
-              key={row.key}
-              className='flex min-w-0 items-baseline justify-between gap-4'
+              key={bracket.key}
+              className={cn('space-y-1.5 px-3 py-2.5', index > 0 && 'border-t')}
             >
-              <span className='text-muted-foreground/70 text-sm'>
-                {row.label}
-              </span>
-              <span className='text-muted-foreground min-w-0 text-right text-sm break-words'>
-                <OriginalPriceAmount
-                  amount={row.amount}
-                  currency={original.currency}
-                />
-                <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
-                  / {row.key === 'request' ? t('request') : tokenUnitLabel}
-                </span>
-              </span>
+              {brackets.length > 1 && (
+                <p className='text-muted-foreground text-[10px] font-medium tracking-wider uppercase'>
+                  {bracket.label}
+                </p>
+              )}
+              {bracket.rows.map((row) => (
+                <div
+                  key={row.key}
+                  className='flex min-w-0 items-baseline justify-between gap-4'
+                >
+                  <span className='text-muted-foreground/70 text-sm'>
+                    {row.label}
+                  </span>
+                  <span className='text-muted-foreground min-w-0 text-right text-sm break-words'>
+                    <OriginalPriceAmount
+                      amount={row.amount}
+                      currency={original.currency}
+                    />
+                    <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
+                      / {row.key === 'request' ? t('request') : tokenUnitLabel}
+                    </span>
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )
+        })}
         {quotesTokens && (
           <p className='text-muted-foreground/40 border-t px-3 py-1.5 text-[10px]'>
             {t('Prices shown per {{unit}} tokens', { unit: tokenUnitLabel })}

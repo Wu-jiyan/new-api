@@ -29,6 +29,7 @@ import {
   getOriginalPriceAmounts,
   type ModelDiscount,
   type OriginalPriceContext,
+  type OriginalPriceLevel,
 } from '../lib/original-price'
 import type { OriginalPriceCurrency, PricingModel } from '../types'
 
@@ -86,23 +87,27 @@ const AMOUNT_FORMAT = {
 } as const
 
 /**
- * The official price the badge refers to, e.g. "Original price $3 / $9 / 1M".
+ * The official price the badge refers to, e.g. "Official price $3 / $9 / 1M".
  *
  * Amounts arrive already converted into the display currency, so they use the
  * local-currency formatter: it applies the currency symbol without converting a
- * second time.
+ * second time. `level` follows the discount so a time-of-use model quotes the
+ * bracket its discount was computed against.
  */
 export function OriginalPriceSummary(props: {
   model: PricingModel
   context: OriginalPriceContext
   /** Token unit the price grid quotes, e.g. 1M */
   tokenUnitLabel: string
+  level?: OriginalPriceLevel
   className?: string
 }) {
   const { t } = useTranslation()
+  const level = props.level ?? 'standard'
   const amounts = getOriginalPriceAmounts(
     props.model.original_price,
-    props.context
+    props.context,
+    level
   )
   if (!amounts) return null
 
@@ -123,6 +128,10 @@ export function OriginalPriceSummary(props: {
   const formatted = values
     .map((amount) => formatLocalCurrencyAmount(amount, AMOUNT_FORMAT))
     .join(' / ')
+  const label =
+    level === 'off_peak'
+      ? `${t('Official price')} · ${t('Off-peak')}`
+      : t('Official price')
 
   return (
     <span
@@ -131,7 +140,7 @@ export function OriginalPriceSummary(props: {
         props.className
       )}
     >
-      {t('Official price')} {formatted}
+      {label} {formatted}
       {` / ${unit}`}
     </span>
   )

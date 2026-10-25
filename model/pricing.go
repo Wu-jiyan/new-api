@@ -85,6 +85,15 @@ type PricingOriginalPrice struct {
 	CacheRead  float64 `json:"cache_read,omitempty"`
 	CacheWrite float64 `json:"cache_write,omitempty"`
 	Request    float64 `json:"request,omitempty"`
+	// OffPeak 是分时定价模型（DeepSeek 的峰谷价）的非高峰官方价。只有配置了
+	// 才出现；档位落到非高峰档时前端改用这组价格比较折扣。
+	OffPeak *PricingOriginalPriceOffPeak `json:"off_peak,omitempty"`
+}
+
+type PricingOriginalPriceOffPeak struct {
+	Input     float64 `json:"input,omitempty"`
+	Output    float64 `json:"output,omitempty"`
+	CacheRead float64 `json:"cache_read,omitempty"`
 }
 
 // buildPricingOriginalPrice 把元信息里的原价字段转成前端契约；未配置时返回 nil，
@@ -100,6 +109,13 @@ func buildPricingOriginalPrice(meta *Model) *PricingOriginalPrice {
 		CacheRead:  meta.OriginalPriceCache,
 		CacheWrite: meta.OriginalPriceCacheWrite,
 		Request:    meta.OriginalPriceRequest,
+	}
+	if meta.OriginalPriceInputOffPeak > 0 || meta.OriginalPriceOutputOffPeak > 0 || meta.OriginalPriceCacheOffPeak > 0 {
+		original.OffPeak = &PricingOriginalPriceOffPeak{
+			Input:     meta.OriginalPriceInputOffPeak,
+			Output:    meta.OriginalPriceOutputOffPeak,
+			CacheRead: meta.OriginalPriceCacheOffPeak,
+		}
 	}
 	if original.Input == 0 && original.Output == 0 && original.CacheRead == 0 &&
 		original.CacheWrite == 0 && original.Request == 0 {

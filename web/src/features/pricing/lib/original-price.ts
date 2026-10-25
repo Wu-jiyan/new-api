@@ -24,6 +24,8 @@ import {
   getDynamicPricingSummary,
   hasTaskUsageSchema,
   isDynamicPricingModel,
+  type DynamicPricingSummary,
+  type DynamicPricingTier,
 } from './dynamic-price'
 import {
   getAutoChainGroups,
@@ -67,6 +69,9 @@ export type OriginalPriceDisplay = {
   usdFactor: number
 }
 
+/** Which official-price bracket to quote for a time-of-use model. */
+export type OriginalPriceLevel = 'standard' | 'off_peak'
+
 /** Everything the discount math needs beyond the model itself. */
 export type OriginalPriceContext = {
   display: OriginalPriceDisplay
@@ -103,6 +108,11 @@ export type ModelDiscount = {
   group?: string
   /** Price type that produced the deepest discount. */
   priceType?: DiscountPriceType
+  /**
+   * True when the comparison used the off-peak official price of a time-of-use
+   * model, so callers can quote the same bracket next to the discount.
+   */
+  offPeak?: boolean
 }
 
 type DiscountCandidate = {
@@ -187,12 +197,18 @@ function toDisplayCurrency(
 /**
  * Official price converted into the display currency, or null when nothing is
  * configured or a configured amount cannot be converted.
+ *
+ * `level` picks the time-of-use bracket: `off_peak` swaps input/output/cache-read
+ * to the configured off-peak amounts and keeps the peak amounts for anything the
+ * off-peak bracket does not price.
  */
 export function getOriginalPriceAmounts(
   original: OriginalPrice | undefined,
-  context: Pick<OriginalPriceContext, 'display' | 'usdCnyRate'>
+  context: Pick<OriginalPriceContext, 'display' | 'usdCnyRate'>,
+  level: OriginalPriceLevel = 'standard'
 ): OriginalPriceAmounts | null {
   if (!original) return null
+  const offPeak = level === 'off_peak' ? original.off_peak : undefined
 
   const convert = (amount?: number): number | null | undefined => {
     if (amount === undefined) return undefined
@@ -205,9 +221,9 @@ export function getOriginalPriceAmounts(
     )
   }
 
-  const input = convert(original.input)
-  const output = convert(original.output)
-  const cacheRead = convert(original.cache_read)
+  const input = convert(offPeak?.input ?? original.input)
+  const output = convert(offPeak?.output ?? original.output)
+  const cacheRead = convert(offPeak?.cache_read ?? original.cache_read)
   const cacheWrite = convert(original.cache_write)
   const request = convert(original.request)
   const values = [input, output, cacheRead, cacheWrite, request]
@@ -329,6 +345,27 @@ const EXPRESSION_TOKEN_FIELDS: Record<string, TokenDiscountPriceType> = {
 }
 
 /**
+ * Tier wording that marks the discounted bracket of a time-of-use model.
+ *
+ * The operator writes these tier labels in the billing expression ("高峰时段" /
+ * "空闲时段", "peak" / "off-peak"), so they are the only signal available on the
+ * client. A time-of-use model whose labels match nothing keeps quoting the
+ * standard official price.
+ */
+const OFF_PEAK_TIER_LABEL = /空闲|平峰|低峰|低谷|off[\s_-]?peak|idle/i
+
+function isOffPeakTier(tier: DynamicPricingTier | null): boolean {
+  if (!tier) return false
+  const label =
+    'label' in tier && typeof tier.label === 'string' ? tier.label : ''
+  const condition =
+    'conditionText' in tier && typeof tier.conditionText === 'string'
+      ? tier.conditionText
+      : ''
+  return OFF_PEAK_TIER_LABEL.test(`${label} ${condition}`)
+}
+
+/**
  * Discounts for expression-priced (tiered) models.
  *
  * These models have no model_ratio; their sold price is whatever the billing
@@ -340,13 +377,12 @@ function getExpressionCandidates(
   model: PricingModel,
   group: string,
   official: OriginalPriceAmounts,
-  context: OriginalPriceContext
+  context: OriginalPriceContext,
+  summary: DynamicPricingSummary
 ): DiscountCandidate[] {
   const forced = getForcedPriceCandidates(group, official, context)
   if (forced) return forced
 
-  const summary = getDynamicPricingSummary(model, { tokenUnit: 'M' })
-  if (!summary) return []
   const groupRatio = getConfiguredGroupRatio(
     context.groupRatio ?? model.group_ratio ?? {},
     group
@@ -388,16 +424,30 @@ export function computeModelDiscount(
   // cannot describe their discount.
   if (hasTaskUsageSchema(model)) return null
 
-  const official = getOriginalPriceAmounts(model.original_price, context)
-  if (!official) return null
+  const standard = getOriginalPriceAmounts(model.original_price, context)
+  if (!standard) return null
 
   // Expression-priced models quote the evaluated tier instead of model_ratio.
-  const collect = isDynamicPricingModel(model)
-    ? getExpressionCandidates
-    : getGroupCandidates
+  // A time-of-use expression can land on the off-peak bracket, and then the
+  // official baseline has to be that bracket too, or the discount is understated.
+  const summary = isDynamicPricingModel(model)
+    ? getDynamicPricingSummary(model, { tokenUnit: 'M' })
+    : null
+  const offPeak =
+    summary !== null &&
+    model.original_price?.off_peak !== undefined &&
+    isOffPeakTier(summary.tier)
+      ? getOriginalPriceAmounts(model.original_price, context, 'off_peak')
+      : null
+  const official = offPeak ?? standard
+
   const candidates: DiscountCandidate[] = []
   for (const group of getDiscountGroups(model, context)) {
-    candidates.push(...collect(model, group, official, context))
+    candidates.push(
+      ...(summary
+        ? getExpressionCandidates(model, group, official, context, summary)
+        : getGroupCandidates(model, group, official, context))
+    )
   }
   if (candidates.length === 0) return null
 
@@ -420,6 +470,9 @@ export function computeModelDiscount(
     exact: maxRatio - minRatio <= DISCOUNT_TOLERANCE,
     group: best.group,
     priceType: best.priceType,
+    // Only set when the comparison used the off-peak bracket, so callers can
+    // quote the same bracket without checking the model again.
+    ...(offPeak !== null ? { offPeak: true } : {}),
   }
 }
 

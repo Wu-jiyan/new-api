@@ -519,6 +519,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                 model={props.model}
                 context={props.originalPrice}
                 tokenUnitLabel={tokenUnitLabel}
+                level={originalDiscount.offPeak ? 'off_peak' : 'standard'}
               />
             </div>
           )}

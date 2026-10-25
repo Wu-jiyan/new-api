@@ -70,6 +70,14 @@ export interface Model {
   original_price_cache?: number
   original_price_cache_write?: number
   original_price_request?: number
+  /**
+   * Off-peak official price of a time-of-use model (DeepSeek peak/off-peak).
+   * `0` or missing means the model charges one price all day; these amounts
+   * only affect which baseline the discount is compared against.
+   */
+  original_price_input_off_peak?: number
+  original_price_output_off_peak?: number
+  original_price_cache_off_peak?: number
   supported_endpoints?: string[]
   status: number
   sync_official: number

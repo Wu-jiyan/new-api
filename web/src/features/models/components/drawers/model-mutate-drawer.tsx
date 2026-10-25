@@ -121,6 +121,22 @@ const ORIGINAL_PRICE_AMOUNT_FIELDS = [
   },
 ] as const
 
+/** Off-peak bracket amounts of a time-of-use model (DeepSeek peak/off-peak). */
+const ORIGINAL_PRICE_OFF_PEAK_FIELDS = [
+  {
+    name: 'original_price_input_off_peak',
+    label: 'Off-peak input price',
+  },
+  {
+    name: 'original_price_output_off_peak',
+    label: 'Off-peak output price',
+  },
+  {
+    name: 'original_price_cache_off_peak',
+    label: 'Off-peak cache read price',
+  },
+] as const
+
 export function ModelMutateDrawer(props: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -790,6 +806,50 @@ export function ModelMutateDrawer(props: {
                             )}
                           />
                         ))}
+                      </div>
+                      {/* 分时定价模型的非高峰官方价：不填就是全天同价。 */}
+                      <div className='mt-4 space-y-3 rounded-lg border p-3'>
+                        <h4 className='text-sm font-medium'>{t('Off-peak')}</h4>
+                        <p className='text-muted-foreground text-xs'>
+                          {t(
+                            'Time-of-use models publish a second official price for the discounted bracket. Fill it in so a peak/off-peak model is compared with the bracket it is actually billed at; tiers whose name contains 空闲, 平峰 or off-peak use it. 0 means one price all day.'
+                          )}
+                        </p>
+                        <div className='grid gap-4 sm:grid-cols-3'>
+                          {ORIGINAL_PRICE_OFF_PEAK_FIELDS.map((amount) => (
+                            <FormField
+                              key={amount.name}
+                              control={form.control}
+                              name={amount.name}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t(amount.label)}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type='number'
+                                      min={0}
+                                      step='any'
+                                      value={field.value ?? 0}
+                                      name={field.name}
+                                      ref={field.ref}
+                                      disabled={!originalPriceConfigured}
+                                      onBlur={field.onBlur}
+                                      onChange={(event) => {
+                                        const parsed = Number.parseFloat(
+                                          event.target.value
+                                        )
+                                        field.onChange(
+                                          Number.isFinite(parsed) ? parsed : 0
+                                        )
+                                      }}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          ))}
+                        </div>
                       </div>
                     </SideDrawerSection>
                     {/* Status & Sync */}

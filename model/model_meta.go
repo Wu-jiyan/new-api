@@ -74,6 +74,11 @@ type Model struct {
 	OriginalPriceCache      float64 `json:"original_price_cache,omitempty" gorm:"default:0"`
 	OriginalPriceCacheWrite float64 `json:"original_price_cache_write,omitempty" gorm:"default:0"`
 	OriginalPriceRequest    float64 `json:"original_price_request,omitempty" gorm:"default:0"`
+	// 分时定价模型（如 DeepSeek 的峰谷价）的非高峰官方价。0 = 不分时；档位落到
+	// 非高峰档时改用这组价格做比较，避免拿高峰原价去比平峰实付、把折扣算浅。
+	OriginalPriceInputOffPeak  float64 `json:"original_price_input_off_peak,omitempty" gorm:"default:0"`
+	OriginalPriceOutputOffPeak float64 `json:"original_price_output_off_peak,omitempty" gorm:"default:0"`
+	OriginalPriceCacheOffPeak  float64 `json:"original_price_cache_off_peak,omitempty" gorm:"default:0"`
 
 	BoundChannels []BoundChannel `json:"bound_channels,omitempty" gorm:"-"`
 	EnableGroups  []string       `json:"enable_groups,omitempty" gorm:"-"`
@@ -337,6 +342,7 @@ func (mi *Model) Update() error {
 				"input_modalities", "output_modalities",
 				"original_price_currency", "original_price_input", "original_price_output",
 				"original_price_cache", "original_price_cache_write", "original_price_request",
+				"original_price_input_off_peak", "original_price_output_off_peak", "original_price_cache_off_peak",
 				"updated_time").
 			Updates(mi).Error
 	})
