@@ -186,7 +186,11 @@ describe('local billing expression evaluation', () => {
         translations.t,
         'zh'
       )
-    ).toBe('非(请求头 tier = flex)')
+    ).toBe('请求头 tier ≠ flex')
+    // A negated length bound flips to the other side of the comparison.
+    expect(
+      formatBillingCondition('!(len <= 272000)', translations.t, 'zh')
+    ).toBe('输入长度 > 272,000')
     expect(
       formatBillingCondition(
         'header("x-25y-service-tier") == "fast" && len <= 272000',

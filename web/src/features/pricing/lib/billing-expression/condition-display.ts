@@ -151,6 +151,30 @@ function probeComparison(node: ExpressionNode): ProbeComparison | null {
   }
 }
 
+/**
+ * Comparisons whose negation reads better as the flipped operator.
+ *
+ * `!(len <= 272000)` is `输入长度 > 272,000`, not `非(输入长度 ≤ 272,000)`;
+ * `has(...)` and presence probes have no flipped form and keep the wrapper.
+ */
+function isInvertibleComparison(node: ExpressionNode): boolean {
+  if (
+    node.kind !== 'binary' ||
+    !Object.hasOwn(FLIPPED_OPERATORS, node.operator)
+  ) {
+    return false
+  }
+  if (
+    node.left.kind === 'variable' &&
+    ['p', 'c', 'len'].includes(node.left.name) &&
+    node.right.kind === 'literal' &&
+    typeof node.right.value === 'number'
+  ) {
+    return true
+  }
+  return probeComparison(node)?.mode === 'equals'
+}
+
 function describeTimeRange(
   comparisons: TimeComparison[],
   t: Translate,
@@ -220,14 +244,34 @@ function describeTimeRange(
   }
 }
 
+/** Operators that read better flipped than wrapped in a negation. */
+const FLIPPED_OPERATORS: Record<string, string> = {
+  '<=': '>',
+  '<': '>=',
+  '>=': '<',
+  '>': '<=',
+  '==': '!=',
+  '!=': '==',
+}
+
 function describeBillingCondition(
   node: ExpressionNode,
   t: Translate,
-  locale: string
+  locale: string,
+  invert = false
 ): Description | null {
   if (node.kind === 'unary' && node.operator === '!') {
-    const description = describeBillingCondition(node.operand, t, locale)
+    // A negated comparison flips its operator (x ≠ v, 输入长度 > 272000) instead
+    // of printing "非(...)", which is unreadable when the chain is long.
+    const invertible = isInvertibleComparison(node.operand)
+    const description = describeBillingCondition(
+      node.operand,
+      t,
+      locale,
+      invertible ? !invert : invert
+    )
     if (!description) return null
+    if (invertible) return description
     // Time descriptions read naturally as "outside these times"; every other
     // condition is a plain negation of a grouped expression.
     if (description.hasTime) {
@@ -262,7 +306,10 @@ function describeBillingCondition(
     }
     const label = labels[node.left.name]
     if (!label) return null
-    const operator = COMPARISON_SYMBOLS[node.operator] ?? node.operator
+    const effectiveOperator = invert
+      ? (FLIPPED_OPERATORS[node.operator] ?? node.operator)
+      : node.operator
+    const operator = COMPARISON_SYMBOLS[effectiveOperator] ?? effectiveOperator
     return {
       text: `${t(label)} ${operator} ${node.right.value.toLocaleString(toIntlLocale(locale))}`,
       kind: 'combined',
@@ -280,7 +327,7 @@ function describeBillingCondition(
       key = '{{source}} {{name}} is present'
     } else if (probe.mode === 'contains') {
       key = '{{source}} {{name}} contains {{value}}'
-    } else if (probe.negated) {
+    } else if (Boolean(probe.negated) !== invert) {
       key = '{{source}} {{name}} is not {{value}}'
     }
     return {
