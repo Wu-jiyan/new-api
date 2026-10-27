@@ -31,7 +31,26 @@ type Description = {
   timezone: string
   /** True when the description came from time conditions (clock/calendar). */
   hasTime?: boolean
-  disjunction?: boolean
+  /** Binding strength, used to decide where parentheses are required. */
+  precedence: 'atom' | 'not' | 'and' | 'or'
+}
+
+/** Wrap a child description when joining it would otherwise change the meaning. */
+function grouped(description: Description, parent: 'and' | 'or'): string {
+  if (parent === 'and' && description.precedence === 'or') {
+    return `(${description.text})`
+  }
+  if (parent === 'or' && description.precedence === 'and') {
+    return `(${description.text})`
+  }
+  return description.text
+}
+
+const COMPARISON_SYMBOLS: Record<string, string> = {
+  '<=': '≤',
+  '>=': '≥',
+  '==': '=',
+  '!=': '≠',
 }
 type TimeComparison = {
   name: TimeFunction
@@ -192,7 +211,13 @@ function describeTimeRange(
         : t('{{start}}–{{end}}', { start, end: end - 1 })
     text = `${t(labels[first.name])}: ${values}`
   }
-  return { text, kind, timezone: first.timezone, hasTime: true }
+  return {
+    text,
+    kind,
+    timezone: first.timezone,
+    hasTime: true,
+    precedence: 'atom',
+  }
 }
 
 function describeBillingCondition(
@@ -203,16 +228,24 @@ function describeBillingCondition(
   if (node.kind === 'unary' && node.operator === '!') {
     const description = describeBillingCondition(node.operand, t, locale)
     if (!description) return null
-    // Time descriptions read naturally as "outside these times"; anything else
-    // (a header/body probe, a length bound) is a plain negation.
-    const key = description.hasTime
-      ? 'Outside these times: {{condition}}'
-      : 'Not {{condition}}'
+    // Time descriptions read naturally as "outside these times"; every other
+    // condition is a plain negation of a grouped expression.
+    if (description.hasTime) {
+      return {
+        ...description,
+        text: t('Outside these times: {{condition}}', {
+          condition: description.text,
+        }),
+        kind: 'combined',
+        hasTime: true,
+        precedence: 'not',
+      }
+    }
     return {
       ...description,
-      text: t(key, { condition: description.text }),
+      text: t('Not {{condition}}', { condition: description.text }),
       kind: 'combined',
-      hasTime: description.hasTime,
+      precedence: 'not',
     }
   }
   if (
@@ -225,14 +258,16 @@ function describeBillingCondition(
     const labels: Record<string, string> = {
       p: 'Input',
       c: 'Output',
-      len: 'Full input length',
+      len: 'Input length',
     }
     const label = labels[node.left.name]
     if (!label) return null
+    const operator = COMPARISON_SYMBOLS[node.operator] ?? node.operator
     return {
-      text: `${t(label)} ${node.operator} ${node.right.value.toLocaleString(toIntlLocale(locale))}`,
+      text: `${t(label)} ${operator} ${node.right.value.toLocaleString(toIntlLocale(locale))}`,
       kind: 'combined',
       timezone: '',
+      precedence: 'atom',
     }
   }
   const probe = probeComparison(node)
@@ -245,16 +280,14 @@ function describeBillingCondition(
       key = '{{source}} {{name}} is present'
     } else if (probe.mode === 'contains') {
       key = '{{source}} {{name}} contains {{value}}'
+    } else if (probe.negated) {
+      key = '{{source}} {{name}} is not {{value}}'
     }
-    const text = t(key, {
-      source,
-      name: probe.name,
-      value: probe.value,
-    })
     return {
-      text: probe.negated ? t('Not {{condition}}', { condition: text }) : text,
+      text: t(key, { source, name: probe.name, value: probe.value }),
       kind: 'combined',
       timezone: '',
+      precedence: 'atom',
     }
   }
   const single = timeComparison(node)
@@ -308,27 +341,24 @@ function describeBillingCondition(
       kind: 'combined',
       timezone: parts[0].timezone,
       hasTime: true,
+      precedence: 'atom',
     }
   }
-  const separator =
+  const joiner =
     node.operator === '&&'
       ? '{{first}} and {{second}}'
       : '{{first}} or {{second}}'
-  let text =
-    node.operator === '&&' && parts[0].disjunction
-      ? `(${parts[0].text})`
-      : parts[0].text
+  const parent = node.operator === '&&' ? 'and' : 'or'
+  let text = grouped(parts[0], parent)
   for (const part of parts.slice(1)) {
-    const second =
-      node.operator === '&&' && part.disjunction ? `(${part.text})` : part.text
-    text = t(separator, { first: text, second })
+    text = t(joiner, { first: text, second: grouped(part, parent) })
   }
   return {
     text,
     kind: clocks.length === parts.length ? 'clock' : 'combined',
     timezone,
     hasTime: parts.some((part) => part.hasTime),
-    disjunction: node.operator === '||',
+    precedence: parent,
   }
 }
 

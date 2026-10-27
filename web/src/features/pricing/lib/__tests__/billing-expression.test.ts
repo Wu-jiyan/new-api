@@ -132,17 +132,17 @@ describe('local billing expression evaluation', () => {
     const translations = createInstance()
     await translations.init({ lng: 'zh', resources: { zh } })
     expect(formatBillingCondition(peakCondition, translations.t, 'zh')).toBe(
-      '周一至周五 09:00至12:00或14:00至18:00（Asia/Shanghai）'
+      '周一至周五 09:00至12:00 或 14:00至18:00（Asia/Shanghai）'
     )
     expect(
       formatBillingCondition(`!(${peakCondition})`, translations.t, 'zh')
-    ).toBe('周一至周五 09:00至12:00或14:00至18:00以外的时段（Asia/Shanghai）')
+    ).toBe('周一至周五 09:00至12:00 或 14:00至18:00以外的时段（Asia/Shanghai）')
   })
   test.each([
     ['zhCN', 'weekday("UTC") == 1', '周一 (UTC)'],
     ['zhTW', 'weekday("UTC") == 1', '週一 (UTC)'],
-    ['zhCN', 'len > 32000', 'Full input length > 32,000'],
-    ['zhTW', 'len > 32000', 'Full input length > 32,000'],
+    ['zhCN', 'len > 32000', 'Input length > 32,000'],
+    ['zhTW', 'len > 32000', 'Input length > 32,000'],
   ])(
     'formats %s condition %s without falling back to source',
     async (language, source, expected) => {
@@ -165,7 +165,7 @@ describe('local billing expression evaluation', () => {
         translations.t,
         'zh'
       )
-    ).toBe('请求头 x-25y-service-tier 为 fast')
+    ).toBe('请求头 x-25y-service-tier = fast')
     expect(
       formatBillingCondition(
         'has(header("anthropic-beta"), "fast-mode")',
@@ -179,21 +179,29 @@ describe('local billing expression evaluation', () => {
         translations.t,
         'zh'
       )
-    ).toBe('携带 请求体字段 service_tier')
+    ).toBe('携带请求体字段 service_tier')
     expect(
       formatBillingCondition(
         '!(header("tier") == "flex")',
         translations.t,
         'zh'
       )
-    ).toBe('非 请求头 tier 为 flex')
+    ).toBe('非(请求头 tier = flex)')
     expect(
       formatBillingCondition(
         'header("x-25y-service-tier") == "fast" && len <= 272000',
         translations.t,
         'zh'
       )
-    ).toBe('请求头 x-25y-service-tier 为 fast且完整输入长度 <= 272,000')
+    ).toBe('请求头 x-25y-service-tier = fast 且 输入长度 ≤ 272,000')
+    // Mixed precedence keeps the parentheses that carry the meaning.
+    expect(
+      formatBillingCondition(
+        'len <= 272000 && (header("tier") == "fast" || header("tier") == "flex")',
+        translations.t,
+        'zh'
+      )
+    ).toBe('输入长度 ≤ 272,000 且 (请求头 tier = fast 或 请求头 tier = flex)')
   })
   test('keeps log prices tied to the recorded tier regardless of the current time', () => {
     vi.useFakeTimers()
