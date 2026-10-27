@@ -96,6 +96,8 @@ export type DynamicPricingSummary = {
   secondaryEntries: DynamicPriceEntry[]
   isTaskUsage: boolean
   isTimePricing?: boolean
+  /** Tier depends on a request header/body probe, so the quote is the default branch. */
+  isRequestDependent?: boolean
   isMixedBilling?: boolean
   providerCount?: number
   hasUnconfiguredProviders?: boolean
@@ -504,9 +506,17 @@ export function getDynamicPricingSummary(
     ? null
     : getCurrentTimePricingTiers(baseExpression, options.now ?? new Date())
   const summaryTiers = timeTiers ?? tiers
+  // Request-probe chains (header/param) have no tier that applies to everyone,
+  // so the square quotes the default branch: what a request without those
+  // fields pays. The detail view still lists every branch.
+  const defaultBranchTier = isTaskUsage
+    ? null
+    : (summaryTiers.find(
+        (item) => 'requestDefault' in item && item.requestDefault === true
+      ) ?? null)
   const tier = isTaskUsage
     ? (summaryTiers.at(-1) ?? null)
-    : (summaryTiers[0] ?? null)
+    : (defaultBranchTier ?? summaryTiers[0] ?? null)
   let entries = getDynamicPriceEntries(tier, {
     ...options,
     usageSchema: model.billing_usage_schema,
@@ -589,6 +599,7 @@ export function getDynamicPricingSummary(
         ),
     isTaskUsage,
     isTimePricing: timeTiers !== null,
+    ...(defaultBranchTier ? { isRequestDependent: true } : {}),
     ...(isMixedBilling ? { isMixedBilling } : {}),
   }
 }

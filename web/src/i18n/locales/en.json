@@ -11,6 +11,7 @@
     "Context: High to Low": "Context: High to Low",
     "Context: Low to High": "Context: Low to High",
     "Default state of the visitor-facing toggle in the model square.": "Default state of the visitor-facing toggle in the model square.",
+    "Default tier: requests without the header or body override pay this price.": "Default tier: requests without the header or body override pay this price.",
     "Display metadata for the pricing card and model detail view. Leave a field empty when the value is unknown.": "Display metadata for the pricing card and model detail view. Leave a field empty when the value is unknown.",
     "Display-only baseline used to compute the discount shown in the model square. It never affects billing. When a currency is set, the model square also converts the amounts between USD and CNY with the hourly synced exchange rate.": "Display-only baseline used to compute the discount shown in the model square. It never affects billing. When a currency is set, the model square also converts the amounts between USD and CNY with the hourly synced exchange rate.",
     "Endpoint that returns USD rates. The service calls it with /USD appended and expects a JSON object with rates.CNY. A CN mirror is available at https://er-api.25y.cn/v6/latest": "Endpoint that returns USD rates. The service calls it with /USD appended and expects a JSON object with rates.CNY. A CN mirror is available at https://er-api.25y.cn/v6/latest",

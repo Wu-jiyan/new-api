@@ -11,6 +11,7 @@
     "Context: High to Low": "上下文窗口：从大到小",
     "Context: Low to High": "上下文窗口：从小到大",
     "Default state of the visitor-facing toggle in the model square.": "模型广场中面向访客的开关的默认状态。",
+    "Default tier: requests without the header or body override pay this price.": "默认分档：请求未携带对应请求头或请求体字段时按此价格计费。",
     "Display metadata for the pricing card and model detail view. Leave a field empty when the value is unknown.": "定价卡片与模型详情页展示用的目录信息。数值未知时留空。",
     "Display-only baseline used to compute the discount shown in the model square. It never affects billing. When a currency is set, the model square also converts the amounts between USD and CNY with the hourly synced exchange rate.": "仅用于展示的基准价，用来计算模型广场中显示的折扣，不影响计费。设置币种后，模型广场还会使用每小时同步的汇率在 USD 与 CNY 之间换算金额。",
     "Endpoint that returns USD rates. The service calls it with /USD appended and expects a JSON object with rates.CNY. A CN mirror is available at https://er-api.25y.cn/v6/latest": "返回 USD 汇率的接口。服务会在地址后追加 /USD，并期望返回包含 rates.CNY 的 JSON 对象。国内镜像可使用 https://er-api.25y.cn/v6/latest",

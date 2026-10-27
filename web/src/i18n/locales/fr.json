@@ -11,6 +11,7 @@
     "Context: High to Low": "Contexte : décroissant",
     "Context: Low to High": "Contexte : croissant",
     "Default state of the visitor-facing toggle in the model square.": "État par défaut de l'interrupteur visible par les visiteurs dans le catalogue de modèles.",
+    "Default tier: requests without the header or body override pay this price.": "Palier par défaut : les requêtes sans l'en-tête ni le champ de corps correspondant paient ce prix.",
     "Display metadata for the pricing card and model detail view. Leave a field empty when the value is unknown.": "Métadonnées affichées sur la carte de tarification et la fiche modèle. Laissez un champ vide si la valeur est inconnue.",
     "Display-only baseline used to compute the discount shown in the model square. It never affects billing. When a currency is set, the model square also converts the amounts between USD and CNY with the hourly synced exchange rate.": "Prix de référence affiché uniquement, utilisé pour calculer la remise affichée dans le catalogue de modèles. Il n'affecte jamais la facturation. Lorsqu'une devise est définie, le catalogue convertit aussi les montants entre USD et CNY avec le taux synchronisé toutes les heures.",
     "Endpoint that returns USD rates. The service calls it with /USD appended and expects a JSON object with rates.CNY. A CN mirror is available at https://er-api.25y.cn/v6/latest": "Endpoint qui renvoie les taux en USD. Le service y ajoute /USD et attend un objet JSON contenant rates.CNY. Un miroir chinois est disponible sur https://er-api.25y.cn/v6/latest",

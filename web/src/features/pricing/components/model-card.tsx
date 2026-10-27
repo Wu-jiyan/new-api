@@ -250,6 +250,13 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               {t('Current period price')}
             </span>
           )}
+          {dynamicSummary.isRequestDependent && (
+            <span className='text-muted-foreground col-span-full text-xs break-words'>
+              {t(
+                'Default tier: requests without the header or body override pay this price.'
+              )}
+            </span>
+          )}
           {dynamicSummary.isMixedBilling && (
             <span className='text-muted-foreground col-span-full text-xs'>
               {t('Token or per-call pricing')}

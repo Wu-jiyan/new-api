@@ -312,6 +312,95 @@ export function readTimeTokenPricing(
   return { tiers, currentTiers }
 }
 
+export type RequestTokenTier = TokenTier & {
+  conditionText: string
+  /** Probe conditions on this branch; all `matches: false` is the default branch. */
+  requestConditions: { condition: ExpressionNode; matches: boolean }[]
+  requestDefault: boolean
+}
+
+/**
+ * Branches selected by a request probe (`header()` / `param()`).
+ *
+ * The gateway reads these from the live request, so a price display cannot know
+ * which branch a visitor will hit. The tiers are still parsed — and the branch
+ * reached by taking every `no` path is the one a request without those fields
+ * pays, which is what the square quotes by default.
+ */
+function isRequestProbeCondition(node: ExpressionNode): boolean {
+  const dependencies = expressionDependencies(node)
+  return (
+    dependencies.variables.size === 0 &&
+    [...dependencies.functions].some(
+      (name) => name === 'header' || name === 'param'
+    ) &&
+    [...dependencies.functions].every((name) =>
+      ['header', 'param', 'has', 'min', 'max', 'abs', 'ceil', 'floor'].includes(
+        name
+      )
+    )
+  )
+}
+
+function requestTierBranches(
+  compiled: CompiledBillingExpression,
+  node: ExpressionNode,
+  path: RequestTokenTier['requestConditions']
+): RequestTokenTier[] | null {
+  if (node.kind === 'conditional' && isRequestProbeCondition(node.condition)) {
+    const yes = requestTierBranches(compiled, node.yes, [
+      ...path,
+      { condition: node.condition, matches: true },
+    ])
+    const no = requestTierBranches(compiled, node.no, [
+      ...path,
+      { condition: node.condition, matches: false },
+    ])
+    if (!yes || !no) return null
+    return [...yes, ...no]
+  }
+  const tiers = readTokenTierChain(node)
+  if (!tiers || path.length === 0) return null
+  const requestDescription = path
+    .map(({ condition, matches }) => {
+      const source = compiled.source.slice(condition.start, condition.end)
+      return matches ? `(${source})` : `!(${source})`
+    })
+    .join(' && ')
+  return tiers.map((tier, index) => {
+    const own = tier.conditions.map(
+      (condition) => `${condition.var} ${condition.op} ${condition.value}`
+    )
+    // The fallback leaf of a chain carries no condition of its own; spell out the
+    // negated earlier branches so "Long" rows cannot read as a bare header match.
+    const fingerprint =
+      own.length > 0
+        ? own
+        : tiers
+            .slice(0, index)
+            .flatMap((previous) =>
+              previous.conditions.map(
+                (condition) =>
+                  `!(${condition.var} ${condition.op} ${condition.value})`
+              )
+            )
+    return {
+      ...tier,
+      requestConditions: path,
+      requestDefault: path.every(({ matches }) => !matches),
+      conditionText: [requestDescription, ...fingerprint].join(' && '),
+    }
+  })
+}
+
+/** Tiers of an expression whose branch depends on request headers or body fields. */
+export function readRequestTokenPricing(
+  compiled: CompiledBillingExpression
+): RequestTokenTier[] | null {
+  if (compiled.status !== 'ready') return null
+  return requestTierBranches(compiled, compiled.ast, [])
+}
+
 export type TaskTier = {
   conditionText?: string
   label: string

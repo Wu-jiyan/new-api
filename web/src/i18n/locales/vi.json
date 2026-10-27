@@ -11,6 +11,7 @@
     "Context: High to Low": "Ngữ cảnh: cao đến thấp",
     "Context: Low to High": "Ngữ cảnh: thấp đến cao",
     "Default state of the visitor-facing toggle in the model square.": "Trạng thái mặc định của công tắc dành cho khách truy cập trong danh mục mô hình.",
+    "Default tier: requests without the header or body override pay this price.": "Bậc mặc định: request không kèm header hoặc trường body tương ứng sẽ tính theo giá này.",
     "Display metadata for the pricing card and model detail view. Leave a field empty when the value is unknown.": "Siêu dữ liệu hiển thị trên thẻ giá và trang chi tiết mô hình. Để trống khi chưa biết giá trị.",
     "Display-only baseline used to compute the discount shown in the model square. It never affects billing. When a currency is set, the model square also converts the amounts between USD and CNY with the hourly synced exchange rate.": "Giá gốc chỉ dùng để hiển thị, phục vụ tính mức giảm giá trong danh mục mô hình. Giá này không ảnh hưởng đến việc tính phí. Khi đã chọn đơn vị tiền tệ, danh mục mô hình còn quy đổi số tiền giữa USD và CNY theo tỷ giá được đồng bộ mỗi giờ.",
     "Endpoint that returns USD rates. The service calls it with /USD appended and expects a JSON object with rates.CNY. A CN mirror is available at https://er-api.25y.cn/v6/latest": "Điểm cuối trả về tỷ giá USD. Dịch vụ nối thêm /USD và mong đợi một đối tượng JSON có rates.CNY. Bản sao cho Trung Quốc: https://er-api.25y.cn/v6/latest",

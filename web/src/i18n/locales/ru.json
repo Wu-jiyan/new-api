@@ -11,6 +11,7 @@
     "Context: High to Low": "Контекст: по убыванию",
     "Context: Low to High": "Контекст: по возрастанию",
     "Default state of the visitor-facing toggle in the model square.": "Состояние переключателя для посетителей в каталоге моделей по умолчанию.",
+    "Default tier: requests without the header or body override pay this price.": "Уровень по умолчанию: запросы без соответствующего заголовка или поля тела оплачиваются по этой цене.",
     "Display metadata for the pricing card and model detail view. Leave a field empty when the value is unknown.": "Метаданные для карточки тарификации и страницы модели. Оставьте поле пустым, если значение неизвестно.",
     "Display-only baseline used to compute the discount shown in the model square. It never affects billing. When a currency is set, the model square also converts the amounts between USD and CNY with the hourly synced exchange rate.": "Базовая цена только для отображения, используемая для расчёта скидки в каталоге моделей. Она никогда не влияет на оплату. Если задана валюта, каталог также пересчитывает суммы между USD и CNY по курсу, синхронизируемому каждый час.",
     "Endpoint that returns USD rates. The service calls it with /USD appended and expects a JSON object with rates.CNY. A CN mirror is available at https://er-api.25y.cn/v6/latest": "Адрес, возвращающий курсы в USD. Сервис добавляет к нему /USD и ожидает JSON-объект с rates.CNY. Китайское зеркало: https://er-api.25y.cn/v6/latest",

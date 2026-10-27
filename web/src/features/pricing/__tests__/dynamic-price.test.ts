@@ -126,6 +126,34 @@ describe('expression price summaries', () => {
     }
   )
 
+  test('quotes the default branch of a header-tier expression and still lists every branch', () => {
+    const headerExpression =
+      'header("x-25y-service-tier") == "fast" ? (len <= 272000 ? tier("Fast / Short", p * 20 + c * 100) : tier("Fast / Long", p * 40 + c * 150)) : (len <= 272000 ? tier("Standard / Short", p * 10 + c * 50) : tier("Standard / Long", p * 20 + c * 75))'
+    const model = pricingModel({
+      billing_mode: 'tiered_expr',
+      billing_expr: headerExpression,
+    })
+
+    expect(
+      parseTiersFromExpr(headerExpression).map((tier) => tier.label)
+    ).toEqual([
+      'Fast / Short',
+      'Fast / Long',
+      'Standard / Short',
+      'Standard / Long',
+    ])
+
+    const summary = getDynamicPricingSummary(model, { tokenUnit: 'M' })
+    expect(summary?.isSpecialExpression).toBe(false)
+    expect(summary?.isRequestDependent).toBe(true)
+    // A request without the header pays the default (Standard) branch.
+    expect(summary?.tier?.label).toBe('Standard / Short')
+    expect(summary?.primaryEntries.map((entry) => entry.value)).toEqual([
+      10, 50,
+    ])
+    expect(summary?.tiers).toHaveLength(4)
+  })
+
   test('keeps the first token tier inside a time branch and leaves request multipliers separate', () => {
     const base =
       'hour("UTC") < 12 ? (len < 1000 ? tier("first", p * 4 + c * 12) : tier("cheaper", p * 2 + c * 6)) : tier("night", p * 1 + c * 3)'
@@ -176,7 +204,6 @@ describe('expression price summaries', () => {
   test.each([
     'tier("custom", max(p * 2 + c * 8, 100))',
     'tier("base", p * 2 + c * 8) * 3',
-    'param("premium") ? tier("pro", p * 4 + c * 16) : tier("base", p * 2 + c * 8)',
     'tier("overflow", p * 1e999 + c * 8)',
   ])('does not invent structured prices from %s', (expression) => {
     const summary = getDynamicPricingSummary(
@@ -185,6 +212,24 @@ describe('expression price summaries', () => {
     )
     expect(summary?.isSpecialExpression).toBe(true)
     expect(summary?.entries).toEqual([])
+  })
+
+  // A body-field branch is a real tier chain: list both tiers and quote the one
+  // a request without that field pays.
+  test('quotes the default branch of a param-driven tier chain', () => {
+    const summary = getDynamicPricingSummary(
+      pricingModel({
+        billing_mode: 'tiered_expr',
+        billing_expr:
+          'param("premium") ? tier("pro", p * 4 + c * 16) : tier("base", p * 2 + c * 8)',
+      }),
+      { tokenUnit: 'M' }
+    )
+    expect(summary?.isSpecialExpression).toBe(false)
+    expect(summary?.isRequestDependent).toBe(true)
+    expect(summary?.tiers.map((tier) => tier.label)).toEqual(['pro', 'base'])
+    expect(summary?.tier?.label).toBe('base')
+    expect(summary?.primaryEntries.map((entry) => entry.value)).toEqual([2, 8])
   })
 
   test('retains explicit zero token rates while omitting absent categories', () => {

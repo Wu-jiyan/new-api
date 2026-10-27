@@ -29,6 +29,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import type { BillingUsageSchema } from '../types'
 import {
+  readRequestTokenPricing,
   readTokenTierChain,
   readTaskTierChain,
   readTimeTokenPricing,
@@ -262,6 +263,8 @@ export type ParsedTier = {
   billingUnit?: 'token' | 'request'
   fixedPrice?: number
   conditionText?: string
+  /** Branch a request without the probed header/body field pays (request-probe chains). */
+  requestDefault?: boolean
   label: string
   conditions: TierCondition[]
   [field: string]: unknown
@@ -285,7 +288,7 @@ export type ParsedTaskTier = {
 // ---------------------------------------------------------------------------
 
 function mapTokenTier(
-  tier: TokenTier & { conditionText?: string }
+  tier: TokenTier & { conditionText?: string; requestDefault?: boolean }
 ): ParsedTier {
   return {
     label: tier.label,
@@ -295,6 +298,7 @@ function mapTokenTier(
       ? { billingUnit: tier.billingUnit, fixedPrice: tier.fixedPrice }
       : {}),
     ...(tier.conditionText ? { conditionText: tier.conditionText } : {}),
+    ...(tier.requestDefault ? { requestDefault: true } : {}),
     ...Object.fromEntries(
       Object.entries(tier.prices).map(([key, price]) => [
         BILLING_VAR_KEY_TO_FIELD[key],
@@ -310,7 +314,11 @@ export function parseTiersFromExpr(exprStr: string): ParsedTier[] {
   if (compiled.status !== 'ready') return []
   const canonical = readTokenTierChain(compiled.ast)
   if (canonical) return canonical.map(mapTokenTier)
-  return readTimeTokenPricing(exprStr)?.tiers.map(mapTokenTier) ?? []
+  const timePricing = readTimeTokenPricing(exprStr)
+  if (timePricing) return timePricing.tiers.map(mapTokenTier)
+  // Request-probe branches (header/param) still describe ordered tiers; the
+  // square quotes the default branch and the detail view lists them all.
+  return readRequestTokenPricing(compiled)?.map(mapTokenTier) ?? []
 }
 
 /** Current-time selection is exclusively for summaries; detail and log callers retain all rows. */

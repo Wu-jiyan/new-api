@@ -11,6 +11,7 @@
     "Context: High to Low": "コンテキスト：大きい順",
     "Context: Low to High": "コンテキスト：小さい順",
     "Default state of the visitor-facing toggle in the model square.": "モデル一覧で訪問者に表示される切り替えの初期状態です。",
+    "Default tier: requests without the header or body override pay this price.": "デフォルトの段階：該当するヘッダーやボディ項目を含まないリクエストはこの価格で課金されます。",
     "Display metadata for the pricing card and model detail view. Leave a field empty when the value is unknown.": "価格カードとモデル詳細に表示されるカタログ情報です。不明な項目は空欄のままにしてください。",
     "Display-only baseline used to compute the discount shown in the model square. It never affects billing. When a currency is set, the model square also converts the amounts between USD and CNY with the hourly synced exchange rate.": "モデル一覧に表示する割引率の計算に使う表示専用の基準価格です。課金には影響しません。通貨を設定すると、モデル一覧は毎時同期されるレートで USD と CNY の金額も換算します。",
     "Endpoint that returns USD rates. The service calls it with /USD appended and expects a JSON object with rates.CNY. A CN mirror is available at https://er-api.25y.cn/v6/latest": "USD レートを返すエンドポイントです。サービスは末尾に /USD を付けて要求し、rates.CNY を含む JSON オブジェクトを期待します。中国向けミラーは https://er-api.25y.cn/v6/latest です。",
