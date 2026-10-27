@@ -59,6 +59,7 @@
     "Sync interval (hours)": "Sync interval (hours)",
     "Sync now": "Sync now",
     "Synced rate": "Synced rate",
+    "This expression prices by request headers or body fields. The estimate uses an empty request, so it quotes the default branch; use the simulator below to price a specific request.": "This expression prices by request headers or body fields. The estimate uses an empty request, so it quotes the default branch; use the simulator below to price a specific request.",
     "Time-of-use models publish a second official price for the discounted bracket. Fill it in so a peak/off-peak model is compared with the bracket it is actually billed at; tiers whose name contains 空闲, 平峰 or off-peak use it. 0 means one price all day.": "Time-of-use models publish a second official price for the discounted bracket. Fill it in so a peak/off-peak model is compared with the bracket it is actually billed at; tiers whose name contains 空闲, 平峰 or off-peak use it. 0 means one price all day.",
     "Tokens. 0 means not configured.": "Tokens. 0 means not configured.",
     "Whole hours, at least 1.": "Whole hours, at least 1.",

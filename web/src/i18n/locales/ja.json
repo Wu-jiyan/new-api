@@ -59,6 +59,7 @@
     "Sync interval (hours)": "同期間隔（時間）",
     "Sync now": "今すぐ同期",
     "Synced rate": "同期済みレート",
+    "This expression prices by request headers or body fields. The estimate uses an empty request, so it quotes the default branch; use the simulator below to price a specific request.": "この式はリクエストヘッダーまたはボディ項目で料金が変わります。見積りは空のリクエストを使うため既定の分岐で計算されます。特定のリクエストで計算するには下のシミュレーターを使ってください。",
     "Time-of-use models publish a second official price for the discounted bracket. Fill it in so a peak/off-peak model is compared with the bracket it is actually billed at; tiers whose name contains 空闲, 平峰 or off-peak use it. 0 means one price all day.": "時間帯別料金のモデル（DeepSeek のピーク／オフピークなど）は、オフピーク用の公式価格を別に公開しています。入力すると、オフピーク帯の割引はその価格と比較されます。段階名に 空闲・平峰・off-peak を含む場合に使われます。0 は終日同一価格を意味します。",
     "Tokens. 0 means not configured.": "トークン数。0 は未設定です。",
     "Whole hours, at least 1.": "1 以上の整数時間。",

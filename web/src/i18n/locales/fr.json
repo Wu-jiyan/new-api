@@ -59,6 +59,7 @@
     "Sync interval (hours)": "Intervalle de synchronisation (heures)",
     "Sync now": "Synchroniser maintenant",
     "Synced rate": "Taux synchronisé",
+    "This expression prices by request headers or body fields. The estimate uses an empty request, so it quotes the default branch; use the simulator below to price a specific request.": "Cette expression tarifie selon les en-têtes ou les champs du corps de la requête. L'estimation utilise une requête vide et applique donc la branche par défaut ; utilisez le simulateur ci-dessous pour tarifer une requête précise.",
     "Time-of-use models publish a second official price for the discounted bracket. Fill it in so a peak/off-peak model is compared with the bracket it is actually billed at; tiers whose name contains 空闲, 平峰 or off-peak use it. 0 means one price all day.": "Les modèles à tarification horaire (prix de pointe / hors pointe, comme DeepSeek) publient un second prix officiel pour les heures creuses. Renseignez-le pour comparer un modèle à tarification horaire au tarif réellement facturé ; les paliers dont le nom contient 空闲, 平峰 ou off-peak l'utilisent. 0 signifie un prix unique toute la journée.",
     "Tokens. 0 means not configured.": "Jetons. 0 signifie non configuré.",
     "Whole hours, at least 1.": "Heures entières, minimum 1.",

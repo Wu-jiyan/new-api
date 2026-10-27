@@ -82,6 +82,7 @@ import {
   type TimeCondition,
   type TimeFunc,
 } from '@/features/pricing/lib/billing-expr'
+import { compileBillingExpression } from '@/features/pricing/lib/billing-expression/parser'
 import {
   parseVisualBillingDocument,
   serializeVisualBillingDocument,
@@ -745,6 +746,17 @@ function CostEstimator({ effectiveExpr, fullExpr, currency }: EstimatorProps) {
     [effectiveExpr]
   )
 
+  // 表达式按请求头/请求体分支定价时（header()/param()），估算必须给一个空请求：
+  // 网关对没有该字段的真实请求就是走这个分支，不给上下文会把合法表达式报成
+  // missing_context（"request headers"）。
+  const usesRequestProbe = useMemo(() => {
+    const compiled = compileBillingExpression(effectiveExpr)
+    return (
+      compiled.status === 'ready' &&
+      (compiled.functions.has('header') || compiled.functions.has('param'))
+    )
+  }, [effectiveExpr])
+
   const tokens = useMemo(() => {
     const values = buildEstimatorTokens(promptTokens, completionTokens, extras)
     if (lengthOverride.trim()) values.len = Number(lengthOverride)
@@ -756,6 +768,7 @@ function CostEstimator({ effectiveExpr, fullExpr, currency }: EstimatorProps) {
       evalExprLocally(effectiveExpr, promptTokens, completionTokens, extras, {
         tokens,
         now: billingTime === undefined ? undefined : new Date(billingTime),
+        request: { body: {}, headers: {} },
       }),
     [effectiveExpr, promptTokens, completionTokens, extras, tokens, billingTime]
   )
@@ -875,6 +888,13 @@ function CostEstimator({ effectiveExpr, fullExpr, currency }: EstimatorProps) {
           </div>
         )}
       </div>
+      {usesRequestProbe && !result.error && (
+        <p className='text-muted-foreground text-xs'>
+          {t(
+            'This expression prices by request headers or body fields. The estimate uses an empty request, so it quotes the default branch; use the simulator below to price a specific request.'
+          )}
+        </p>
+      )}
       <RequestSimulation
         expression={fullExpr}
         tokens={tokens}

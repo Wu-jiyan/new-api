@@ -59,6 +59,7 @@
     "Sync interval (hours)": "Интервал синхронизации (часы)",
     "Sync now": "Синхронизировать",
     "Synced rate": "Синхронизированный курс",
+    "This expression prices by request headers or body fields. The estimate uses an empty request, so it quotes the default branch; use the simulator below to price a specific request.": "Выражение зависит от заголовков или полей тела запроса. Оценка использует пустой запрос и поэтому берёт ветку по умолчанию; для конкретного запроса используйте симулятор ниже.",
     "Time-of-use models publish a second official price for the discounted bracket. Fill it in so a peak/off-peak model is compared with the bracket it is actually billed at; tiers whose name contains 空闲, 平峰 or off-peak use it. 0 means one price all day.": "Модели с тарифом по времени суток (пик/непик, например DeepSeek) публикуют вторую официальную цену для непикового тарифа. Заполните её, чтобы скидка сравнивалась с тарифом, по которому реально списываются деньги; её используют уровни, в названии которых есть 空闲, 平峰 или off-peak. 0 означает единую цену в течение дня.",
     "Tokens. 0 means not configured.": "Токены. 0 означает, что не задано.",
     "Whole hours, at least 1.": "Целые часы, минимум 1.",

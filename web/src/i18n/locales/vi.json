@@ -59,6 +59,7 @@
     "Sync interval (hours)": "Khoảng thời gian đồng bộ (giờ)",
     "Sync now": "Đồng bộ ngay",
     "Synced rate": "Tỷ giá đã đồng bộ",
+    "This expression prices by request headers or body fields. The estimate uses an empty request, so it quotes the default branch; use the simulator below to price a specific request.": "Biểu thức này tính giá theo header hoặc trường trong body của request. Ước tính dùng request rỗng nên áp dụng nhánh mặc định; dùng trình mô phỏng bên dưới để tính cho một request cụ thể.",
     "Time-of-use models publish a second official price for the discounted bracket. Fill it in so a peak/off-peak model is compared with the bracket it is actually billed at; tiers whose name contains 空闲, 平峰 or off-peak use it. 0 means one price all day.": "Các mô hình tính giá theo khung giờ (giá cao điểm / thấp điểm, ví dụ DeepSeek) công bố thêm giá chính thức cho khung thấp điểm. Điền vào để mức giảm giá được so với khung giá thực thu; các bậc có tên chứa 空闲, 平峰 hoặc off-peak sẽ dùng giá này. 0 nghĩa là một giá cho cả ngày.",
     "Tokens. 0 means not configured.": "Token. 0 nghĩa là chưa cấu hình.",
     "Whole hours, at least 1.": "Số giờ nguyên, tối thiểu 1.",

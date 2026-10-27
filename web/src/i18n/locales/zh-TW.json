@@ -59,6 +59,7 @@
     "Sync interval (hours)": "同步間隔（小時）",
     "Sync now": "立即同步",
     "Synced rate": "已同步匯率",
+    "This expression prices by request headers or body fields. The estimate uses an empty request, so it quotes the default branch; use the simulator below to price a specific request.": "該表達式按請求標頭或請求體欄位定價。估算使用空請求，因此按預設分支計價；需要按具體請求計價請用下方的請求模擬。",
     "Time-of-use models publish a second official price for the discounted bracket. Fill it in so a peak/off-peak model is compared with the bracket it is actually billed at; tiers whose name contains 空闲, 平峰 or off-peak use it. 0 means one price all day.": "分時定價模型（如 DeepSeek 的峰谷價）在非高峰檔另有官方價。填上後，落在非高峰檔的折扣會與這一檔比較；檔位名含「空閒」「平峰」或 off-peak 時使用它。0 表示全天同價。",
     "Tokens. 0 means not configured.": "單位為 token，0 表示未設定。",
     "Whole hours, at least 1.": "整數小時，至少 1。",
