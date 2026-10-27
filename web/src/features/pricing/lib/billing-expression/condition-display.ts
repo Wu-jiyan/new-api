@@ -29,6 +29,8 @@ type Description = {
   text: string
   kind: 'calendar' | 'clock' | 'combined'
   timezone: string
+  /** True when the description came from time conditions (clock/calendar). */
+  hasTime?: boolean
   disjunction?: boolean
 }
 type TimeComparison = {
@@ -64,6 +66,69 @@ function timeComparison(node: ExpressionNode): TimeComparison | null {
     timezone: node.left.args[0].value.trim() || 'UTC',
     operator: node.operator,
     value: node.right.value,
+  }
+}
+
+type ProbeComparison = {
+  source: 'header' | 'param'
+  name: string
+  mode: 'equals' | 'contains' | 'present'
+  value: string
+  negated?: boolean
+}
+
+/** `header("k")` / `param("a.b")` with a non-empty literal key. */
+function probeCall(node: ExpressionNode): ProbeComparison | null {
+  if (
+    node.kind !== 'call' ||
+    (node.name !== 'header' && node.name !== 'param')
+  ) {
+    return null
+  }
+  const key = node.args[0]
+  if (key?.kind !== 'literal' || typeof key.value !== 'string') return null
+  const name = key.value.trim()
+  if (!name) return null
+  return { source: node.name, name, mode: 'present', value: '' }
+}
+
+/**
+ * Header/body probe conditions in the forms the engine accepts:
+ * `header(k) == "v"`, `header(k) != "v"`, `header(k) != ""`, `has(header(k), "v")`
+ * and the `param(...)` equivalents.
+ */
+function probeComparison(node: ExpressionNode): ProbeComparison | null {
+  if (node.kind === 'call' && node.name === 'has' && node.args.length === 2) {
+    const [inner, needle] = node.args
+    const call = inner ? probeCall(inner) : null
+    if (
+      !call ||
+      needle.kind !== 'literal' ||
+      typeof needle.value !== 'string' ||
+      !needle.value
+    ) {
+      return null
+    }
+    return { ...call, mode: 'contains', value: needle.value }
+  }
+  if (
+    node.kind !== 'binary' ||
+    (node.operator !== '==' && node.operator !== '!=')
+  ) {
+    return null
+  }
+  const call = probeCall(node.left)
+  if (!call) return null
+  const right = node.right
+  if (right.kind !== 'literal' || typeof right.value !== 'string') return null
+  if (right.value === '') {
+    return node.operator === '!=' ? call : null
+  }
+  return {
+    ...call,
+    mode: 'equals',
+    value: right.value,
+    ...(node.operator === '!=' ? { negated: true } : {}),
   }
 }
 
@@ -127,7 +192,7 @@ function describeTimeRange(
         : t('{{start}}–{{end}}', { start, end: end - 1 })
     text = `${t(labels[first.name])}: ${values}`
   }
-  return { text, kind, timezone: first.timezone }
+  return { text, kind, timezone: first.timezone, hasTime: true }
 }
 
 function describeBillingCondition(
@@ -138,12 +203,16 @@ function describeBillingCondition(
   if (node.kind === 'unary' && node.operator === '!') {
     const description = describeBillingCondition(node.operand, t, locale)
     if (!description) return null
+    // Time descriptions read naturally as "outside these times"; anything else
+    // (a header/body probe, a length bound) is a plain negation.
+    const key = description.hasTime
+      ? 'Outside these times: {{condition}}'
+      : 'Not {{condition}}'
     return {
       ...description,
-      text: t('Outside these times: {{condition}}', {
-        condition: description.text,
-      }),
+      text: t(key, { condition: description.text }),
       kind: 'combined',
+      hasTime: description.hasTime,
     }
   }
   if (
@@ -162,6 +231,28 @@ function describeBillingCondition(
     if (!label) return null
     return {
       text: `${t(label)} ${node.operator} ${node.right.value.toLocaleString(toIntlLocale(locale))}`,
+      kind: 'combined',
+      timezone: '',
+    }
+  }
+  const probe = probeComparison(node)
+  if (probe) {
+    const source = t(
+      probe.source === 'header' ? 'Request header' : 'Request body field'
+    )
+    let key = '{{source}} {{name}} is {{value}}'
+    if (probe.mode === 'present') {
+      key = '{{source}} {{name}} is present'
+    } else if (probe.mode === 'contains') {
+      key = '{{source}} {{name}} contains {{value}}'
+    }
+    const text = t(key, {
+      source,
+      name: probe.name,
+      value: probe.value,
+    })
+    return {
+      text: probe.negated ? t('Not {{condition}}', { condition: text }) : text,
       kind: 'combined',
       timezone: '',
     }
@@ -216,6 +307,7 @@ function describeBillingCondition(
       text: `${calendars[0].text} ${clocks[0].text}`,
       kind: 'combined',
       timezone: parts[0].timezone,
+      hasTime: true,
     }
   }
   const separator =
@@ -235,6 +327,7 @@ function describeBillingCondition(
     text,
     kind: clocks.length === parts.length ? 'clock' : 'combined',
     timezone,
+    hasTime: parts.some((part) => part.hasTime),
     disjunction: node.operator === '||',
   }
 }

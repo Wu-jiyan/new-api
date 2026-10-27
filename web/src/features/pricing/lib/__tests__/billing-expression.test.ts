@@ -156,6 +156,45 @@ describe('local billing expression evaluation', () => {
       )
     }
   )
+  test('localizes request header and body conditions, including length combinations', async () => {
+    const translations = createInstance()
+    await translations.init({ lng: 'zh', resources: { zh } })
+    expect(
+      formatBillingCondition(
+        'header("x-25y-service-tier") == "fast"',
+        translations.t,
+        'zh'
+      )
+    ).toBe('请求头 x-25y-service-tier 为 fast')
+    expect(
+      formatBillingCondition(
+        'has(header("anthropic-beta"), "fast-mode")',
+        translations.t,
+        'zh'
+      )
+    ).toBe('请求头 anthropic-beta 包含 fast-mode')
+    expect(
+      formatBillingCondition(
+        'param("service_tier") != ""',
+        translations.t,
+        'zh'
+      )
+    ).toBe('携带 请求体字段 service_tier')
+    expect(
+      formatBillingCondition(
+        '!(header("tier") == "flex")',
+        translations.t,
+        'zh'
+      )
+    ).toBe('非 请求头 tier 为 flex')
+    expect(
+      formatBillingCondition(
+        'header("x-25y-service-tier") == "fast" && len <= 272000',
+        translations.t,
+        'zh'
+      )
+    ).toBe('请求头 x-25y-service-tier 为 fast且完整输入长度 <= 272,000')
+  })
   test('keeps log prices tied to the recorded tier regardless of the current time', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-07T10:00:00+08:00'))
