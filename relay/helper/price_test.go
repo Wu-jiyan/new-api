@@ -801,6 +801,8 @@ func (s *priceTestReservation) NeedsRefund() bool        { return false }
 func (s *priceTestReservation) GetPreConsumedQuota() int { return s.held }
 func (s *priceTestReservation) Reserve(quota int) error  { s.held = max(s.held, quota); return nil }
 
+func (s *priceTestReservation) ReserveBeforeSubmit(quota int) error { return s.Reserve(quota) }
+
 // forcedPriceTestConfig loads a forced-price group alongside a deliberately
 // expensive group ratio, so a test fails if the ratio leaks into the charge.
 func forcedPriceTestConfig(t *testing.T) {

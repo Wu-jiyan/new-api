@@ -19,10 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { AxiosError, type AxiosRequestConfig } from 'axios'
+import { AxiosError } from 'axios'
 import { describe, expect, it, vi } from 'vitest'
 
-import { api } from '@/lib/api'
+import { api, type ApiRequestConfig } from '@/lib/api'
 
 import { VendorMutateDialog } from '../components/dialogs/vendor-mutate-dialog'
 import { VendorOperationDialog } from '../components/dialogs/vendor-operation-dialog'
@@ -258,7 +258,7 @@ describe('vendor management', () => {
     let finishPage: ((value: unknown) => void) | undefined
     const get = vi
       .spyOn(api, 'get')
-      .mockImplementation(async (_url: string, config?: AxiosRequestConfig) => {
+      .mockImplementation(async (_url, config?: ApiRequestConfig) => {
         if (config?.params?.p === 2) {
           return new Promise((resolve) => {
             finishPage = resolve

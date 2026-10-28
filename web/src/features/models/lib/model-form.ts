@@ -39,7 +39,7 @@ export const modelFormSchema = z.object({
   description: z.string().default(''),
   icon: z.string().default(''),
   tags: z.array(z.string()).default([]),
-  vendor_id: z.number().optional(),
+  vendor_id: z.number(),
   endpoints: z.string().default(''),
   context_length: z.number().int().min(0).default(0),
   max_input_tokens: z.number().int().min(0).default(0),
@@ -63,6 +63,34 @@ export const modelFormSchema = z.object({
 })
 
 export type ModelFormValues = z.infer<typeof modelFormSchema>
+
+export const MODEL_FORM_DEFAULT_VALUES: ModelFormValues = {
+  model_name: '',
+  description: '',
+  icon: '',
+  tags: [],
+  vendor_id: 0,
+  endpoints: '',
+  context_length: 0,
+  max_input_tokens: 0,
+  max_output_tokens: 0,
+  input_modalities: [],
+  output_modalities: [],
+  original_price_currency: '',
+  original_price_input: 0,
+  original_price_output: 0,
+  original_price_cache: 0,
+  original_price_cache_write: 0,
+  original_price_request: 0,
+  original_price_input_off_peak: 0,
+  original_price_output_off_peak: 0,
+  original_price_cache_off_peak: 0,
+  name_rule: 0,
+  status: true,
+  sync_official: true,
+  enable_groups: [],
+  quota_types: [],
+}
 
 // ============================================================================
 // Vendor Form Schema
@@ -95,7 +123,7 @@ export function transformModelToFormDefaults(model: Model): ModelFormValues {
     description: model.description || '',
     icon: model.icon || '',
     tags: parseTagsFromUtils(model.tags),
-    vendor_id: model.vendor_id,
+    vendor_id: model.vendor_id ?? 0,
     endpoints: model.endpoints || '',
     context_length: model.context_length || 0,
     max_input_tokens: model.max_input_tokens || 0,
