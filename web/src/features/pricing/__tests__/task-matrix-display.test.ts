@@ -104,7 +104,6 @@ describe('conditional task price display', () => {
   test.each([
     'tier("base", u("seconds") * u("seconds"))',
     'tier("base", u("seconds") / u("seconds"))',
-    'tier("base", u("seconds") * (param("resolution") == "4K" ? 0.15 : 0.09))',
     'tier("base", u("seconds") * (u("seconds") > 30 ? 0.15 : 0.09))',
     'tier("base", u("seconds") * (u("missing") == "4K" ? 0.15 : 0.09))',
     'tier("base", u("seconds") * (u("resolution") == "4K" ? 0.15 : 1 / 0))',
@@ -314,5 +313,42 @@ describe('task matrix marketplace display rows', () => {
     assert.match(doubledEntries[0]?.formatted ?? '', /0[.,]8/)
     assert.equal(baseEntries.at(-1)?.value, 0.1)
     assert.match(doubledEntries.at(-1)?.formatted ?? '', /0[.,]2/)
+  })
+
+  test('expands a request-param branch into readable rows with per-image prices', () => {
+    const schema: BillingUsageSchema = {
+      image_count: { type: 'number', unit: 'count' },
+    }
+    const expression =
+      'param("quality") == "4k" ? tier("4K", u("image_count") * 0.16) : param("quality") == "2k" ? tier("2K", u("image_count") * 0.12) : tier("1K", u("image_count") * 0.06)'
+
+    const tiers = getTaskPricingDisplayTiers(expression, schema)
+
+    expect(tiers.map((tier) => tier.label)).toEqual(['4K', '2K', '1K'])
+    expect(tiers.map((tier) => tier.unitPrices.image_count)).toEqual([
+      0.16, 0.12, 0.06,
+    ])
+    // The fallback row spells out the negated earlier branches, so a request that
+    // omits the field cannot read as a 4K match.
+    expect(tiers.map((tier) => tier.conditionText)).toEqual([
+      '(param("quality") == "4k")',
+      '!(param("quality") == "4k") && (param("quality") == "2k")',
+      '!(param("quality") == "4k") && !(param("quality") == "2k")',
+    ])
+    // The editable matrix grammar keeps rejecting request probes.
+    expect(parseTaskTiersFromExpr(expression, schema)).toEqual([])
+  })
+
+  test('expands a request-param price factor inside one tier', () => {
+    const tiers = getTaskPricingDisplayTiers(
+      'tier("base", u("seconds") * (param("resolution") == "1080P" ? 0.15 : 0.09))',
+      resolutionSchema
+    )
+
+    expect(tiers.map((tier) => tier.unitPrices.seconds)).toEqual([0.15, 0.09])
+    expect(tiers.map((tier) => tier.conditionText)).toEqual([
+      '(param("resolution") == "1080P")',
+      '!(param("resolution") == "1080P")',
+    ])
   })
 })

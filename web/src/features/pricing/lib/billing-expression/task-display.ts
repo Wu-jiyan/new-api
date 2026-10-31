@@ -19,7 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import type { BillingUsageSchema } from '../../types'
 import type { TaskTier } from './display'
 import { compileBillingExpression } from './parser'
-import { TIME_FUNCTIONS, visitExpression, type ExpressionNode } from './types'
+import {
+  TIME_FUNCTIONS,
+  expressionDependencies,
+  visitExpression,
+  type ExpressionNode,
+} from './types'
 
 type PriceBranch = {
   label?: string
@@ -35,6 +40,22 @@ type TaskDisplayContext = {
   remaining: number
 }
 const MAX_DISPLAY_ROWS = 128
+
+/** A predicate whose value only the live request can supply (header/param). */
+function isRequestProbeNode(node: ExpressionNode): boolean {
+  const dependencies = expressionDependencies(node)
+  return (
+    dependencies.variables.size === 0 &&
+    [...dependencies.functions].some(
+      (name) => name === 'header' || name === 'param'
+    ) &&
+    [...dependencies.functions].every((name) =>
+      ['header', 'param', 'has', 'min', 'max', 'abs', 'ceil', 'floor'].includes(
+        name
+      )
+    )
+  )
+}
 
 /** Resolve only declared categorical facts. Time predicates remain explicit. */
 function taskDisplayCondition(
@@ -103,6 +124,12 @@ function taskDisplayCondition(
           part.args[0].value.trim() !== 'Local')
     )
   ) {
+    return context.source.slice(node.start, node.end)
+  }
+  // A request probe is unknowable while rendering, so keep its source text: the
+  // branch then renders as a readable condition, and the all-negated path stands
+  // for a request that omits the field.
+  if (isRequestProbeNode(node)) {
     return context.source.slice(node.start, node.end)
   }
   return null
