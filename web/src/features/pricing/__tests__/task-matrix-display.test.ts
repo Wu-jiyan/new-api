@@ -351,4 +351,17 @@ describe('task matrix marketplace display rows', () => {
       '!(param("resolution") == "1080P")',
     ])
   })
+
+  test('expands a fixed() tier chain multiplied by the request image count', () => {
+    const tiers = getTaskPricingDisplayTiers(
+      '(param("quality") == "4k" ? tier("4K", fixed(0.16)) : param("quality") == "2k" ? tier("2K", fixed(0.12)) : tier("1K", fixed(0.06))) * image_count',
+      { image_count: { type: 'number', unit: 'count' } }
+    )
+
+    expect(tiers.map((tier) => tier.label)).toEqual(['4K', '2K', '1K'])
+    expect(tiers.map((tier) => tier.unitPrices.image_count)).toEqual([
+      0.16, 0.12, 0.06,
+    ])
+    expect(tiers.every((tier) => tier.constant === 0)).toBe(true)
+  })
 })

@@ -41,6 +41,15 @@ type TaskDisplayContext = {
 }
 const MAX_DISPLAY_ROWS = 128
 
+/** `fixed(x)` marks a flat price; the display reads it as the constant x. */
+function taskConstant(node: ExpressionNode): number | null {
+  if (node.kind === 'call' && node.name === 'fixed' && node.args.length === 1) {
+    return taskConstant(node.args[0])
+  }
+  if (node.kind !== 'literal' || typeof node.value !== 'number') return null
+  return node.value >= 0 ? node.value : null
+}
+
 /** A predicate whose value only the live request can supply (header/param). */
 function isRequestProbeNode(node: ExpressionNode): boolean {
   const dependencies = expressionDependencies(node)
@@ -141,12 +150,9 @@ function taskPriceBranches(
   context: TaskDisplayContext
 ): PriceBranch[] | null {
   if (--context.remaining < 0) return null
-  if (
-    node.kind === 'literal' &&
-    typeof node.value === 'number' &&
-    node.value >= 0
-  ) {
-    return [{ constant: node.value, prices: {}, times: new Map() }]
+  const constant = taskConstant(node)
+  if (constant !== null) {
+    return [{ constant, prices: {}, times: new Map() }]
   }
   if (
     node.kind === 'call' &&
@@ -162,6 +168,13 @@ function taskPriceBranches(
       return null
     }
     return [{ constant: 0, prices: { [field]: 1 }, times: new Map() }]
+  }
+  // `image_count` is the engine's request image quantity; a task schema declares
+  // it as a count usage field, so it prices exactly like u("image_count").
+  if (node.kind === 'variable' && node.name === 'image_count') {
+    const definition = context.schema.image_count
+    if (definition?.type !== 'number' || !definition.unit) return null
+    return [{ constant: 0, prices: { image_count: 1 }, times: new Map() }]
   }
   if (
     node.kind === 'call' &&
@@ -278,6 +291,12 @@ export function readConditionalTaskPricing(
   const fields = new Set<string>()
   let valid = true
   visitExpression(compiled.ast, (node) => {
+    // `image_count` is a billing variable, not a usage probe, but its quantity
+    // still has to reach the price table or a fixed-price tier row shows nothing.
+    if (node.kind === 'variable' && node.name === 'image_count') {
+      fields.add('image_count')
+      return
+    }
     if (node.kind !== 'call' || node.name !== 'u') return
     const key = node.args[0]
     if (
