@@ -94,21 +94,50 @@ type ProbeComparison = {
   mode: 'equals' | 'contains' | 'present'
   value: string
   negated?: boolean
+  /** The probe is wrapped in lower()/upper(), so the case never decides the match. */
+  caseInsensitive?: boolean
 }
 
 /** `header("k")` / `param("a.b")` with a non-empty literal key. */
 function probeCall(node: ExpressionNode): ProbeComparison | null {
+  // Admins normalise a probe before comparing it (`lower(string(param("k") ?? ""))`).
+  // The wrappers do not change which request field is read, only how it compares.
+  let inner = node
+  let caseInsensitive = false
+  for (;;) {
+    // A defaulted probe (`param("k") ?? "1K"`) compares the same field; the
+    // default only decides what a request without the field is treated as.
+    if (inner.kind === 'binary' && inner.operator === '??') {
+      inner = inner.left
+      continue
+    }
+    if (inner.kind !== 'call') break
+    if (inner.name === 'lower' || inner.name === 'upper') {
+      caseInsensitive = true
+    } else if (inner.name !== 'string') {
+      break
+    }
+    const argument = inner.args[0]
+    if (!argument) return null
+    inner = argument
+  }
   if (
-    node.kind !== 'call' ||
-    (node.name !== 'header' && node.name !== 'param')
+    inner.kind !== 'call' ||
+    (inner.name !== 'header' && inner.name !== 'param')
   ) {
     return null
   }
-  const key = node.args[0]
+  const key = inner.args[0]
   if (key?.kind !== 'literal' || typeof key.value !== 'string') return null
   const name = key.value.trim()
   if (!name) return null
-  return { source: node.name, name, mode: 'present', value: '' }
+  return {
+    source: inner.name,
+    name,
+    mode: 'present',
+    value: '',
+    ...(caseInsensitive ? { caseInsensitive: true } : {}),
+  }
 }
 
 /**
@@ -330,8 +359,11 @@ function describeBillingCondition(
     } else if (Boolean(probe.negated) !== invert) {
       key = '{{source}} {{name}} is not {{value}}'
     }
+    const rendered = t(key, { source, name: probe.name, value: probe.value })
     return {
-      text: t(key, { source, name: probe.name, value: probe.value }),
+      text: probe.caseInsensitive
+        ? t('{{condition}} (case-insensitive)', { condition: rendered })
+        : rendered,
       kind: 'combined',
       timezone: '',
       precedence: 'atom',

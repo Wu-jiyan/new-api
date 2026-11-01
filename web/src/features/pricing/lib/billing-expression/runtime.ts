@@ -343,6 +343,11 @@ class BillingRuntime {
     if (node.operator === '||') {
       return { value: this.boolean(node.left) || this.boolean(node.right) }
     }
+    // Coalesce short-circuits: a present probe value never evaluates the default.
+    if (node.operator === '??') {
+      const fallback = this.evaluate(node.left)
+      return fallback.value == null ? this.evaluate(node.right) : fallback
+    }
     const left = this.evaluate(node.left)
     const right = this.evaluate(node.right)
     const a = left.value
@@ -480,6 +485,18 @@ class BillingRuntime {
             billingString(source).includes(substring),
         }
       }
+      // Value transforms accepted around a request probe: `lower(string(param(k) ?? ""))`.
+      // expr's string() renders nil as "<nil>" and numbers with %v, which billingString matches.
+      case 'lower':
+        return {
+          value: billingString(this.evaluate(args[0]).value).toLowerCase(),
+        }
+      case 'upper':
+        return {
+          value: billingString(this.evaluate(args[0]).value).toUpperCase(),
+        }
+      case 'string':
+        return { value: billingString(this.evaluate(args[0]).value) }
       case 'min':
         return {
           value: Math.min(

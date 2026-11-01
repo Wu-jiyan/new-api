@@ -25,6 +25,7 @@ import zh from '@/i18n/locales/zh.json'
 import contract from '../../../../../../pkg/billingexpr/testdata/frontend_simulation.json'
 import {
   combineBillingExpr,
+  parseTiersFromExpr,
   splitBillingExprAndRequestRules,
 } from '../billing-expr'
 import { formatBillingCondition } from '../billing-expression/condition-display'
@@ -281,6 +282,49 @@ describe('local billing expression evaluation', () => {
         'zh'
       )
     ).toBe('输入长度 ≤ 272,000 且 (请求头 tier = fast 或 请求头 tier = flex)')
+  })
+  // A probe wrapped in string()/lower() with a ?? default is what admins write to
+  // compare a header or body field case-insensitively; the engine accepts it, so
+  // the browser has to agree on both the charge and the rendered condition.
+  test('evaluates a defaulted, case-folded probe the way the engine does', async () => {
+    const source =
+      '(lower(string(param("quality") ?? "1K")) == "4k" ? tier("4K", fixed(0.160000)) : lower(string(param("quality") ?? "1K")) == "2k" ? tier("2K", fixed(0.120000)) : tier("1K", fixed(0.060000))) * image_count'
+
+    expect(compileBillingExpression(source).status).toBe('ready')
+
+    const cases: [{ quality?: string }, number, string][] = [
+      [{ quality: '4K' }, 320_000, '4K'],
+      [{ quality: '4k' }, 320_000, '4K'],
+      [{ quality: '2k' }, 240_000, '2K'],
+      [{}, 120_000, '1K'],
+    ]
+    for (const [body, cost, tier] of cases) {
+      const result = evaluateBillingExpression(source, {
+        request: { body, headers: {} },
+        imageCount: 2,
+      })
+      assert(result.status === 'success')
+      expect(result.cost).toBe(cost)
+      expect(result.matchedTier).toBe(tier)
+    }
+
+    const tiers = parseTiersFromExpr(source)
+    expect(tiers.map((tier) => tier.label)).toEqual(['4K', '2K', '1K'])
+    expect(tiers.map((tier) => tier.fixedPrice)).toEqual([0.16, 0.12, 0.06])
+    expect(
+      tiers.every((tier) => tier.imageCount && tier.billingUnit === 'request')
+    ).toBe(true)
+
+    const translations = createInstance()
+    await translations.init({ lng: 'zh', resources: { zh } })
+    expect(
+      formatBillingCondition(tiers[0].conditionText ?? '', translations.t, 'zh')
+    ).toBe('请求体字段 quality = 4k（忽略大小写）')
+    expect(
+      formatBillingCondition(tiers[2].conditionText ?? '', translations.t, 'zh')
+    ).toBe(
+      '请求体字段 quality ≠ 4k（忽略大小写） 且 请求体字段 quality ≠ 2k（忽略大小写）'
+    )
   })
   test('keeps log prices tied to the recorded tier regardless of the current time', () => {
     vi.useFakeTimers()

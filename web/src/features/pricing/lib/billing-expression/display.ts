@@ -335,9 +335,19 @@ function isRequestProbeCondition(node: ExpressionNode): boolean {
       (name) => name === 'header' || name === 'param'
     ) &&
     [...dependencies.functions].every((name) =>
-      ['header', 'param', 'has', 'min', 'max', 'abs', 'ceil', 'floor'].includes(
-        name
-      )
+      [
+        'header',
+        'param',
+        'has',
+        'lower',
+        'upper',
+        'string',
+        'min',
+        'max',
+        'abs',
+        'ceil',
+        'floor',
+      ].includes(name)
     )
   )
 }
@@ -347,6 +357,19 @@ function requestTierBranches(
   node: ExpressionNode,
   path: RequestTokenTier['requestConditions']
 ): RequestTokenTier[] | null {
+  // A per-image price keeps the multiplier outside the tier chain, so peel it
+  // before walking the branches and mark the rows as billed per image.
+  if (node.kind === 'binary' && node.operator === '*') {
+    for (const [factor, pricing] of [
+      [node.left, node.right],
+      [node.right, node.left],
+    ]) {
+      if (factor.kind === 'variable' && factor.name === 'image_count') {
+        const tiers = requestTierBranches(compiled, pricing, path)
+        return tiers?.map((tier) => ({ ...tier, imageCount: true })) ?? null
+      }
+    }
+  }
   if (node.kind === 'conditional' && isRequestProbeCondition(node.condition)) {
     const yes = requestTierBranches(compiled, node.yes, [
       ...path,

@@ -39,6 +39,9 @@ type Lexeme = {
   kind: 'number' | 'string' | 'symbol' | 'name' | 'end'
 }
 const PRECEDENCE: Readonly<Record<string, number>> = {
+  // Coalesce binds loosest: `a ?? b == c` reads as `a ?? (b == c)`, the way the
+  // engine's expr grammar treats a defaulted probe.
+  '??': 0,
   '||': 1,
   '&&': 2,
   '==': 3,
@@ -184,7 +187,9 @@ class BillingParser {
       this.cursor += name[0].length
       return { kind: 'name', text: name[0], start, end: this.cursor }
     }
-    const operator = rest.match(/^(?:&&|\|\||==|!=|<=|>=|[+\-*/%<>()!?:,])/)
+    const operator = rest.match(
+      /^(?:&&|\|\||\?\?|==|!=|<=|>=|[+\-*/%<>()!?:,])/
+    )
     if (!operator) {
       throw new BillingExpressionError({
         code: 'unsupported',
@@ -386,6 +391,13 @@ function checkExpressionTypes(ast: ExpressionNode): void {
         result = 'boolean'
       } else if (['==', '!=', '<', '<=', '>', '>='].includes(node.operator)) {
         result = 'boolean'
+      } else if (node.operator === '??') {
+        // A default only applies when the probe yields nil, so its type need not
+        // match the left side; the engine resolves the branch at runtime.
+        result =
+          types.get(node.left) === types.get(node.right)
+            ? (types.get(node.left) ?? 'dynamic')
+            : 'dynamic'
       } else if (
         node.operator === '+' &&
         types.get(node.left) === 'string' &&
@@ -402,7 +414,11 @@ function checkExpressionTypes(ast: ExpressionNode): void {
         requireType(node.args[0], 'string')
       }
       if (node.name === 'header') result = 'string'
-      else if (node.name === 'has') {
+      else if (node.name === 'string') result = 'string'
+      else if (node.name === 'lower' || node.name === 'upper') {
+        requireType(node.args[0], 'string')
+        result = 'string'
+      } else if (node.name === 'has') {
         requireType(node.args[1], 'string')
         result = 'boolean'
       } else if (node.name === 'tier') {
