@@ -1,8 +1,4 @@
-export type RatingDimension =
-  | 'deepswe'
-  | 'aa_intelligence'
-  | 'aa_coding'
-  | 'aa_agentic'
+export type RatingDimension = 'deepswe' | 'aa_intelligence'
 
 export interface RatingThresholds {
   ur: number
@@ -18,10 +14,8 @@ export interface ModelRatingItem {
   rating?: string
   rating_score?: number
   rating_source?: string
-  /** Artificial Analysis 三维度分数 */
+  /** Artificial Analysis 综合指数分数 */
   aa_intelligence_score?: number
-  aa_coding_score?: number
-  aa_agentic_score?: number
   aa_source?: string
 }
 
@@ -43,8 +37,6 @@ export interface AASyncResult {
   updated_models: {
     model_name: string
     aa_intelligence_score: number
-    aa_coding_score: number
-    aa_agentic_score: number
   }[]
 }
 

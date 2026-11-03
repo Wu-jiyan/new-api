@@ -221,8 +221,6 @@ func TestModelUpdatePreservesRatingScores(t *testing.T) {
 		RatingScore:         61.5,
 		RatingSource:        "manual",
 		AAIntelligenceScore: 48,
-		AACodingScore:       41,
-		AAAgenticScore:      33,
 		AASource:            "manual",
 	}
 	require.NoError(t, DB.Create(scored).Error)
@@ -245,8 +243,6 @@ func TestModelUpdatePreservesRatingScores(t *testing.T) {
 	require.Equal(t, 61.5, got.RatingScore)
 	require.Equal(t, "manual", got.RatingSource)
 	require.Equal(t, 48.0, got.AAIntelligenceScore)
-	require.Equal(t, 41.0, got.AACodingScore)
-	require.Equal(t, 33.0, got.AAAgenticScore)
 	require.Equal(t, "manual", got.AASource)
 	// 元信息本身照常写入：修复不能把这条路径一起废掉。
 	require.Equal(t, 200000, got.ContextLength)

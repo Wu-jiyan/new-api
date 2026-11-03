@@ -70,8 +70,6 @@ export function getScoreDimensionLabels(
   return {
     deepswe: t('DeepSWE'),
     aa_intelligence: t('AA Intelligence'),
-    aa_coding: t('AA Coding'),
-    aa_agentic: t('AA Agentic'),
   }
 }
 

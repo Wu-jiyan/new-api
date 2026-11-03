@@ -52,7 +52,7 @@ const RATING_TEXT_STYLES: Record<(typeof RATING_TIERS)[number], string> = {
 type RatingTier = (typeof RATING_TIERS)[number]
 
 /**
- * 模型的全部评分维度，四个维度并排成一行文字。
+ * 模型的全部评分维度，两个维度并排成一行文字。
  *
  * 上色只落在分数上：分数按各自维度的档位着色，维度名只用来区分当前维度（正文色）
  * 与其它维度（弱化色）。维度块不可点击——切换维度由模型广场工具栏的维度选择器负责，

@@ -60,8 +60,6 @@ function mockGet() {
         thresholds: {
           deepswe: deepsweThresholds,
           aa_intelligence: aaThresholds,
-          aa_coding: aaThresholds,
-          aa_agentic: aaThresholds,
         },
         deepswe: { last_sync_at: 0, last_sync_num: 0 },
         aa: {
@@ -224,14 +222,12 @@ describe('model rating dimensions', () => {
     await waitFor(() => expect(ratingReads).toBeGreaterThanOrEqual(2))
   })
 
-  it('scores an AA dimension with its own thresholds and shows the other two read-only', async () => {
+  it('scores the AA dimension with its own thresholds', async () => {
     ratings = [
       {
         id: 1,
         model_name: 'rating-model-a',
         aa_intelligence_score: 55,
-        aa_coding_score: 41,
-        aa_agentic_score: 20,
         aa_source: 'artificialanalysis',
       },
     ]
@@ -245,9 +241,6 @@ describe('model rating dimensions', () => {
     // 55 落在 AA 综合阈值 [50,60) -> SSR；同一分数若用 DeepSWE 阈值会是 UR
     expect(await screen.findByText('SSR')).toBeVisible()
     expect(screen.getByPlaceholderText('Score')).toHaveValue(55)
-    // 另外两个 AA 维度只读展示，不提供输入框
-    expect(screen.getByText(/AA Coding:/)).toBeVisible()
-    expect(screen.getByText(/AA Agentic:/)).toBeVisible()
     expect(screen.getAllByPlaceholderText('Score')).toHaveLength(1)
   })
 })

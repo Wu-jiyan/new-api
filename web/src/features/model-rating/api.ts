@@ -55,11 +55,7 @@ export async function setDeepSweScore(
 
 export async function setAAScores(
   id: number,
-  scores: {
-    aa_intelligence_score: number
-    aa_coding_score: number
-    aa_agentic_score: number
-  }
+  scores: { aa_intelligence_score: number }
 ): Promise<void> {
   const res = await api.put<{ success: boolean; message?: string }>(
     `/api/admin/model-rating/${id}/aa`,

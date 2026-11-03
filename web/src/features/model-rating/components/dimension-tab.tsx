@@ -19,11 +19,7 @@ import {
   syncDeepSweRatings,
   updateRatingThresholds,
 } from '../api'
-import {
-  AA_SCORE_FIELDS,
-  DIMENSION_META,
-  RATINGS_PAGE_SIZE,
-} from '../constants'
+import { DIMENSION_META, RATINGS_PAGE_SIZE } from '../constants'
 import type {
   ModelRatingItem,
   RatingDimension,
@@ -39,15 +35,6 @@ function ratingForScore(score: number, thresholds: RatingThresholds): string {
   if (score >= thresholds.sr) return 'SR'
   if (score >= thresholds.r) return 'R'
   return 'N'
-}
-
-const AA_FIELD_TO_DIMENSION: Record<
-  (typeof AA_SCORE_FIELDS)[number],
-  RatingDimension
-> = {
-  aa_intelligence_score: 'aa_intelligence',
-  aa_coding_score: 'aa_coding',
-  aa_agentic_score: 'aa_agentic',
 }
 
 function ThresholdsCard(props: {
@@ -150,9 +137,6 @@ function ScoreRow(props: {
     meta.source === 'deepswe'
       ? props.item.rating_source === 'manual'
       : props.item.aa_source === 'manual'
-  const otherFields = AA_SCORE_FIELDS.filter(
-    (field) => field !== meta.scoreField
-  )
 
   async function saveScore(next: number) {
     setSaving(true)
@@ -173,14 +157,6 @@ function ScoreRow(props: {
         <span className='truncate font-mono'>{props.item.model_name}</span>
         <RatingBadge rating={displayRating} />
         {isManual && <Badge variant='secondary'>{t('Manual')}</Badge>}
-        {/* AA 三维度来自同一次同步，后端按三个维度整体写入，因此另两个维度只读展示。 */}
-        {meta.source === 'aa' &&
-          otherFields.map((field) => (
-            <span key={field} className='text-muted-foreground text-xs'>
-              {DIMENSION_META[AA_FIELD_TO_DIMENSION[field]].label}:{' '}
-              {formatNumber(props.item[field] ?? 0, props.locale)}
-            </span>
-          ))}
       </div>
       <div className='flex flex-wrap items-center gap-2 sm:shrink-0'>
         <div className='relative'>
@@ -283,10 +259,10 @@ export function DimensionTab(props: {
         unchanged: res.unchanged,
         unmatched: res.unmatched,
         skippedManual: res.skipped_manual,
-        // AA 同步一次覆盖三个维度，列表统一展示该维度写入的分数。
+        // AA 同步只写入综合指数，列表展示该指数写入的分数。
         models: res.updated_models.map((m) => ({
           modelName: m.model_name,
-          score: 'rating_score' in m ? m.rating_score : m.aa_coding_score,
+          score: 'rating_score' in m ? m.rating_score : m.aa_intelligence_score,
         })),
       })
       toast.success(
@@ -319,21 +295,7 @@ export function DimensionTab(props: {
     if (isDeepSwe) {
       await setDeepSweScore(id, value)
     } else {
-      const target = props.items.find((m) => m.id === id)
-      // 后端按三个维度整体写入，因此必须带上当前另外两个维度的值。
-      const scores = {
-        aa_intelligence_score: target?.aa_intelligence_score ?? 0,
-        aa_coding_score: target?.aa_coding_score ?? 0,
-        aa_agentic_score: target?.aa_agentic_score ?? 0,
-      }
-      if (meta.scoreField === 'aa_intelligence_score') {
-        scores.aa_intelligence_score = value
-      } else if (meta.scoreField === 'aa_coding_score') {
-        scores.aa_coding_score = value
-      } else {
-        scores.aa_agentic_score = value
-      }
-      await setAAScores(id, scores)
+      await setAAScores(id, { aa_intelligence_score: value })
     }
     toast.success(value > 0 ? t('Score saved') : t('Rating cleared'))
     props.onReload()

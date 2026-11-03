@@ -81,7 +81,7 @@ func runGachaRatingSyncOnce(ctx context.Context) {
 	logger.LogInfo(ctx, "deepswe rating sync done")
 }
 
-// runAARatingSyncOnce 同步 Artificial Analysis 三个维度。未配置 API key 时
+// runAARatingSyncOnce 同步 Artificial Analysis 综合指数。未配置 API key 时
 // 直接跳过，不作为故障处理；拉取或写入失败只记录，不影响 DeepSWE 与其他功能。
 func runAARatingSyncOnce(ctx context.Context) {
 	if strings.TrimSpace(AAApiKey()) == "" {

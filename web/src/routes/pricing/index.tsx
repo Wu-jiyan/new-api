@@ -35,10 +35,7 @@ const pricingSearchSchema = z.object({
   modality: z.string().optional(),
   tag: z.string().optional(),
   rating: z.string().optional(),
-  dimension: z
-    .enum(['deepswe', 'aa_intelligence', 'aa_coding', 'aa_agentic'])
-    .optional()
-    .catch(undefined),
+  dimension: z.enum(['deepswe', 'aa_intelligence']).optional().catch(undefined),
   tokenUnit: z.enum(['M', 'K']).optional(),
   view: z.enum(['card', 'table']).optional().catch(undefined),
   rechargePrice: z.boolean().optional(),

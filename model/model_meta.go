@@ -51,11 +51,9 @@ type Model struct {
 	RatingScore  float64 `json:"rating_score,omitempty" gorm:"default:0"`           // DeepSWE Pass@1 分数
 	RatingSource string  `json:"rating_source,omitempty" gorm:"size:32;default:''"` // 来源：deepswe / manual
 
-	// Artificial Analysis 三个维度的分数。档位不在此存储，由 pricing 按各维度
+	// Artificial Analysis 综合指数的分数。档位不在此存储，由 pricing 按该维度
 	// 阈值实时推导，阈值变化立即生效且无需重算全表。
 	AAIntelligenceScore float64 `json:"aa_intelligence_score,omitempty" gorm:"default:0"`
-	AACodingScore       float64 `json:"aa_coding_score,omitempty" gorm:"default:0"`
-	AAAgenticScore      float64 `json:"aa_agentic_score,omitempty" gorm:"default:0"`
 	AASource            string  `json:"aa_source,omitempty" gorm:"size:32;default:''"` // 来源：artificialanalysis / manual
 	// 展示用目录字段：只影响前台呈现，不参与计费与转发判定。
 	// 模态存 JSON 数组文本（与 Endpoints 同一形态）；token 限额 0 = 未配置。

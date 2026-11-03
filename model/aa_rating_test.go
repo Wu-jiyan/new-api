@@ -17,16 +17,16 @@ func TestParseAAPages(t *testing.T) {
 	  "data": [
 	    {"name": "gpt-5-6-sol (high)", "slug": "gpt-5-6-sol",
 	     "evaluations": {"artificial_analysis_intelligence_index": 55.1,
-	                     "artificial_analysis_coding_index": 41.0,
-	                     "artificial_analysis_agentic_index": null}}
+	                     "artificial_analysis_coding_index": 41.0}}
 	  ]
 	}`)
 	page2 := []byte(`{
 	  "pagination": {"page": 2, "has_more": false},
 	  "data": [
 	    {"name": "gpt-5-6-sol (low)", "slug": "gpt-5-6-sol",
-	     "evaluations": {"artificial_analysis_intelligence_index": 50.0,
-	                     "artificial_analysis_coding_index": 39.0}},
+	     "evaluations": {"artificial_analysis_intelligence_index": 50.0}},
+	    {"name": "null-scored model", "slug": "null-scored-model",
+	     "evaluations": {"artificial_analysis_intelligence_index": null}},
 	    {"name": "deepseek v4 pro", "slug": "deepseek-v4-pro",
 	     "evaluations": {"artificial_analysis_intelligence_index": 48.0}}
 	  ]
@@ -37,9 +37,8 @@ func TestParseAAPages(t *testing.T) {
 
 	// 同模型多档取最高
 	require.Equal(t, 55.1, scores.Intelligence["gpt-5-6-sol"])
-	require.Equal(t, 41.0, scores.Coding["gpt-5-6-sol"])
-	// 第一页 agentic 为 null，第二页没有该字段：不应产生任何 agentic 条目
-	require.NotContains(t, scores.Agentic, "gpt-5-6-sol")
+	// null 表示未测量：不应产生任何条目
+	require.NotContains(t, scores.Intelligence, "null-scored-model")
 	// 归一化后 system 模型名可命中 AA 的 slug
 	require.Equal(t, 48.0, scores.Intelligence["deepseek-v4-pro"])
 }
@@ -81,15 +80,12 @@ func TestAAPagesMatchCheckpointDate(t *testing.T) {
 // 各维度量纲不同（DeepSWE 是 pass@1 百分比，AA 是指数），阈值必须相互独立：
 // 同一个分数在不同维度落到的档位应该不同，否则说明阈值被错误地共用了。
 func TestMapScoreToRatingPerDimension(t *testing.T) {
-	// 30 分：DeepSWE -> R，AA 综合 -> SR，AA 编码 -> N，AA Agentic -> R
+	// 30 分：DeepSWE -> R，AA 综合 -> SR
 	require.Equal(t, "R", MapScoreToRatingWith(30, ratingThresholdsDefault[RatingDimensionDeepSwe]))
 	require.Equal(t, "SR", MapScoreToRatingWith(30, ratingThresholdsDefault[RatingDimensionAAIntelligence]))
-	require.Equal(t, "N", MapScoreToRatingWith(30, ratingThresholdsDefault[RatingDimensionAACoding]))
-	require.Equal(t, "R", MapScoreToRatingWith(30, ratingThresholdsDefault[RatingDimensionAAAgentic]))
-	// 50 分：DeepSWE -> SR，AA 综合 -> UR，AA 编码 -> R，AA Agentic -> SR
+	// 50 分：DeepSWE -> SR，AA 综合 -> UR
 	require.Equal(t, "SR", MapScoreToRatingWith(50, ratingThresholdsDefault[RatingDimensionDeepSwe]))
 	require.Equal(t, "UR", MapScoreToRatingWith(50, ratingThresholdsDefault[RatingDimensionAAIntelligence]))
-	require.Equal(t, "R", MapScoreToRatingWith(50, ratingThresholdsDefault[RatingDimensionAACoding]))
 }
 
 // 默认阈值必须落在 AA 榜单的真实取值范围内，否则最强者永远拿不到 UR、
@@ -98,8 +94,6 @@ func TestDefaultThresholdsCoverMeasuredAARange(t *testing.T) {
 	// 2026-10 实测 Artificial Analysis 免费档全榜最高分
 	measuredMax := map[RatingDimension]float64{
 		RatingDimensionAAIntelligence: 57.6,
-		RatingDimensionAACoding:       81.6,
-		RatingDimensionAAAgentic:      57.9,
 	}
 	for dim, max := range measuredMax {
 		th := ratingThresholdsDefault[dim]
@@ -127,7 +121,7 @@ func TestSetModelRatingThresholds(t *testing.T) {
 	}))
 	require.Equal(t, next, RatingThresholdsFor(RatingDimensionAAIntelligence))
 	// 未指定维度保持原值
-	require.Equal(t, ratingThresholdsDefault[RatingDimensionAACoding], RatingThresholdsFor(RatingDimensionAACoding))
+	require.Equal(t, ratingThresholdsDefault[RatingDimensionDeepSwe], RatingThresholdsFor(RatingDimensionDeepSwe))
 
 	// UR<=SSR 非法，应被忽略而不是写入
 	invalid := RatingThresholds{UR: 10, SSR: 80, SR: 70, R: 60}
@@ -157,10 +151,10 @@ func TestReloadModelRatingThresholdsLegacyFallback(t *testing.T) {
 	require.Equal(t, RatingThresholds{UR: 70, SSR: 60, SR: 50, R: 40},
 		RatingThresholdsFor(RatingDimensionDeepSwe))
 	// AA 维度不受旧键影响
-	require.Equal(t, ratingThresholdsDefault[RatingDimensionAACoding], RatingThresholdsFor(RatingDimensionAACoding))
+	require.Equal(t, ratingThresholdsDefault[RatingDimensionAAIntelligence], RatingThresholdsFor(RatingDimensionAAIntelligence))
 }
 
-// AA 同步写入三个维度；手动填写过的模型整体跳过；重复同步幂等。
+// AA 同步写入综合指数；手动填写过的模型整体跳过；重复同步幂等。
 func TestApplyAAScores(t *testing.T) {
 	require.NoError(t, DB.AutoMigrate(&Model{}, &Option{}))
 	// 后缀模型名靠最长前缀匹配命中榜单基础名；unknown-model 没有任何前缀可命中。
@@ -172,28 +166,22 @@ func TestApplyAAScores(t *testing.T) {
 	}
 	// 人工填写过 AA 分数的模型不应被同步覆盖
 	require.NoError(t, DB.Model(&Model{}).Where("model_name = ?", "claude-opus-4-6-aa").
-		Updates(map[string]any{"aa_coding_score": 12.0, "aa_source": "manual"}).Error)
+		Updates(map[string]any{"aa_intelligence_score": 12.0, "aa_source": "manual"}).Error)
 
 	scores := &AAScores{
 		Intelligence: map[string]float64{"gpt-5-6-sol": 55.1, "deepseek-v4-pro": 48.0, "claude-opus-4-6": 61.0},
-		Coding:       map[string]float64{"gpt-5-6-sol": 41.0, "deepseek-v4-pro": 33.0, "claude-opus-4-6": 44.0},
-		Agentic:      map[string]float64{"gpt-5-6-sol": 52.0, "deepseek-v4-pro": 30.0, "claude-opus-4-6": 50.0},
 	}
 	res, err := ApplyAAScores(scores)
 	require.NoError(t, err)
 	require.Equal(t, 2, res.Updated)
 	require.Equal(t, 1, res.SkippedManual)
 	require.Equal(t, 1, res.Unmatched)
-	// 手动模型在匹配前就被跳过，因此不计入各维度命中数
+	// 手动模型在匹配前就被跳过，因此不计入命中数
 	require.Equal(t, 2, res.MatchedCount[string(RatingDimensionAAIntelligence)])
-	require.Equal(t, 2, res.MatchedCount[string(RatingDimensionAACoding)])
-	require.Equal(t, 2, res.MatchedCount[string(RatingDimensionAAAgentic)])
 
 	var got Model
 	require.NoError(t, DB.Where("model_name = ?", "gpt-5.6-sol-aa").First(&got).Error)
 	require.Equal(t, 55.1, got.AAIntelligenceScore)
-	require.Equal(t, 41.0, got.AACodingScore)
-	require.Equal(t, 52.0, got.AAAgenticScore)
 	require.Equal(t, aaSourceRating, got.AASource)
 
 	// DeepSWE 维度不受 AA 同步影响
@@ -202,8 +190,9 @@ func TestApplyAAScores(t *testing.T) {
 
 	var manual Model
 	require.NoError(t, DB.Where("model_name = ?", "claude-opus-4-6-aa").First(&manual).Error)
-	require.Equal(t, 12.0, manual.AACodingScore)
+	require.Equal(t, 12.0, manual.AAIntelligenceScore)
 	require.Equal(t, "manual", manual.AASource)
+	require.Equal(t, 1, res.SkippedManual)
 
 	// 幂等：再次同步全部无变化
 	res, err = ApplyAAScores(scores)
@@ -236,7 +225,7 @@ func TestModelSquareDefaultsValidation(t *testing.T) {
 	common.OptionMap = map[string]string{}
 	t.Cleanup(func() { common.OptionMap = prev })
 
-	next := ModelSquareDefaults{Sort: "score-high", Dimension: RatingDimensionAACoding}
+	next := ModelSquareDefaults{Sort: "score-high", Dimension: RatingDimensionAAIntelligence}
 	require.NoError(t, SetModelSquareDefaults(next))
 	require.Equal(t, next, GetModelSquareDefaults())
 

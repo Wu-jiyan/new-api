@@ -73,7 +73,7 @@ export default function ModelRatingPage() {
         <div className='space-y-4'>
           <p className='text-muted-foreground text-sm'>
             {t(
-              'Score models across four independent dimensions. Each dimension syncs from its own source, keeps its own thresholds, and manual entries are never overwritten.'
+              'Score models across two independent dimensions. Each dimension syncs from its own source, keeps its own thresholds, and manual entries are never overwritten.'
             )}
           </p>
           <p className='text-muted-foreground/80 text-xs'>

@@ -19,26 +19,18 @@ For commercial licensing, please contact support@quantumnous.com
 import type { PricingModel } from '../types'
 
 /**
- * 评分维度。DeepSWE 是独立榜单的编码维度，AA 三个维度来自 Artificial Analysis。
+ * 评分维度。DeepSWE 是独立榜单的编码维度，AA 综合指数来自 Artificial Analysis
+ * 的 Intelligence Index（AA 自 2026-11 起在免费档只发布这一个指数）。
  * 维度只影响展示、排序与档位筛选，不改变抽卡使用的 DeepSWE 档位。
  */
-export const SCORE_DIMENSIONS = [
-  'deepswe',
-  'aa_intelligence',
-  'aa_coding',
-  'aa_agentic',
-] as const
+export const SCORE_DIMENSIONS = ['deepswe', 'aa_intelligence'] as const
 
 export type ScoreDimension = (typeof SCORE_DIMENSIONS)[number]
 
 export const DEFAULT_SCORE_DIMENSION: ScoreDimension = 'deepswe'
 
 /** DeepSWE 之外的维度均由 Artificial Analysis 提供，页面上需要标注来源。 */
-export const AA_DIMENSIONS: readonly ScoreDimension[] = [
-  'aa_intelligence',
-  'aa_coding',
-  'aa_agentic',
-]
+export const AA_DIMENSIONS: readonly ScoreDimension[] = ['aa_intelligence']
 
 export function isScoreDimension(value: unknown): value is ScoreDimension {
   return (
@@ -56,8 +48,6 @@ const DIMENSION_FIELDS: Record<
     score: 'aa_intelligence_score',
     tier: 'aa_intelligence_rating',
   },
-  aa_coding: { score: 'aa_coding_score', tier: 'aa_coding_rating' },
-  aa_agentic: { score: 'aa_agentic_score', tier: 'aa_agentic_rating' },
 }
 
 /** 该维度的分数；未评分返回 0。 */

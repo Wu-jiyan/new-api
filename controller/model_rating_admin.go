@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ratingThresholdsResponse 四个维度各自的档位阈值。
+// ratingThresholdsResponse 每个评分维度各自的档位阈值。
 func ratingThresholdsResponse() map[model.RatingDimension]model.RatingThresholds {
 	out := make(map[model.RatingDimension]model.RatingThresholds, len(model.RatingDimensions))
 	for _, dim := range model.RatingDimensions {
@@ -125,8 +125,8 @@ func AdminSetModelRating(c *gin.Context) {
 	}})
 }
 
-// AdminSetModelAAScores 手动设置 AA 三个维度的分数。三个维度全为 0 表示清空该模型的
-// AA 评分（清空后可被同步重新覆盖），否则来源记为 manual，后续同步不再覆盖。
+// AdminSetModelAAScores 手动设置 AA 综合指数。0 表示清空该模型的 AA 评分
+// （清空后可被同步重新覆盖），否则来源记为 manual，后续同步不再覆盖。
 func AdminSetModelAAScores(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -135,28 +135,20 @@ func AdminSetModelAAScores(c *gin.Context) {
 	}
 	var req struct {
 		AAIntelligenceScore float64 `json:"aa_intelligence_score"`
-		AACodingScore       float64 `json:"aa_coding_score"`
-		AAAgenticScore      float64 `json:"aa_agentic_score"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
-	for name, score := range map[string]float64{
-		"aa_intelligence_score": req.AAIntelligenceScore,
-		"aa_coding_score":       req.AACodingScore,
-		"aa_agentic_score":      req.AAAgenticScore,
-	} {
-		if score < 0 || score > 100 {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": name + " 必须在 0-100 之间"})
-			return
-		}
+	if req.AAIntelligenceScore < 0 || req.AAIntelligenceScore > 100 {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "aa_intelligence_score 必须在 0-100 之间"})
+		return
 	}
-	cleared := req.AAIntelligenceScore == 0 && req.AACodingScore == 0 && req.AAAgenticScore == 0
+	cleared := req.AAIntelligenceScore == 0
 	if cleared {
 		_, err = model.ResetModelAAScores([]int{id})
 	} else {
-		err = model.UpdateModelAAScores(id, req.AAIntelligenceScore, req.AACodingScore, req.AAAgenticScore)
+		err = model.UpdateModelAAScores(id, req.AAIntelligenceScore)
 	}
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
@@ -170,13 +162,11 @@ func AdminSetModelAAScores(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{
 		"id":                    id,
 		"aa_intelligence_score": req.AAIntelligenceScore,
-		"aa_coding_score":       req.AACodingScore,
-		"aa_agentic_score":      req.AAAgenticScore,
 		"aa_source":             source,
 	}})
 }
 
-// AdminBatchResetModelRatings 批量清空模型分级（DeepSWE 与 AA 两个维度一起清空）。
+// AdminBatchResetModelRatings 批量清空模型分级（DeepSWE 与 AA 两套分数一起清空）。
 func AdminBatchResetModelRatings(c *gin.Context) {
 	var req struct {
 		Ids []int `json:"ids"`

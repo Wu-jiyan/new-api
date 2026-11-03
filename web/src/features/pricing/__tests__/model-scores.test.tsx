@@ -36,7 +36,7 @@ import type { PricingModel } from '../types'
 // jsdom cannot load its ESM build, and the tab is never opened in these tests.
 vi.mock('@visactor/react-vchart', () => ({ VChart: () => null }))
 
-/** AA Agentic is left unscored so the empty state stays observable. */
+/** 两个维度都有分；空态由用例覆盖 aa_intelligence_score 得到。 */
 function scoredModel(overrides: Partial<PricingModel> = {}): PricingModel {
   return {
     id: 1,
@@ -50,8 +50,6 @@ function scoredModel(overrides: Partial<PricingModel> = {}): PricingModel {
     rating_score: 62,
     aa_intelligence_score: 58,
     aa_intelligence_rating: 'N',
-    aa_coding_score: 71,
-    aa_coding_rating: 'SR',
     aa_source: 'artificialanalysis',
     ...overrides,
   }
@@ -101,27 +99,40 @@ afterEach(() => {
 })
 
 describe('model score row', () => {
-  it('shows every dimension with its own score and marks the unscored one', () => {
+  it('shows both dimensions with their own scores', () => {
     render(<ModelScores model={scoredModel()} dimension='deepswe' />)
 
     expect(dimension('DeepSWE').score).toHaveTextContent('62')
     expect(dimension('AA Intelligence').score).toHaveTextContent('58')
-    expect(dimension('AA Coding').score).toHaveTextContent('71')
+  })
+
+  it('marks an unscored dimension with a placeholder instead of hiding it', () => {
+    render(
+      <ModelScores
+        model={scoredModel({
+          aa_intelligence_score: 0,
+          aa_intelligence_rating: '',
+        })}
+        dimension='deepswe'
+      />
+    )
+
     // 未评分不是隐藏，而是显示占位符，读者才知道「没有数据」而不是「分很低」
-    expect(dimension('AA Agentic').score).toHaveTextContent('—')
-    expect(dimension('AA Agentic').score).toHaveClass('text-muted-foreground')
+    expect(dimension('AA Intelligence').score).toHaveTextContent('—')
+    expect(dimension('AA Intelligence').score).toHaveClass(
+      'text-muted-foreground'
+    )
   })
 
   it('colours each score by its own tier and greys the inactive labels', () => {
-    render(<ModelScores model={scoredModel()} dimension='aa_coding' />)
+    render(<ModelScores model={scoredModel()} dimension='aa_intelligence' />)
 
-    // 上色落在分数上：SR 紫、R 蓝、N 灰
-    expect(dimension('AA Coding').score).toHaveClass('text-purple-600')
+    // 上色落在分数上：R 蓝、N 灰
     expect(dimension('DeepSWE').score).toHaveClass('text-blue-600')
     expect(dimension('AA Intelligence').score).toHaveClass('text-slate-600')
 
     // 维度名只用正文色/弱化色区分当前维度，不参与档位配色
-    expect(dimension('AA Coding').dt).toHaveClass('text-foreground')
+    expect(dimension('AA Intelligence').dt).toHaveClass('text-foreground')
     expect(dimension('DeepSWE').dt).toHaveClass('text-muted-foreground')
     expect(dimension('DeepSWE').dt).not.toHaveClass('text-blue-600')
   })
@@ -131,7 +142,7 @@ describe('model score row', () => {
 
     expect(screen.queryByRole('button')).toBeNull()
     // 维度切换由模型广场工具栏负责，这一行不再承担任何交互或额外提示
-    expect(screen.getByText('AA Coding').closest('dl')).toBeVisible()
+    expect(screen.getByText('AA Intelligence').closest('dl')).toBeVisible()
   })
 
   it('omits the tier badge inside the score row on the model square card', () => {
@@ -139,14 +150,14 @@ describe('model score row', () => {
       <ModelCard
         model={scoredModel()}
         onClick={vi.fn()}
-        dimension='aa_coding'
+        dimension='aa_intelligence'
       />
     )
 
     // 卡片标题旁的档位角标保留；分数行本身保持纯文字，不给每格再加角标
     const scoreRow = document.querySelector('dl')
     if (!scoreRow) throw new Error('Missing score row')
-    expect(within(scoreRow).queryByText('SR')).toBeNull()
+    expect(within(scoreRow).queryByText('R')).toBeNull()
     expect(within(scoreRow).queryByText('N')).toBeNull()
     // 分数行是纯文本，没有任何可点击元素
     expect(within(scoreRow).queryAllByRole('button')).toHaveLength(0)
@@ -175,18 +186,18 @@ describe('model detail header', () => {
           priceRate={1}
           usdExchangeRate={1}
           tokenUnit='M'
-          dimension='aa_coding'
+          dimension='aa_intelligence'
         />
       </QueryClientProvider>
     )
 
-    // 标题旁的角标跟随当前维度：AA Coding 是 SR，DeepSWE 是 R
+    // 标题旁的角标跟随当前维度：AA 综合是 N，DeepSWE 是 R
     const header = document.querySelector('header')
     if (!header) throw new Error('Missing model header')
     // 标题行是第一层 div；分数行 <dl> 是它的兄弟节点，各自的角标互不影响
     const titleRow = header.querySelector('div')
     if (!titleRow) throw new Error('Missing model title row')
-    expect(within(titleRow).getByText('SR')).toBeVisible()
+    expect(within(titleRow).getByText('N')).toBeVisible()
 
     rerender(
       <QueryClientProvider client={queryClient}>
@@ -205,6 +216,6 @@ describe('model detail header', () => {
     )
 
     expect(within(titleRow).getByText('R')).toBeVisible()
-    expect(within(titleRow).queryByText('SR')).toBeNull()
+    expect(within(titleRow).queryByText('N')).toBeNull()
   })
 })
