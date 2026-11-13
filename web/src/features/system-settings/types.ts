@@ -508,6 +508,9 @@ export type UpstreamConfig = {
   name: string
   base_url: string
   endpoint: string
+  // Access token sent as `Authorization: Bearer` when the upstream price API
+  // requires authentication (for example a new-api site with requireAuth).
+  token?: string
 }
 
 export type FetchUpstreamRatiosRequest = {

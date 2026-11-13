@@ -73,7 +73,7 @@ function SettingsPageFrame(props: SettingsPageFrameProps) {
             <span className='truncate'>{props.title}</span>
             <span
               ref={setTitleStatusContainer}
-              className='inline-flex min-w-0 shrink-0 items-center'
+              className='no-scrollbar inline-flex min-w-0 items-center overflow-x-auto'
             />
           </span>
         </SectionPageLayout.Title>

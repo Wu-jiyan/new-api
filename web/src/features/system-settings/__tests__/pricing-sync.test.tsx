@@ -563,6 +563,70 @@ it('shows a source failure instead of a no-differences result and retries the se
   expect(post.mock.calls[0]).toEqual(post.mock.calls[1])
 })
 
+it('sends the access token a protected price source requires', async () => {
+  vi.spyOn(api, 'get').mockImplementation(async (url) => {
+    if (url === '/api/ratio_sync/channels') {
+      return {
+        data: {
+          success: true,
+          data: [
+            {
+              id: 7,
+              name: 'Upstream',
+              base_url: 'https://example.test',
+              type: 1,
+              status: 1,
+            },
+          ],
+        },
+      }
+    }
+    return {
+      data: {
+        success: true,
+        data: {
+          entries: [],
+          empty_version: 'empty',
+          options: pricingOptions({}),
+        },
+      },
+    }
+  })
+  const post = vi.spyOn(api, 'post').mockResolvedValue({
+    data: {
+      success: true,
+      data: {
+        prices: {},
+        differences: {},
+        test_results: [{ name: 'Upstream(7)', status: 'success' }],
+      },
+    },
+  })
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  render(
+    <QueryClientProvider client={client}>
+      <UpstreamRatioSync />
+    </QueryClientProvider>
+  )
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('button', { name: 'Select price sources' }))
+  await user.click(
+    await screen.findByRole('checkbox', { name: 'Select Upstream' })
+  )
+  await user.type(screen.getByLabelText('Access token for Upstream'), 'pat-abc')
+  await user.click(screen.getByRole('button', { name: 'Confirm Selection' }))
+  await waitFor(() =>
+    expect(post).toHaveBeenCalledWith(
+      '/api/ratio_sync/fetch',
+      expect.objectContaining({
+        upstreams: [expect.objectContaining({ id: 7, token: 'pat-abc' })],
+      })
+    )
+  )
+})
+
 it('preserves upstream expression text so a repeated comparison remains unchanged', () => {
   const source =
     'tier("base", p * 2 + c * 8) * (header("service-tier") == "fast" ? 2 : 1)'
@@ -1180,15 +1244,13 @@ it('disables both batch shortcuts when the configured exchange rate becomes inva
     })
   )
   await act(async () =>
-    useSystemConfigStore
-      .getState()
-      .setConfig({
-        currency: {
-          ...DEFAULT_CURRENCY_CONFIG,
-          quotaDisplayType: 'CNY',
-          usdExchangeRate: 0,
-        },
-      })
+    useSystemConfigStore.getState().setConfig({
+      currency: {
+        ...DEFAULT_CURRENCY_CONFIG,
+        quotaDisplayType: 'CNY',
+        usdExchangeRate: 0,
+      },
+    })
   )
   expect(
     screen.getByRole('button', { name: /Multiply by exchange rate/ })

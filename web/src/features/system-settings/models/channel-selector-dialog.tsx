@@ -18,7 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef, RowSelectionState } from '@tanstack/react-table'
 import { Search } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -58,7 +65,9 @@ type ChannelSelectorDialogProps = {
   selectedChannelIds: number[]
   onSelectedChannelIdsChange: (ids: number[]) => void
   channelEndpoints: Record<number, string>
-  onChannelEndpointsChange: (endpoints: Record<number, string>) => void
+  onChannelEndpointsChange: Dispatch<SetStateAction<Record<number, string>>>
+  channelTokens: Record<number, string>
+  onChannelTokensChange: Dispatch<SetStateAction<Record<number, string>>>
   onConfirm: (selectedIds: number[]) => void
 }
 
@@ -78,6 +87,8 @@ export function ChannelSelectorDialog({
   onSelectedChannelIdsChange,
   channelEndpoints,
   onChannelEndpointsChange,
+  channelTokens,
+  onChannelTokensChange,
   onConfirm,
 }: ChannelSelectorDialogProps) {
   const { t } = useTranslation()
@@ -105,12 +116,22 @@ export function ChannelSelectorDialog({
 
   const updateEndpoint = useCallback(
     (channelId: number, endpoint: string) => {
-      onChannelEndpointsChange({
-        ...channelEndpoints,
+      onChannelEndpointsChange((previous) => ({
+        ...previous,
         [channelId]: endpoint,
-      })
+      }))
     },
-    [channelEndpoints, onChannelEndpointsChange]
+    [onChannelEndpointsChange]
+  )
+
+  const updateToken = useCallback(
+    (channelId: number, token: string) => {
+      onChannelTokensChange((previous) => ({
+        ...previous,
+        [channelId]: token,
+      }))
+    },
+    [onChannelTokensChange]
   )
 
   const getEndpointType = (endpoint: string) => {
@@ -312,6 +333,11 @@ export function ChannelSelectorDialog({
     withFacetedRowModel: false,
   })
 
+  const selectedChannels = useMemo(
+    () => channels.filter((channel) => rowSelection[channel.id.toString()]),
+    [channels, rowSelection]
+  )
+
   const handleConfirm = () => {
     const selectedRows = table.getSelectedRowModel().rows
     const selectedIds = selectedRows.map((row) => row.original.id)
@@ -349,6 +375,29 @@ export function ChannelSelectorDialog({
             />
           </div>
         </div>
+
+        {selectedChannels.length > 0 && (
+          <div className='max-h-40 shrink-0 space-y-2 overflow-y-auto'>
+            {selectedChannels.map((channel) => (
+              <div key={channel.id} className='flex items-center gap-2'>
+                <span className='text-muted-foreground w-40 shrink-0 truncate text-xs'>
+                  {getUpstreamDisplayName(channel.name, t)}
+                </span>
+                <Input
+                  type='password'
+                  autoComplete='off'
+                  value={channelTokens[channel.id] ?? ''}
+                  onChange={(e) => updateToken(channel.id, e.target.value)}
+                  placeholder={t('Access token (optional)')}
+                  aria-label={t('Access token for {{name}}', {
+                    name: getUpstreamDisplayName(channel.name, t),
+                  })}
+                  className='h-8 min-w-0 flex-1 font-mono text-xs'
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
         <DataTableView
           table={table}

@@ -363,7 +363,7 @@ it.each(['default', 'unset'] as const)(
       })
       await user.click(help)
       expect(screen.getByRole('dialog')).toHaveTextContent(
-        'Allow clients to query configured prices via `/api/ratio`.'
+        'Allow clients to query configured prices via `/api/ratio_config`.'
       )
       expect(toggle).not.toBeChecked()
       await user.keyboard('{Escape}')
@@ -372,7 +372,7 @@ it.each(['default', 'unset'] as const)(
       )
       expect(help).toHaveFocus()
       expect(toggle).toHaveAccessibleDescription(
-        'Allow clients to query configured prices via `/api/ratio`.'
+        'Allow clients to query configured prices via `/api/ratio_config`.'
       )
       await user.click(toggle)
       expect(toggle).toBeChecked()

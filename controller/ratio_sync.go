@@ -351,8 +351,16 @@ func FetchUpstreamRatios(c *gin.Context) {
 				return
 			}
 
-			// OpenRouter requires Bearer token auth
-			if isOpenRouter && chItem.ID != 0 {
+			// 上游定价接口可能需要鉴权：显式令牌优先（new-api 在定价页开启
+			// requireAuth 后只认个人访问令牌，渠道里的 sk- key 会被 401 拒掉），
+			// OpenRouter 没有令牌时回退到渠道 key。
+			if token := strings.TrimSpace(chItem.Token); token != "" {
+				// 粘贴整行 "Bearer xxx" 时不要发成 "Bearer Bearer xxx"。
+				if len(token) > 7 && strings.EqualFold(token[:7], "bearer ") {
+					token = strings.TrimSpace(token[7:])
+				}
+				httpReq.Header.Set("Authorization", "Bearer "+token)
+			} else if isOpenRouter && chItem.ID != 0 {
 				dbCh, err := model.GetChannelById(chItem.ID, true)
 				if err != nil {
 					ch <- upstreamResult{Name: uniqueName, Err: "failed to get channel key: " + err.Error()}
@@ -389,11 +397,6 @@ func FetchUpstreamRatios(c *gin.Context) {
 				return
 			}
 			defer resp.Body.Close()
-			if resp.StatusCode != http.StatusOK {
-				logger.LogWarn(c.Request.Context(), common.LogText("non-200 from %s: %s", chItem.Name, resp.Status))
-				ch <- upstreamResult{Name: uniqueName, Err: resp.Status}
-				return
-			}
 
 			// Content-Type 和响应体大小校验
 			if ct := resp.Header.Get("Content-Type"); ct != "" && !strings.Contains(strings.ToLower(ct), "application/json") {
@@ -404,6 +407,21 @@ func FetchUpstreamRatios(c *gin.Context) {
 			if err != nil {
 				logger.LogWarn(c.Request.Context(), common.LogText("read response failed from %s: %s", chItem.Name, err.Error()))
 				ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
+				return
+			}
+
+			// 非 200 时把上游自己的 message 一起带上：401 这类状态码本身说明不了
+			// “要填个人访问令牌”，上游的提示才是可操作的信息。
+			if resp.StatusCode != http.StatusOK {
+				logger.LogWarn(c.Request.Context(), common.LogText("non-200 from %s: %s", chItem.Name, resp.Status))
+				message := resp.Status
+				var failure struct {
+					Message string `json:"message"`
+				}
+				if common.Unmarshal(bodyBytes, &failure) == nil && strings.TrimSpace(failure.Message) != "" {
+					message = resp.Status + ": " + strings.TrimSpace(failure.Message)
+				}
+				ch <- upstreamResult{Name: uniqueName, Err: message}
 				return
 			}
 

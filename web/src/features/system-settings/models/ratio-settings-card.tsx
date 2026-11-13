@@ -530,8 +530,11 @@ export function RatioSettingsCard({
     return <UpstreamRatioSync />
   }
 
+  // The tab strip lives in the page title row, which is clipped by the title's
+  // `truncate`. Keep the intrinsic width (`w-max`) so the strip scrolls inside
+  // the title status container instead of losing the tabs past the edge.
   const renderTabSwitcher = () => (
-    <TabsList className={`grid w-fit max-w-full ${tabsGridClass}`}>
+    <TabsList className={`grid w-max ${tabsGridClass}`}>
       {visibleTabs.map((tab) => (
         <TabsTrigger key={tab} value={tab}>
           {t(tabLabels[tab])}

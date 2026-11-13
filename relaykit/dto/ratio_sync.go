@@ -5,6 +5,9 @@ type UpstreamDTO struct {
 	Name     string `json:"name" binding:"required"`
 	BaseURL  string `json:"base_url" binding:"required"`
 	Endpoint string `json:"endpoint"`
+	// Token 是同步定价时使用的访问令牌。上游定价接口可能要求鉴权——new-api
+	// 打开定价页 requireAuth 后只认个人访问令牌，渠道里的 sk- key 会被 401 拒掉。
+	Token string `json:"token,omitempty"`
 }
 
 type UpstreamRequest struct {

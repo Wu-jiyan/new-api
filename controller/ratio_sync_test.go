@@ -150,6 +150,60 @@ func TestPricingSyncCompleteSourcesAndArrayFormats(t *testing.T) {
 	assert.NotContains(t, response.Data.Differences, "sync-already")
 }
 
+func TestPricingSyncUpstreamAuthentication(t *testing.T) {
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		if gotAuth == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			encoded, err := common.Marshal(map[string]any{"success": false, "message": "请使用原个人访问令牌，或登录控制台"})
+			require.NoError(t, err)
+			_, _ = w.Write(encoded)
+			return
+		}
+		encoded, err := common.Marshal(map[string]any{"success": true, "data": []map[string]any{
+			{"model_name": "auth-model", "model_ratio": 2, "completion_ratio": 3},
+		}})
+		require.NoError(t, err)
+		_, _ = w.Write(encoded)
+	}))
+	defer server.Close()
+
+	cases := []struct {
+		name      string
+		token     string
+		wantAuth  string
+		wantErr   string
+		wantState string
+	}{
+		{"without a token the upstream rejection is reported verbatim", "", "", "401 Unauthorized: 请使用原个人访问令牌，或登录控制台", "error"},
+		{"a supplied token authenticates the price request", "pat-123", "Bearer pat-123", "", "success"},
+		{"a pasted bearer prefix is not doubled", "Bearer pat-456", "Bearer pat-456", "", "success"},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			// A fresh target per case: decoding into a reused struct keeps the
+			// omitted `error` field of a previous response.
+			var response struct {
+				Success bool
+				Data    struct {
+					TestResults []dto.TestResult `json:"test_results"`
+				}
+			}
+			body := map[string]any{"upstreams": []map[string]any{
+				{"id": 1, "name": "Hetu", "base_url": server.URL, "endpoint": "/pricing", "token": tt.token},
+			}}
+			recorder := modelManagementRequest(t, FetchUpstreamRatios, http.MethodPost, "/api/ratio_sync/fetch", body, &response)
+			require.True(t, response.Success, recorder.Body.String())
+			require.Len(t, response.Data.TestResults, 1)
+			assert.Equal(t, tt.wantState, response.Data.TestResults[0].Status)
+			assert.Equal(t, tt.wantErr, response.Data.TestResults[0].Error)
+			assert.Equal(t, tt.wantAuth, gotAuth)
+		})
+	}
+}
+
 func TestUpstreamRatioTrusted(t *testing.T) {
 	ratios := map[string]any{
 		"priced":       1.5,

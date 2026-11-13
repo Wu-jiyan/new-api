@@ -247,7 +247,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
                       <FormLabel>{t('Expose ratio API')}</FormLabel>
                       <FormDescription className='sr-only'>
                         {t(
-                          'Allow clients to query configured prices via `/api/ratio`.'
+                          'Allow clients to query configured prices via `/api/ratio_config`.'
                         )}
                       </FormDescription>
                     </SettingsSwitchContent>
@@ -259,7 +259,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
                     </FormControl>
                     <LearnMore contentProps={{ side: 'bottom', align: 'end' }}>
                       {t(
-                        'Allow clients to query configured prices via `/api/ratio`.'
+                        'Allow clients to query configured prices via `/api/ratio_config`.'
                       )}
                     </LearnMore>
                   </SettingsSwitchItem>
