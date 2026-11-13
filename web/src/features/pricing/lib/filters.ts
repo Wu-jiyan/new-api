@@ -16,17 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { parseModalityFilter } from '@/lib/catalog-modalities'
+
 import {
   SORT_OPTIONS,
   FILTER_ALL,
   QUOTA_TYPES,
   QUOTA_TYPE_VALUES,
   ENDPOINT_TYPES,
+  MODEL_KINDS,
   MODEL_MODALITIES,
+  type ModelKind,
   type QuotaTypeOption,
   type SortOption,
 } from '../constants'
-import type { Modality, PricingModel } from '../types'
+import type { PricingModel } from '../types'
 import { compileBillingExpression } from './billing-expression/parser'
 import { visitExpression } from './billing-expression/types'
 import {
@@ -189,20 +193,59 @@ export function filterByEndpointType(
 }
 
 /**
- * Filter models by input or output modality. A model matches when the modality
- * appears in either direction, because a user asking for "image" cares about
- * vision input and image output alike.
+ * Filter models by modality in the requested direction.
+ *
+ * `text_in` / `image_out` match one direction only, because "image input"
+ * (vision) and "image output" (generation) are different capabilities. A bare
+ * legacy value such as `image` keeps meaning "input or output" so bookmarked
+ * URLs keep working, and an unparseable value filters nothing rather than
+ * emptying the list.
  */
 export function filterByModality(
   models: PricingModel[],
   modality: string
 ): PricingModel[] {
   if (modality === MODEL_MODALITIES.ALL) return models
-  const wanted = modality as Modality
-  return models.filter(
-    (m) =>
-      m.input_modalities?.includes(wanted) ||
-      m.output_modalities?.includes(wanted)
+  const parsed = parseModalityFilter(modality)
+  if (!parsed) return models
+  return models.filter((m) => {
+    if (parsed.direction === 'either') {
+      return (
+        m.input_modalities?.includes(parsed.modality) ||
+        m.output_modalities?.includes(parsed.modality)
+      )
+    }
+    const declared =
+      parsed.direction === 'in' ? m.input_modalities : m.output_modalities
+    return declared?.includes(parsed.modality)
+  })
+}
+
+/** 类型页签对应的模型标签。与侧栏标签筛选共用同一份中文词表。 */
+const MODEL_KIND_TAGS = {
+  [MODEL_KINDS.TEXT]: '文本',
+  [MODEL_KINDS.IMAGE]: '图片',
+  [MODEL_KINDS.VIDEO]: '视频',
+} as const
+
+export function parseModelKind(value: string | undefined): ModelKind {
+  const kinds = Object.values(MODEL_KINDS) as string[]
+  return value && kinds.includes(value) ? (value as ModelKind) : MODEL_KINDS.ALL
+}
+
+/**
+ * Filter models by the square's type tab. Classification reads the model's
+ * tags, so a model can belong to several tabs (e.g. text + image output).
+ */
+export function filterByKind(
+  models: PricingModel[],
+  kind: string | undefined
+): PricingModel[] {
+  const variant = parseModelKind(kind)
+  if (variant === MODEL_KINDS.ALL) return models
+  const wanted = MODEL_KIND_TAGS[variant].toLowerCase()
+  return models.filter((m) =>
+    parseTags(m.tags).some((tag) => tag.toLowerCase() === wanted)
   )
 }
 
@@ -352,6 +395,8 @@ export function filterAndSortModels(
     quotaType: string
     endpointType: string
     modality: string
+    /** Type tab; omitted or `all` means every model. */
+    kind?: string
     tag: string
     rating: string
     sortBy: string
@@ -367,6 +412,7 @@ export function filterAndSortModels(
   result = filterByQuotaType(result, filters.quotaType)
   result = filterByEndpointType(result, filters.endpointType)
   result = filterByModality(result, filters.modality)
+  result = filterByKind(result, filters.kind)
   result = filterByTag(result, filters.tag)
   result = filterByRating(result, filters.rating, dimension)
   result = sortModels(result, filters.sortBy, dimension)

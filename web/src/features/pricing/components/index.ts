@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 export { PricingSidebar } from './pricing-sidebar'
 export { PricingToolbar } from './pricing-toolbar'
 export { ModelCard } from './model-card'
+export { ModelKindTabs } from './model-kind-tabs'
 export { ModelCardGrid } from './model-card-grid'
 export { LoadingSkeleton } from './loading-skeleton'
 export { EmptyState } from './empty-state'

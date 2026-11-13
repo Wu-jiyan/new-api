@@ -48,6 +48,7 @@ import {
 import { CachedPriceCell } from '../components/cached-price-cell'
 import { ModelCard } from '../components/model-card'
 import { ModelCardGrid } from '../components/model-card-grid'
+import { cardPageSizeForColumns, gridColumnsFor } from '../lib/page-size'
 import type { PricingModel } from '../types'
 
 function pricingModel(overrides: Partial<PricingModel> = {}): PricingModel {
@@ -684,7 +685,7 @@ describe('model cards', () => {
     expect(onModelClick).toHaveBeenCalledWith('example-model')
   })
 
-  it('paginates the model cards and disables navigation at both boundaries', async () => {
+  it('paginates the single-column grid in pages of eight cards', async () => {
     const request = vi.spyOn(api, 'get').mockResolvedValue({
       data: { success: true, data: { models: [] } },
     })
@@ -698,26 +699,63 @@ describe('model cards', () => {
       </QueryClientProvider>
     )
     expect(screen.getByRole('button', { name: 'Previous page' })).toBeDisabled()
-    expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(20)
+    expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(8)
     expect(request).toHaveBeenCalledWith('/api/perf-metrics/summary', {
       params: {
         hours: 24,
-        recent_model: models.slice(0, 20).map((model) => model.model_name),
+        recent_model: models.slice(0, 8).map((model) => model.model_name),
       },
       paramsSerializer: { indexes: null },
       optionalAuth: true,
     })
     await user.click(screen.getByRole('button', { name: 'Next page' }))
-    expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(1)
+    expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(8)
+    expect(screen.getByRole('heading', { name: 'model-9' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Next page' }))
+    expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(5)
     expect(screen.getByRole('heading', { name: 'model-21' })).toBeVisible()
-    expect(request).toHaveBeenLastCalledWith('/api/perf-metrics/summary', {
-      params: { hours: 24, recent_model: ['model-21'] },
-      paramsSerializer: { indexes: null },
-      optionalAuth: true,
-    })
     expect(screen.getByRole('button', { name: 'Next page' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Previous page' }))
-    expect(screen.getByRole('heading', { name: 'model-1' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'model-9' })).toBeVisible()
+  })
+
+  it('keeps a three-column page a whole number of rows instead of leaving a two-card tail', async () => {
+    const original = window.matchMedia
+    vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+      ...original(query),
+      matches: query.includes('min-width: 1280px'),
+    }))
+    vi.spyOn(api, 'get').mockResolvedValue({
+      data: { success: true, data: { models: [] } },
+    })
+    const models = Array.from({ length: 25 }, (_, index) =>
+      pricingModel({ id: index + 1, model_name: `wide-${index + 1}` })
+    )
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ModelCardGrid models={models} onModelClick={vi.fn()} />
+      </QueryClientProvider>
+    )
+    // 18 = 6 rows × 3 columns，25 张卡片的最后一页只剩 7 张，不会出现「缺一格」的首屏。
+    expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(18)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Next page' }))
+    expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(7)
+    expect(screen.getByRole('heading', { name: 'wide-25' })).toBeVisible()
+  })
+
+  it('sizes a card page to the rendered column count', () => {
+    expect(cardPageSizeForColumns(1)).toBe(8)
+    expect(cardPageSizeForColumns(2)).toBe(12)
+    expect(cardPageSizeForColumns(3)).toBe(18)
+    expect(cardPageSizeForColumns(4)).toBe(24)
+    // 未知或非法的列数按单列处理，绝不返回 0 张卡片。
+    expect(cardPageSizeForColumns(0)).toBe(8)
+    expect(cardPageSizeForColumns(-3)).toBe(8)
+    // 断点与网格类名同源：md=2 列，xl=3 列。
+    expect(gridColumnsFor(false, false)).toBe(1)
+    expect(gridColumnsFor(true, false)).toBe(2)
+    expect(gridColumnsFor(true, true)).toBe(3)
   })
 
   it('switches the card grid to three columns at the xl breakpoint instead of 2xl', () => {

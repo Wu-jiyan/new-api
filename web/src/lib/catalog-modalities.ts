@@ -57,3 +57,53 @@ export function catalogModalityLabelKey(value: string): string {
   const labels: Record<string, string | undefined> = CATALOG_MODALITY_LABELS
   return labels[value] ?? value
 }
+
+/**
+ * 模态方向。模型广场按输入/输出分别筛选：同一个「图片」既可能是视觉输入，
+ * 也可能是生图输出，合并成一个选项会让用户无法表达自己真正想要的那一种。
+ */
+export const MODALITY_DIRECTIONS = ['in', 'out'] as const
+
+export type ModalityDirection = (typeof MODALITY_DIRECTIONS)[number]
+
+/** 方向限定的筛选值，形如 `text_in` / `image_out`；同时用作 URL 参数值。 */
+export function modalityDirectionValue(
+  modality: CatalogModality,
+  direction: ModalityDirection
+): string {
+  return `${modality}_${direction}`
+}
+
+/** 方向限定标签的 i18n 键，例如 `Text input` / `Image output`。 */
+export function modalityDirectionLabelKey(
+  modality: CatalogModality,
+  direction: ModalityDirection
+): string {
+  return `${CATALOG_MODALITY_LABELS[modality]} ${direction === 'in' ? 'input' : 'output'}`
+}
+
+export function isCatalogModality(value: string): value is CatalogModality {
+  return (CATALOG_MODALITIES as readonly string[]).includes(value)
+}
+
+export type ModalityFilter = {
+  modality: CatalogModality
+  /** `either` 只来自历史遗留的裸值，保持「输入或输出」语义。 */
+  direction: ModalityDirection | 'either'
+}
+
+/**
+ * 解析模态筛选值。
+ *
+ * `text_in` / `image_out` 按方向匹配；遗留的裸值（如 `image`）继续表示
+ * 「输入或输出」，使旧书签不至于失效；无法识别的值返回 null，调用方按不筛选
+ * 处理，避免 URL 里的脏数据把列表清空。
+ */
+export function parseModalityFilter(value: string): ModalityFilter | null {
+  const [modality, direction, ...rest] = value.split('_')
+  if (!modality || !isCatalogModality(modality)) return null
+  if (rest.length > 0) return null
+  if (direction === undefined) return { modality, direction: 'either' }
+  if (direction === 'in' || direction === 'out') return { modality, direction }
+  return null
+}

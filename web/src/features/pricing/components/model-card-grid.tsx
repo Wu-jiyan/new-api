@@ -18,20 +18,18 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { memo, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import type { CharacterView } from '@/features/character/types'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
+import { useMediaQuery } from '@/hooks'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
-import {
-  DEFAULT_PRICING_PAGE_SIZE,
-  DEFAULT_TOKEN_UNIT,
-  FILTER_ALL,
-} from '../constants'
+import { DEFAULT_TOKEN_UNIT, FILTER_ALL } from '../constants'
 import type { OriginalPriceContext } from '../lib/original-price'
+import { cardPageSizeForColumns, gridColumnsFor } from '../lib/page-size'
 import type { ScoreDimension } from '../lib/scores'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelCard } from './model-card'
@@ -60,10 +58,19 @@ export const ModelCardGrid = memo(function ModelCardGrid(
 ) {
   const { t } = useTranslation()
   const [page, setPage] = useState(1)
-  const pageSize = DEFAULT_PRICING_PAGE_SIZE
+  // 每页卡片数跟随实际渲染的列数（1 / 2 / 3 列），保证翻页后最后一行是满的。
+  const isWide = useMediaQuery('(min-width: 1280px)')
+  const isMedium = useMediaQuery('(min-width: 768px)')
+  const columns = gridColumnsFor(isMedium, isWide)
+  const pageSize = cardPageSizeForColumns(columns)
   const tokenUnit = props.tokenUnit ?? DEFAULT_TOKEN_UNIT
   const totalPages = Math.max(1, Math.ceil(props.models.length / pageSize))
   const currentPage = Math.min(page, totalPages)
+
+  // 断点变化会改变每页容量，旧的页码在新容量下没有意义，回到第一页。
+  useEffect(() => {
+    setPage(1)
+  }, [pageSize])
 
   const pagedModels = useMemo(() => {
     const start = (currentPage - 1) * pageSize

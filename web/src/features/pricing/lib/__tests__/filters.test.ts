@@ -239,6 +239,31 @@ describe('filterByModality', () => {
       'vision',
     ])
   })
+
+  it('matches only the requested direction', () => {
+    expect(names(filterByModality(cases, 'image_in'))).toEqual(['vision'])
+    expect(names(filterByModality(cases, 'image_out'))).toEqual(['painter'])
+  })
+
+  it('separates input from output for a modality declared both ways', () => {
+    expect(names(filterByModality(cases, 'text_in'))).toEqual([
+      'text-only',
+      'vision',
+    ])
+    expect(names(filterByModality(cases, 'text_out'))).toEqual(['vision'])
+  })
+
+  it('keeps the legacy bare value as input-or-output', () => {
+    expect(names(filterByModality(cases, 'image'))).toEqual([
+      'vision',
+      'painter',
+    ])
+  })
+
+  it('ignores a direction it does not know instead of emptying the list', () => {
+    expect(filterByModality(cases, 'image_sideways')).toHaveLength(cases.length)
+    expect(filterByModality(cases, 'sideways')).toHaveLength(cases.length)
+  })
 })
 
 describe('sortModels by context window', () => {

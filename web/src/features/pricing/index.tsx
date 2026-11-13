@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
+import { Switch } from '@/components/ui/switch'
 
 import {
   LoadingSkeleton,
@@ -31,6 +32,7 @@ import {
   PricingToolbar,
   ModelCardGrid,
   ModelDetailsDrawer,
+  ModelKindTabs,
 } from './components'
 import { EXCLUDED_GROUPS, VIEW_MODES } from './constants'
 import {
@@ -75,6 +77,8 @@ export function Pricing() {
     quotaTypeFilter,
     endpointTypeFilter,
     modalityFilter,
+    kindFilter,
+    showVariants,
     tagFilter,
     ratingFilter,
     scoreDimension,
@@ -89,6 +93,8 @@ export function Pricing() {
     setQuotaTypeFilter,
     setEndpointTypeFilter,
     setModalityFilter,
+    setKindFilter,
+    setShowVariants,
     setTagFilter,
     setRatingFilter,
     setScoreDimension,
@@ -97,6 +103,8 @@ export function Pricing() {
     setViewMode,
     setShowRechargePrice,
     filteredModels,
+    countedModels,
+    variantCount,
     hasActiveFilters,
     activeFilterCount,
     availableTags,
@@ -256,6 +264,31 @@ export function Pricing() {
             />
           </header>
 
+          <ModelKindTabs
+            value={kindFilter}
+            onChange={setKindFilter}
+            className='mb-4 sm:mb-6'
+          />
+
+          {variantCount > 0 && (
+            <div className='text-muted-foreground mb-4 flex items-center justify-center gap-2 text-xs sm:mb-6 sm:text-sm'>
+              <Switch
+                id='pricing-show-effort-variants'
+                size='sm'
+                checked={showVariants}
+                onCheckedChange={setShowVariants}
+              />
+              <label
+                htmlFor='pricing-show-effort-variants'
+                className='cursor-pointer select-none'
+              >
+                {t('Show reasoning-effort variants ({{count}})', {
+                  count: variantCount,
+                })}
+              </label>
+            </div>
+          )}
+
           <div className='grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]'>
             <PricingSidebar
               quotaTypeFilter={quotaTypeFilter}
@@ -281,7 +314,7 @@ export function Pricing() {
               groupSort={groupSort}
               onGroupSortChange={setGroupSort}
               tags={availableTags}
-              models={models || []}
+              models={countedModels}
               hasActiveFilters={hasActiveFilters}
               onClearFilters={clearFilters}
               collapse={filterCollapse}
@@ -291,7 +324,7 @@ export function Pricing() {
             <main className='min-w-0 space-y-4'>
               <PricingToolbar
                 filteredCount={filteredModels.length}
-                totalCount={models?.length}
+                totalCount={countedModels.length}
                 sortBy={sortBy}
                 onSortChange={setSortBy}
                 searchScopes={searchScopes}
@@ -329,7 +362,7 @@ export function Pricing() {
                 groupSort={groupSort}
                 onGroupSortChange={setGroupSort}
                 tags={availableTags}
-                models={models || []}
+                models={countedModels}
                 hasActiveFilters={hasActiveFilters}
                 activeFilterCount={activeFilterCount}
                 onClearFilters={clearFilters}

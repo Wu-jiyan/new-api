@@ -33,6 +33,10 @@ const pricingSearchSchema = z.object({
   quotaType: z.string().optional(),
   endpointType: z.string().optional(),
   modality: z.string().optional(),
+  /** 顶部类型页签：全部 / 文本 / 图片 / 视频；缺省等同 all。 */
+  kind: z.enum(['all', 'text', 'image', 'video']).optional().catch(undefined),
+  /** 展开思维强度变体（-high/-low/-max…）；缺省收起，一个家族算一个模型。 */
+  variants: z.boolean().optional(),
   tag: z.string().optional(),
   rating: z.string().optional(),
   dimension: z.enum(['deepswe', 'aa_intelligence']).optional().catch(undefined),

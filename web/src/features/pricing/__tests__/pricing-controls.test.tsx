@@ -598,20 +598,30 @@ describe('pricing modality filter', () => {
     return { props, models }
   }
 
-  it('counts a modality once per model even when declared in both directions', () => {
+  it('counts each modality per direction instead of merging the two', () => {
     const { props, models } = build()
     render(<PricingSidebar {...props} models={models} tags={[]} vendors={[]} />)
 
     expect(
       screen.getByRole('button', { name: /^All Modalities\s*2$/ })
     ).toBeVisible()
-    // Both models accept text input; vision-model also emits it, which must not
-    // double-count the same model.
-    expect(screen.getByRole('button', { name: /^Text\s*2$/ })).toBeVisible()
-    expect(screen.getByRole('button', { name: /^Image\s*1$/ })).toBeVisible()
+    // Both models accept text input; only vision-model emits text, so the
+    // output side must not inherit the input-side count.
+    expect(
+      screen.getByRole('button', { name: /^Text input\s*2$/ })
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: /^Text output\s*1$/ })
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: /^Image input\s*1$/ })
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: /^Image output\s*0$/ })
+    ).toBeVisible()
   })
 
-  it('reports the chosen modality to the caller', async () => {
+  it('reports the chosen direction-qualified modality to the caller', async () => {
     const { props, models } = build()
     const onModalityChange = vi.fn()
     const user = userEvent.setup()
@@ -625,8 +635,8 @@ describe('pricing modality filter', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: /^Image\s*1$/ }))
-    expect(onModalityChange).toHaveBeenCalledWith('image')
+    await user.click(screen.getByRole('button', { name: /^Image input\s*1$/ }))
+    expect(onModalityChange).toHaveBeenCalledWith('image_in')
   })
 })
 

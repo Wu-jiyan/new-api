@@ -27,6 +27,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { modalityDirectionValue } from '@/lib/catalog-modalities'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { isFreeGroupRatio } from '@/lib/group-ratio'
 import { getLobeIcon } from '@/lib/lobe-icon'
@@ -359,15 +360,18 @@ export const PricingSidebar = memo(function PricingSidebar(
       })),
   ]
 
-  // 模态计数单独统计，避免改动主 counts memo 的内部结构。
+  // 模态按方向分别计数：同一个模型既可能接受图片输入又输出图片，合并计数
+  // 会让「图片输入 3」这种标签失去意义。
   const modalityCounts = useMemo(() => {
     const counts = new Map<string, number>()
     for (const model of props.models) {
-      for (const modality of new Set([
-        ...(model.input_modalities ?? []),
-        ...(model.output_modalities ?? []),
-      ])) {
-        counts.set(modality, (counts.get(modality) ?? 0) + 1)
+      for (const modality of new Set(model.input_modalities ?? [])) {
+        const value = modalityDirectionValue(modality, 'in')
+        counts.set(value, (counts.get(value) ?? 0) + 1)
+      }
+      for (const modality of new Set(model.output_modalities ?? [])) {
+        const value = modalityDirectionValue(modality, 'out')
+        counts.set(value, (counts.get(value) ?? 0) + 1)
       }
     }
     return counts

@@ -20,7 +20,9 @@ import type { TFunction } from 'i18next'
 
 import {
   CATALOG_MODALITIES,
-  CATALOG_MODALITY_LABELS,
+  MODALITY_DIRECTIONS,
+  modalityDirectionLabelKey,
+  modalityDirectionValue,
 } from '@/lib/catalog-modalities'
 
 import type { ScoreDimension } from './lib/scores'
@@ -86,16 +88,48 @@ export const FILTER_ALL = 'all'
  */
 export const MODEL_MODALITIES = { ALL: 'all' } as const
 
-/** 模态筛选器的文案。标签键由 @/lib/catalog-modalities 统一提供。 */
+/** 模态筛选器的文案。取值形如 `text_in` / `image_out`，按方向逐项列出。 */
 export function getModalityLabels(t: TFunction): Record<string, string> {
   return {
     [MODEL_MODALITIES.ALL]: t('All Modalities'),
     ...Object.fromEntries(
-      CATALOG_MODALITIES.map((modality) => [
-        modality,
-        t(CATALOG_MODALITY_LABELS[modality]),
-      ])
+      CATALOG_MODALITIES.flatMap((modality) =>
+        MODALITY_DIRECTIONS.map((direction) => [
+          modalityDirectionValue(modality, direction),
+          t(modalityDirectionLabelKey(modality, direction)),
+        ])
+      )
     ),
+  }
+}
+
+/**
+ * 模型广场顶部的类型页签。分类只看模型标签里的中文类型词（文本/图片/视频），
+ * 与侧栏的标签筛选同源，避免出现两套判定标准。
+ */
+export const MODEL_KINDS = {
+  ALL: 'all',
+  TEXT: 'text',
+  IMAGE: 'image',
+  VIDEO: 'video',
+} as const
+
+export type ModelKind = (typeof MODEL_KINDS)[keyof typeof MODEL_KINDS]
+
+/** 页签顺序固定为 全部 / 文本 / 图片 / 视频。 */
+export const MODEL_KIND_ORDER: readonly ModelKind[] = [
+  MODEL_KINDS.ALL,
+  MODEL_KINDS.TEXT,
+  MODEL_KINDS.IMAGE,
+  MODEL_KINDS.VIDEO,
+]
+
+export function getModelKindLabels(t: TFunction): Record<ModelKind, string> {
+  return {
+    [MODEL_KINDS.ALL]: t('All'),
+    [MODEL_KINDS.TEXT]: t('Text'),
+    [MODEL_KINDS.IMAGE]: t('Image'),
+    [MODEL_KINDS.VIDEO]: t('Video'),
   }
 }
 

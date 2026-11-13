@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useSearch } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useMemo, useCallback, useState } from 'react'
 
 import { useDebounce } from '@/hooks/use-debounce'
@@ -26,6 +26,7 @@ import {
   SORT_OPTIONS,
   QUOTA_TYPES,
   ENDPOINT_TYPES,
+  MODEL_KINDS,
   MODEL_MODALITIES,
   DEFAULT_TOKEN_UNIT,
   VIEW_MODES,
@@ -33,8 +34,13 @@ import {
   type SortOption,
 } from '../constants'
 import {
+  collapseEffortVariants,
+  hiddenEffortVariantNames,
+} from '../lib/effort-variants'
+import {
   filterAndSortModels,
   extractAllTags,
+  parseModelKind,
   parseSearchScopes,
 } from '../lib/filters'
 import {
@@ -53,6 +59,8 @@ type FilterState = {
   quotaType?: string
   endpointType?: string
   modality?: string
+  kind?: string
+  variants?: boolean
   tag?: string
   rating?: string
   dimension?: string
@@ -83,6 +91,7 @@ export function useFilters(
   autoGroups?: readonly string[]
 ) {
   const search = useSearch({ from: '/pricing/' })
+  const navigate = useNavigate()
   const [filterState, setFilterState] = useState<FilterState>(() => ({
     search: search.search,
     searchScope: search.searchScope,
@@ -92,6 +101,8 @@ export function useFilters(
     quotaType: search.quotaType,
     endpointType: search.endpointType,
     modality: search.modality,
+    kind: search.kind,
+    variants: search.variants,
     tag: search.tag,
     rating: search.rating,
     dimension: search.dimension,
@@ -115,6 +126,9 @@ export function useFilters(
   const quotaTypeFilter = filterState.quotaType || QUOTA_TYPES.ALL
   const endpointTypeFilter = filterState.endpointType || ENDPOINT_TYPES.ALL
   const modalityFilter = filterState.modality || MODEL_MODALITIES.ALL
+  const kindFilter = parseModelKind(filterState.kind)
+  // 思维强度变体（-high/-low/-max…）默认收起：一个模型只占一张卡片、一次计数。
+  const showVariants = filterState.variants === true
   const tagFilter = filterState.tag || FILTER_ALL
   const ratingFilter = filterState.rating || FILTER_ALL
   const configuredDimension = isScoreDimension(defaults?.dimension)
@@ -181,6 +195,36 @@ export function useFilters(
       updateFilters({ modality: v === MODEL_MODALITIES.ALL ? undefined : v }),
     [updateFilters]
   )
+  const setKindFilter = useCallback(
+    (v: string) => {
+      const kind = parseModelKind(v)
+      updateFilters({ kind: kind === MODEL_KINDS.ALL ? undefined : kind })
+      // 类型页签决定「我在看哪一类模型」，写进 URL 便于分享与刷新保留；
+      // 其余筛选维持会话内状态，避免每次点选都改写历史记录。
+      void navigate({
+        to: '/pricing',
+        search: {
+          ...search,
+          kind: kind === MODEL_KINDS.ALL ? undefined : kind,
+        },
+        replace: true,
+      })
+    },
+    [navigate, search, updateFilters]
+  )
+  const setShowVariants = useCallback(
+    (value: boolean) => {
+      updateFilters({ variants: value || undefined })
+      // 与类型页签同样的取舍：是否展开变体是「我在看什么」的视图状态，
+      // 写进 URL 让分享和刷新保留，且不产生多余的历史记录。
+      void navigate({
+        to: '/pricing',
+        search: { ...search, variants: value || undefined },
+        replace: true,
+      })
+    },
+    [navigate, search, updateFilters]
+  )
   const setTagFilter = useCallback(
     (v: string) => updateFilters({ tag: v === FILTER_ALL ? undefined : v }),
     [updateFilters]
@@ -219,10 +263,24 @@ export function useFilters(
     return extractAllTags(models)
   }, [models])
 
+  // 折叠只作用于广场的列表与计数。搜索时临时展开，否则按后缀名（如
+  // `gemini-4-argon-high`）精确搜索会得到空结果。
+  const countedModels = useMemo(
+    () => collapseEffortVariants(models ?? [], showVariants),
+    [models, showVariants]
+  )
+  const variantCount = useMemo(
+    () => hiddenEffortVariantNames(models ?? []).size,
+    [models]
+  )
+
   const filteredModels = useMemo(() => {
     if (!models || models.length === 0) return []
 
-    return filterAndSortModels(models, {
+    const visible =
+      showVariants || debouncedSearchInput ? models : countedModels
+
+    return filterAndSortModels(visible, {
       search: debouncedSearchInput,
       searchScopes,
       vendor: vendorFilter,
@@ -230,6 +288,7 @@ export function useFilters(
       quotaType: quotaTypeFilter,
       endpointType: endpointTypeFilter,
       modality: modalityFilter,
+      kind: kindFilter,
       tag: tagFilter,
       rating: ratingFilter,
       sortBy,
@@ -238,6 +297,8 @@ export function useFilters(
     })
   }, [
     models,
+    countedModels,
+    showVariants,
     debouncedSearchInput,
     searchScopes,
     vendorFilter,
@@ -245,6 +306,7 @@ export function useFilters(
     quotaTypeFilter,
     endpointTypeFilter,
     modalityFilter,
+    kindFilter,
     tagFilter,
     ratingFilter,
     sortBy,
@@ -317,6 +379,8 @@ export function useFilters(
     quotaTypeFilter,
     endpointTypeFilter,
     modalityFilter,
+    kindFilter,
+    showVariants,
     tagFilter,
     ratingFilter,
     scoreDimension,
@@ -331,6 +395,8 @@ export function useFilters(
     setQuotaTypeFilter,
     setEndpointTypeFilter,
     setModalityFilter,
+    setKindFilter,
+    setShowVariants,
     setTagFilter,
     setRatingFilter,
     setScoreDimension,
@@ -338,6 +404,8 @@ export function useFilters(
     setViewMode,
     setShowRechargePrice,
     filteredModels,
+    countedModels,
+    variantCount,
     hasActiveFilters,
     activeFilterCount,
     availableTags,
