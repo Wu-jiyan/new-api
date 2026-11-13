@@ -153,12 +153,16 @@ function ChatRouteComponent() {
     )
   }
 
+  // Admin-configured chat preset rendered as a full web app: keep scripts, forms
+  // and popups for the app itself, but no allow-same-origin — next to
+  // allow-scripts it would let the framed document drop the sandbox entirely.
   return (
     <iframe
       src={iframeSrc}
       key={iframeSrc}
       className='h-full w-full border-0'
       allow='camera; microphone'
+      sandbox='allow-forms allow-popups allow-popups-to-escape-sandbox allow-scripts'
       title={`Chat preset: ${preset.name}`}
     />
   )
