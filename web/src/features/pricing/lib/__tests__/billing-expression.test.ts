@@ -208,11 +208,11 @@ describe('local billing expression evaluation', () => {
     const translations = createInstance()
     await translations.init({ lng: 'zh', resources: { zh } })
     expect(formatBillingCondition(peakCondition, translations.t, 'zh')).toBe(
-      '周一至周五 09:00至12:00 或 14:00至18:00（Asia/Shanghai）'
+      '周一至周五 09:00至12:00或14:00至18:00（Asia/Shanghai）'
     )
     expect(
       formatBillingCondition(`!(${peakCondition})`, translations.t, 'zh')
-    ).toBe('周一至周五 09:00至12:00 或 14:00至18:00以外的时段（Asia/Shanghai）')
+    ).toBe('周一至周五 09:00至12:00或14:00至18:00以外的时段（Asia/Shanghai）')
   })
   test.each([
     ['zhCN', 'weekday("UTC") == 1', '周一 (UTC)'],
@@ -273,7 +273,7 @@ describe('local billing expression evaluation', () => {
         translations.t,
         'zh'
       )
-    ).toBe('请求头 x-25y-service-tier = fast 且 输入长度 ≤ 272,000')
+    ).toBe('请求头 x-25y-service-tier = fast且输入长度 ≤ 272,000')
     // Mixed precedence keeps the parentheses that carry the meaning.
     expect(
       formatBillingCondition(
@@ -281,7 +281,7 @@ describe('local billing expression evaluation', () => {
         translations.t,
         'zh'
       )
-    ).toBe('输入长度 ≤ 272,000 且 (请求头 tier = fast 或 请求头 tier = flex)')
+    ).toBe('输入长度 ≤ 272,000且(请求头 tier = fast或请求头 tier = flex)')
   })
   // A probe wrapped in string()/lower() with a ?? default is what admins write to
   // compare a header or body field case-insensitively; the engine accepts it, so
@@ -323,7 +323,7 @@ describe('local billing expression evaluation', () => {
     expect(
       formatBillingCondition(tiers[2].conditionText ?? '', translations.t, 'zh')
     ).toBe(
-      '请求体字段 quality ≠ 4k（忽略大小写） 且 请求体字段 quality ≠ 2k（忽略大小写）'
+      '请求体字段 quality ≠ 4k（忽略大小写）且请求体字段 quality ≠ 2k（忽略大小写）'
     )
   })
   test('keeps log prices tied to the recorded tier regardless of the current time', () => {

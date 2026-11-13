@@ -63,22 +63,26 @@ func UsingLogDatabase(databaseType DatabaseType) bool {
 //     front, so writers serialize through the busy timeout instead of dying on
 //     a stale snapshot. Autocommit SELECTs stay concurrent because WAL keeps
 //     readers unlocked.
-const SQLiteConcurrencyParams = "_pragma=busy_timeout(30000)&_pragma=journal_mode(WAL)&_txlock=immediate"
+var SQLitePath = "one-api.db?" + sqliteConcurrencyParams
 
-// SQLiteDSN applies the concurrency pragmas above to a SQLite path or DSN.
-// Anything that opens its own SQLite database — a deployment or a test — must
-// go through it, otherwise the database silently runs with the 5s default
-// timeout, a rollback journal and deferred transactions, and concurrent
-// writers fail with SQLITE_BUSY_SNAPSHOT instead of queueing.
-func SQLiteDSN(path string) string {
-	if path == "" || strings.Contains(path, "_pragma=") {
+// sqliteConcurrencyParams are the DSN parameters SQLitePath explains above.
+const sqliteConcurrencyParams = "_pragma=busy_timeout(30000)&_pragma=journal_mode(WAL)&_txlock=immediate"
+
+// sqliteDSN turns a SQLITE_PATH value into a DSN. A bare path gets the
+// default concurrency parameters; a value with its own query string is used
+// as given.
+func sqliteDSN(path string) string {
+	if strings.Contains(path, "?") {
 		return path
 	}
-	separator := "?"
-	if strings.Contains(path, "?") {
-		separator = "&"
-	}
-	return path + separator + SQLiteConcurrencyParams
+	return path + "?" + sqliteConcurrencyParams
 }
 
-var SQLitePath = SQLiteDSN("one-api.db")
+// SQLiteDSN exposes sqliteDSN to code outside this package that opens its own
+// SQLite database — a deployment or a test. Going through it keeps those
+// connections on the pragmas above instead of SQLite's 5s default timeout, a
+// rollback journal and deferred transactions, where concurrent writers fail
+// with SQLITE_BUSY_SNAPSHOT instead of queueing.
+func SQLiteDSN(path string) string {
+	return sqliteDSN(path)
+}

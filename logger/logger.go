@@ -39,6 +39,21 @@ func GetCurrentLogPath() string {
 	return currentLogPath
 }
 
+// CloseLogFile closes the file SetupLogger opened. Shutdown calls it so the
+// last writes are flushed before exit, and a caller that deletes its log
+// directory can then unlink the file: Windows refuses to remove an open file.
+func CloseLogFile() {
+	currentLogPathMu.Lock()
+	defer currentLogPathMu.Unlock()
+	common.LogWriterMu.Lock()
+	defer common.LogWriterMu.Unlock()
+	fd := currentLogFile
+	currentLogFile = nil
+	if fd != nil {
+		_ = fd.Close()
+	}
+}
+
 func SetupLogger() {
 	defer func() {
 		setupLogWorking = false

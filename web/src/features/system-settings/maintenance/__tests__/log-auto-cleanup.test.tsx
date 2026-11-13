@@ -55,6 +55,7 @@ function renderSection(
             'log_cleanup_setting.enabled':
               overrides.autoCleanupEnabled ?? false,
             'log_cleanup_setting.retention_days': overrides.retentionDays ?? 0,
+            'system_task_setting.retention_days': 30,
           }}
         />
       </SettingsPageProvider>

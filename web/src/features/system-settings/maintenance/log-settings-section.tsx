@@ -64,6 +64,9 @@ const logSettingsSchema = z.object({
     .int('Retention must be a whole number of days.')
     .min(0, 'Retention cannot be negative.')
     .max(MAX_RETENTION_DAYS, 'Retention cannot exceed 3650 days.'),
+  system_task_setting: z.object({
+    retention_days: z.number().int().min(1),
+  }),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
@@ -75,6 +78,7 @@ type LogSettingsSectionProps = {
     'log_setting.max_range_days': number
     'log_cleanup_setting.enabled': boolean
     'log_cleanup_setting.retention_days': number
+    'system_task_setting.retention_days': number
   }
 }
 
@@ -84,6 +88,7 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
   const recordingTitleId = useId()
   const searchTitleId = useId()
   const retentionTitleId = useId()
+  const taskHistoryTitleId = useId()
   const formDefaults = useMemo<LogSettingsFormValues>(
     () => ({
       LogConsumeEnabled: props.defaultValues.LogConsumeEnabled,
@@ -94,6 +99,10 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
       },
       logCleanupEnabled: props.defaultValues['log_cleanup_setting.enabled'],
       retentionDays: props.defaultValues['log_cleanup_setting.retention_days'],
+      system_task_setting: {
+        retention_days:
+          props.defaultValues['system_task_setting.retention_days'],
+      },
     }),
     [props.defaultValues]
   )
@@ -150,6 +159,15 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
       updates.push({
         key: 'log_cleanup_setting.retention_days',
         value: String(values.retentionDays),
+      })
+    }
+    if (
+      values.system_task_setting.retention_days !==
+      props.defaultValues['system_task_setting.retention_days']
+    ) {
+      updates.push({
+        key: 'system_task_setting.retention_days',
+        value: values.system_task_setting.retention_days,
       })
     }
 
@@ -333,6 +351,44 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
                 )}
               />
             </SettingsControlGroup>
+          </div>
+
+          <Separator />
+
+          <div
+            role='group'
+            aria-labelledby={taskHistoryTitleId}
+            className='flex min-w-0 flex-col gap-4'
+          >
+            <h4 id={taskHistoryTitleId} className='font-medium'>
+              {t('System task records')}
+            </h4>
+            <SettingsFormGrid>
+              <FormField
+                control={form.control}
+                name='system_task_setting.retention_days'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Keep finished tasks for (days)')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={1}
+                        step={1}
+                        placeholder='30'
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Finished system tasks older than this are deleted automatically every day.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SettingsFormGrid>
           </div>
         </SettingsForm>
       </Form>

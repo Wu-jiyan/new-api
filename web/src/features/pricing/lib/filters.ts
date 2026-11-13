@@ -40,6 +40,7 @@ import {
   isUnconfiguredTaskUsageModel,
 } from './dynamic-price'
 import { getAutoChainGroups, isTokenBasedModel } from './model-helpers'
+import { withBasePricing } from './plugin-pricing'
 import { calculateTokenPrice } from './price'
 import {
   DEFAULT_SCORE_DIMENSION,
@@ -137,8 +138,9 @@ export function filterByGroup(
 
 /** Pricing category of the active configuration, shared by filters and counts. */
 export function getModelQuotaType(
-  model: PricingModel
+  listedModel: PricingModel
 ): Exclude<QuotaTypeOption, 'all'> | undefined {
+  const model = withBasePricing(listedModel)
   // Task-usage models retain their own category.
   if (hasTaskUsageSchema(model)) return QUOTA_TYPES.TASK
 
@@ -292,9 +294,10 @@ export function filterByRating(
  * model has no price of that kind.
  */
 function getSortPrice(
-  model: PricingModel,
+  listedModel: PricingModel,
   kind: SortPriceKind
 ): number | undefined {
+  const model = withBasePricing(listedModel)
   if (kind === 'request') {
     const example = getCardExamplePrice(model, { tokenUnit: 'M' })
     if (example) return example.total

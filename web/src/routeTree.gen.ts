@@ -49,6 +49,7 @@ import { Route as AuthenticatedModelsSectionRouteImport } from './routes/_authen
 import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_authenticated/playground/index'
 import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authenticated/profile/index'
 import { Route as AuthenticatedRedemptionCodesIndexRouteImport } from './routes/_authenticated/redemption-codes/index'
+import { Route as AuthenticatedRequestProcessingIndexRouteImport } from './routes/_authenticated/request-processing/index'
 import { Route as AuthenticatedSecurityIndexRouteImport } from './routes/_authenticated/security/index'
 import { Route as AuthenticatedSubscriptionsIndexRouteImport } from './routes/_authenticated/subscriptions/index'
 import { Route as AuthenticatedSystemInfoIndexRouteImport } from './routes/_authenticated/system-info/index'
@@ -82,6 +83,7 @@ import { Route as AuthenticatedSystemSettingsSiteIndexRouteImport } from './rout
 import { Route as AuthenticatedSystemSettingsSiteSectionRouteImport } from './routes/_authenticated/system-settings/site/$section'
 import { Route as AuthenticatedCharacterAdminBackgroundsIndexRouteImport } from './routes/_authenticated/character/admin/backgrounds/index'
 import { Route as AuthenticatedCharacterAdminCharactersModelNameRouteImport } from './routes/_authenticated/character/admin/characters.$modelName'
+import { Route as AuthenticatedOauthPluginKeyCallbackRouteImport } from './routes/_authenticated/oauth/plugin/$key/callback'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -294,6 +296,12 @@ const AuthenticatedRedemptionCodesIndexRoute =
     path: '/redemption-codes/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedRequestProcessingIndexRoute =
+  AuthenticatedRequestProcessingIndexRouteImport.update({
+    id: '/request-processing/',
+    path: '/request-processing/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSecurityIndexRoute =
   AuthenticatedSecurityIndexRouteImport.update({
     id: '/security/',
@@ -490,6 +498,12 @@ const AuthenticatedCharacterAdminCharactersModelNameRoute =
     path: '/character/admin/characters/$modelName',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedOauthPluginKeyCallbackRoute =
+  AuthenticatedOauthPluginKeyCallbackRouteImport.update({
+    id: '/oauth/plugin/$key/callback',
+    path: '/oauth/plugin/$key/callback',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -532,6 +546,7 @@ export interface FileRoutesByFullPath {
   '/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/request-processing/': typeof AuthenticatedRequestProcessingIndexRoute
   '/security/': typeof AuthenticatedSecurityIndexRoute
   '/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
   '/system-info/': typeof AuthenticatedSystemInfoIndexRoute
@@ -562,6 +577,7 @@ export interface FileRoutesByFullPath {
   '/system-settings/security/': typeof AuthenticatedSystemSettingsSecurityIndexRoute
   '/system-settings/site/': typeof AuthenticatedSystemSettingsSiteIndexRoute
   '/character/admin/characters/$modelName': typeof AuthenticatedCharacterAdminCharactersModelNameRoute
+  '/oauth/plugin/$key/callback': typeof AuthenticatedOauthPluginKeyCallbackRoute
   '/character/admin/backgrounds/': typeof AuthenticatedCharacterAdminBackgroundsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -603,6 +619,7 @@ export interface FileRoutesByTo {
   '/playground': typeof AuthenticatedPlaygroundIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/request-processing': typeof AuthenticatedRequestProcessingIndexRoute
   '/security': typeof AuthenticatedSecurityIndexRoute
   '/subscriptions': typeof AuthenticatedSubscriptionsIndexRoute
   '/system-info': typeof AuthenticatedSystemInfoIndexRoute
@@ -633,6 +650,7 @@ export interface FileRoutesByTo {
   '/system-settings/security': typeof AuthenticatedSystemSettingsSecurityIndexRoute
   '/system-settings/site': typeof AuthenticatedSystemSettingsSiteIndexRoute
   '/character/admin/characters/$modelName': typeof AuthenticatedCharacterAdminCharactersModelNameRoute
+  '/oauth/plugin/$key/callback': typeof AuthenticatedOauthPluginKeyCallbackRoute
   '/character/admin/backgrounds': typeof AuthenticatedCharacterAdminBackgroundsIndexRoute
 }
 export interface FileRoutesById {
@@ -679,6 +697,7 @@ export interface FileRoutesById {
   '/_authenticated/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
   '/_authenticated/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/_authenticated/request-processing/': typeof AuthenticatedRequestProcessingIndexRoute
   '/_authenticated/security/': typeof AuthenticatedSecurityIndexRoute
   '/_authenticated/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
   '/_authenticated/system-info/': typeof AuthenticatedSystemInfoIndexRoute
@@ -709,6 +728,7 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/security/': typeof AuthenticatedSystemSettingsSecurityIndexRoute
   '/_authenticated/system-settings/site/': typeof AuthenticatedSystemSettingsSiteIndexRoute
   '/_authenticated/character/admin/characters/$modelName': typeof AuthenticatedCharacterAdminCharactersModelNameRoute
+  '/_authenticated/oauth/plugin/$key/callback': typeof AuthenticatedOauthPluginKeyCallbackRoute
   '/_authenticated/character/admin/backgrounds/': typeof AuthenticatedCharacterAdminBackgroundsIndexRoute
 }
 export interface FileRouteTypes {
@@ -754,6 +774,7 @@ export interface FileRouteTypes {
     | '/playground/'
     | '/profile/'
     | '/redemption-codes/'
+    | '/request-processing/'
     | '/security/'
     | '/subscriptions/'
     | '/system-info/'
@@ -784,6 +805,7 @@ export interface FileRouteTypes {
     | '/system-settings/security/'
     | '/system-settings/site/'
     | '/character/admin/characters/$modelName'
+    | '/oauth/plugin/$key/callback'
     | '/character/admin/backgrounds/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -825,6 +847,7 @@ export interface FileRouteTypes {
     | '/playground'
     | '/profile'
     | '/redemption-codes'
+    | '/request-processing'
     | '/security'
     | '/subscriptions'
     | '/system-info'
@@ -855,6 +878,7 @@ export interface FileRouteTypes {
     | '/system-settings/security'
     | '/system-settings/site'
     | '/character/admin/characters/$modelName'
+    | '/oauth/plugin/$key/callback'
     | '/character/admin/backgrounds'
   id:
     | '__root__'
@@ -900,6 +924,7 @@ export interface FileRouteTypes {
     | '/_authenticated/playground/'
     | '/_authenticated/profile/'
     | '/_authenticated/redemption-codes/'
+    | '/_authenticated/request-processing/'
     | '/_authenticated/security/'
     | '/_authenticated/subscriptions/'
     | '/_authenticated/system-info/'
@@ -930,6 +955,7 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/security/'
     | '/_authenticated/system-settings/site/'
     | '/_authenticated/character/admin/characters/$modelName'
+    | '/_authenticated/oauth/plugin/$key/callback'
     | '/_authenticated/character/admin/backgrounds/'
   fileRoutesById: FileRoutesById
 }
@@ -1234,6 +1260,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRedemptionCodesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/request-processing/': {
+      id: '/_authenticated/request-processing/'
+      path: '/request-processing'
+      fullPath: '/request-processing/'
+      preLoaderRoute: typeof AuthenticatedRequestProcessingIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/security/': {
       id: '/_authenticated/security/'
       path: '/security'
@@ -1465,6 +1498,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCharacterAdminCharactersModelNameRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/oauth/plugin/$key/callback': {
+      id: '/_authenticated/oauth/plugin/$key/callback'
+      path: '/oauth/plugin/$key/callback'
+      fullPath: '/oauth/plugin/$key/callback'
+      preLoaderRoute: typeof AuthenticatedOauthPluginKeyCallbackRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -1592,6 +1632,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPlaygroundIndexRoute: typeof AuthenticatedPlaygroundIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
   AuthenticatedRedemptionCodesIndexRoute: typeof AuthenticatedRedemptionCodesIndexRoute
+  AuthenticatedRequestProcessingIndexRoute: typeof AuthenticatedRequestProcessingIndexRoute
   AuthenticatedSecurityIndexRoute: typeof AuthenticatedSecurityIndexRoute
   AuthenticatedSubscriptionsIndexRoute: typeof AuthenticatedSubscriptionsIndexRoute
   AuthenticatedSystemInfoIndexRoute: typeof AuthenticatedSystemInfoIndexRoute
@@ -1603,6 +1644,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedGachaAdminIndexRoute: typeof AuthenticatedGachaAdminIndexRoute
   AuthenticatedGachaCardsIndexRoute: typeof AuthenticatedGachaCardsIndexRoute
   AuthenticatedCharacterAdminCharactersModelNameRoute: typeof AuthenticatedCharacterAdminCharactersModelNameRoute
+  AuthenticatedOauthPluginKeyCallbackRoute: typeof AuthenticatedOauthPluginKeyCallbackRoute
   AuthenticatedCharacterAdminBackgroundsIndexRoute: typeof AuthenticatedCharacterAdminBackgroundsIndexRoute
 }
 
@@ -1629,6 +1671,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedProfileIndexRoute: AuthenticatedProfileIndexRoute,
   AuthenticatedRedemptionCodesIndexRoute:
     AuthenticatedRedemptionCodesIndexRoute,
+  AuthenticatedRequestProcessingIndexRoute:
+    AuthenticatedRequestProcessingIndexRoute,
   AuthenticatedSecurityIndexRoute: AuthenticatedSecurityIndexRoute,
   AuthenticatedSubscriptionsIndexRoute: AuthenticatedSubscriptionsIndexRoute,
   AuthenticatedSystemInfoIndexRoute: AuthenticatedSystemInfoIndexRoute,
@@ -1641,6 +1685,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedGachaCardsIndexRoute: AuthenticatedGachaCardsIndexRoute,
   AuthenticatedCharacterAdminCharactersModelNameRoute:
     AuthenticatedCharacterAdminCharactersModelNameRoute,
+  AuthenticatedOauthPluginKeyCallbackRoute:
+    AuthenticatedOauthPluginKeyCallbackRoute,
   AuthenticatedCharacterAdminBackgroundsIndexRoute:
     AuthenticatedCharacterAdminBackgroundsIndexRoute,
 }
