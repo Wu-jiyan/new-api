@@ -106,6 +106,7 @@ describe('model square type tabs', () => {
       'Text',
       'Image',
       'Video',
+      'Other',
     ])
     expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute(
       'aria-selected',
@@ -130,6 +131,20 @@ describe('model square type tabs', () => {
       'true'
     )
     expect(listedModels()).toEqual(['image-model'])
+  })
+
+  it('collects models without a type tag into the other tab', async () => {
+    const user = userEvent.setup()
+    await renderKindTabs()
+
+    await user.click(screen.getByRole('tab', { name: 'Other' }))
+
+    expect(screen.getByRole('tab', { name: 'Other' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+    // 工具、ASR、安全这类没有类型标签的模型不再是「任何页签都找不到」。
+    expect(listedModels()).toEqual(['plain-model'])
   })
 
   it('writes the chosen type to the URL and drops it on the all tab', async () => {

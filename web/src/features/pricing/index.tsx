@@ -264,30 +264,24 @@ export function Pricing() {
             />
           </header>
 
-          <ModelKindTabs
-            value={kindFilter}
-            onChange={setKindFilter}
-            className='mb-4 sm:mb-6'
-          />
+          <div className='mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:mb-6'>
+            <ModelKindTabs value={kindFilter} onChange={setKindFilter} />
 
-          {variantCount > 0 && (
-            <div className='text-muted-foreground mb-4 flex items-center justify-center gap-2 text-xs sm:mb-6 sm:text-sm'>
-              <Switch
-                id='pricing-show-effort-variants'
-                size='sm'
-                checked={showVariants}
-                onCheckedChange={setShowVariants}
-              />
-              <label
-                htmlFor='pricing-show-effort-variants'
-                className='cursor-pointer select-none'
-              >
+            {variantCount > 0 && (
+              // 放在页签行的最右端：属于“想看到更多”的次级操作，不该抢主视觉。
+              <label className='text-muted-foreground/60 hover:text-muted-foreground ml-auto flex shrink-0 cursor-pointer items-center gap-1.5 text-[11px] select-none sm:text-xs'>
+                <Switch
+                  id='pricing-show-effort-variants'
+                  size='sm'
+                  checked={showVariants}
+                  onCheckedChange={setShowVariants}
+                />
                 {t('Show reasoning-effort variants ({{count}})', {
                   count: variantCount,
                 })}
               </label>
-            </div>
-          )}
+            )}
+          </div>
 
           <div className='grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]'>
             <PricingSidebar

@@ -236,6 +236,9 @@ export function parseModelKind(value: string | undefined): ModelKind {
 /**
  * Filter models by the square's type tab. Classification reads the model's
  * tags, so a model can belong to several tabs (e.g. text + image output).
+ * The `other` tab is the complement: models whose tags carry none of the three
+ * type words (tools, ASR, safety classifiers…), so every model stays reachable
+ * from exactly one of the five tabs.
  */
 export function filterByKind(
   models: PricingModel[],
@@ -243,6 +246,15 @@ export function filterByKind(
 ): PricingModel[] {
   const variant = parseModelKind(kind)
   if (variant === MODEL_KINDS.ALL) return models
+  if (variant === MODEL_KINDS.OTHER) {
+    const typeTags = new Set(
+      Object.values(MODEL_KIND_TAGS).map((tag) => tag.toLowerCase())
+    )
+    return models.filter((m) => {
+      const tags = parseTags(m.tags).map((tag) => tag.toLowerCase())
+      return !tags.some((tag) => typeTags.has(tag))
+    })
+  }
   const wanted = MODEL_KIND_TAGS[variant].toLowerCase()
   return models.filter((m) =>
     parseTags(m.tags).some((tag) => tag.toLowerCase() === wanted)

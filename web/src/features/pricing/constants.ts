@@ -112,6 +112,7 @@ export const MODEL_KINDS = {
   TEXT: 'text',
   IMAGE: 'image',
   VIDEO: 'video',
+  OTHER: 'other',
 } as const
 
 export type ModelKind = (typeof MODEL_KINDS)[keyof typeof MODEL_KINDS]
@@ -122,6 +123,7 @@ export const MODEL_KIND_ORDER: readonly ModelKind[] = [
   MODEL_KINDS.TEXT,
   MODEL_KINDS.IMAGE,
   MODEL_KINDS.VIDEO,
+  MODEL_KINDS.OTHER,
 ]
 
 export function getModelKindLabels(t: TFunction): Record<ModelKind, string> {
@@ -130,6 +132,8 @@ export function getModelKindLabels(t: TFunction): Record<ModelKind, string> {
     [MODEL_KINDS.TEXT]: t('Text'),
     [MODEL_KINDS.IMAGE]: t('Image'),
     [MODEL_KINDS.VIDEO]: t('Video'),
+    // 兜底页签：标签里没有文本/图片/视频的类型（工具、ASR、安全等）都归到这里。
+    [MODEL_KINDS.OTHER]: t('Other'),
   }
 }
 
