@@ -8275,6 +8275,15 @@
     "{{source}} {{name}} is not {{value}}": "{{source}} {{name}} ≠ {{value}}",
     "{{source}} {{name}} is present": "{{source}} {{name}} is present",
     "{{source}} {{name}} is {{value}}": "{{source}} {{name}} = {{value}}",
-    "{{value}}% off": "{{value}}% off"
+    "{{value}}% off": "{{value}}% off",
+    "Rankings display": "Rankings display",
+    "Scales the token volumes shown on the public rankings page. Billing, logs and every other figure keep the real values.": "Scales the token volumes shown on the public rankings page. Billing, logs and every other figure keep the real values.",
+    "Enable rankings multiplier": "Enable rankings multiplier",
+    "Off shows the real token volumes": "Off shows the real token volumes",
+    "For example 9.8 shows 9.8 times the real volume": "For example 9.8 shows 9.8 times the real volume",
+    "Ranking display multiplier must be a number": "Ranking display multiplier must be a number",
+    "Ranking display multiplier must be greater than 0 and at most 1000": "Ranking display multiplier must be greater than 0 and at most 1000",
+    "Multiplier must be greater than 0": "Multiplier must be greater than 0",
+    "Multiplier must be at most 1000": "Multiplier must be at most 1000"
   }
 }

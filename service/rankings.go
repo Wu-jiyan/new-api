@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
 
 const (
@@ -111,8 +112,9 @@ type rankingPeriodConfig struct {
 }
 
 type rankingCacheItem struct {
-	expiresAt time.Time
-	data      *RankingsResponse
+	expiresAt  time.Time
+	multiplier float64
+	data       *RankingsResponse
 }
 
 type rankingModelMeta struct {
@@ -141,9 +143,10 @@ func GetRankingsSnapshot(period string) (*RankingsResponse, error) {
 		return nil, err
 	}
 
+	multiplier := operation_setting.RankingDisplayMultiplier()
 	now := time.Now()
 	rankingCacheMu.Lock()
-	if item, ok := rankingCache[config.id]; ok && now.Before(item.expiresAt) {
+	if item, ok := rankingCache[config.id]; ok && now.Before(item.expiresAt) && item.multiplier == multiplier {
 		rankingCacheMu.Unlock()
 		return item.data, nil
 	}
@@ -153,15 +156,58 @@ func GetRankingsSnapshot(period string) (*RankingsResponse, error) {
 	if err != nil {
 		return nil, err
 	}
+	applyRankingDisplayMultiplier(data, multiplier)
 
 	rankingCacheMu.Lock()
 	rankingCache[config.id] = rankingCacheItem{
-		expiresAt: now.Add(rankingCacheTTL),
-		data:      data,
+		expiresAt:  now.Add(rankingCacheTTL),
+		multiplier: multiplier,
+		data:       data,
 	}
 	rankingCacheMu.Unlock()
 
 	return data, nil
+}
+
+// applyRankingDisplayMultiplier inflates the token volumes the rankings page
+// publishes. It runs once on a freshly built snapshot, before that snapshot is
+// cached, so a figure is never scaled twice. Shares and growth are ratios, and
+// a uniform factor leaves a ratio unchanged, so they are left alone.
+func applyRankingDisplayMultiplier(data *RankingsResponse, multiplier float64) {
+	if multiplier == 1 {
+		return
+	}
+	for i := range data.Models {
+		data.Models[i].TotalTokens = scaleRankingVolume(data.Models[i].TotalTokens, multiplier)
+	}
+	for i := range data.Vendors {
+		data.Vendors[i].TotalTokens = scaleRankingVolume(data.Vendors[i].TotalTokens, multiplier)
+	}
+	for i := range data.ModelsHistory.Points {
+		data.ModelsHistory.Points[i].Tokens = scaleRankingVolume(data.ModelsHistory.Points[i].Tokens, multiplier)
+	}
+	for i := range data.ModelsHistory.Models {
+		data.ModelsHistory.Models[i].Total = scaleRankingVolume(data.ModelsHistory.Models[i].Total, multiplier)
+	}
+	for i := range data.VendorShareHistory.Points {
+		data.VendorShareHistory.Points[i].Tokens = scaleRankingVolume(data.VendorShareHistory.Points[i].Tokens, multiplier)
+	}
+	for i := range data.VendorShareHistory.Vendors {
+		data.VendorShareHistory.Vendors[i].Total = scaleRankingVolume(data.VendorShareHistory.Vendors[i].Total, multiplier)
+	}
+}
+
+// scaleRankingVolume multiplies one published volume, rounding to the nearest
+// token and saturating at the int64 boundary instead of wrapping.
+func scaleRankingVolume(volume int64, multiplier float64) int64 {
+	if volume <= 0 {
+		return volume
+	}
+	scaled := math.Round(float64(volume) * multiplier)
+	if scaled >= math.MaxInt64 {
+		return math.MaxInt64
+	}
+	return int64(scaled)
 }
 
 func rankingConfig(period string) (rankingPeriodConfig, error) {

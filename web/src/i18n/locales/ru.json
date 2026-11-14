@@ -8275,6 +8275,15 @@
     "{{source}} {{name}} is not {{value}}": "{{source}} {{name}} ≠ {{value}}",
     "{{source}} {{name}} is present": "{{source}} {{name}} присутствует",
     "{{source}} {{name}} is {{value}}": "{{source}} {{name}} = {{value}}",
-    "{{value}}% off": "−{{value}}%"
+    "{{value}}% off": "−{{value}}%",
+    "Rankings display": "Rankings display",
+    "Scales the token volumes shown on the public rankings page. Billing, logs and every other figure keep the real values.": "Умножает объёмы токенов, отображаемые на публичной странице рейтинга. Биллинг, журналы и все остальные показатели остаются фактическими.",
+    "Enable rankings multiplier": "Включить множитель рейтинга",
+    "Off shows the real token volumes": "При выключении показываются реальные объёмы",
+    "For example 9.8 shows 9.8 times the real volume": "Например, 9.8 покажет объём в 9.8 раза больше реального",
+    "Ranking display multiplier must be a number": "Множитель рейтинга должен быть числом",
+    "Ranking display multiplier must be greater than 0 and at most 1000": "Множитель рейтинга должен быть больше 0 и не более 1000",
+    "Multiplier must be greater than 0": "Множитель должен быть больше 0",
+    "Multiplier must be at most 1000": "Множитель должен быть не более 1000"
   }
 }

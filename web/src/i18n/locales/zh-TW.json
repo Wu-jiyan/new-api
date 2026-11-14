@@ -8275,6 +8275,15 @@
     "{{source}} {{name}} is not {{value}}": "{{source}} {{name}} ≠ {{value}}",
     "{{source}} {{name}} is present": "攜帶{{source}} {{name}}",
     "{{source}} {{name}} is {{value}}": "{{source}} {{name}} = {{value}}",
-    "{{value}}% off": "{{value}}折"
+    "{{value}}% off": "{{value}}折",
+    "Rankings display": "Rankings display",
+    "Scales the token volumes shown on the public rankings page. Billing, logs and every other figure keep the real values.": "依倍數放大公開排行榜顯示的 token 呼叫量。計費、日誌及其他所有資料仍為真實值。",
+    "Enable rankings multiplier": "啟用排行榜倍率",
+    "Off shows the real token volumes": "關閉時顯示真實呼叫量",
+    "For example 9.8 shows 9.8 times the real volume": "例如 9.8 會將顯示量放大到 9.8 倍",
+    "Ranking display multiplier must be a number": "排行榜倍率必須是數字",
+    "Ranking display multiplier must be greater than 0 and at most 1000": "排行榜倍率必須大於 0 且不超過 1000",
+    "Multiplier must be greater than 0": "倍率必須大於 0",
+    "Multiplier must be at most 1000": "倍率不能超過 1000"
   }
 }

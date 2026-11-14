@@ -8275,6 +8275,15 @@
     "{{source}} {{name}} is not {{value}}": "{{source}} {{name}} ≠ {{value}}",
     "{{source}} {{name}} is present": "Có {{source}} {{name}}",
     "{{source}} {{name}} is {{value}}": "{{source}} {{name}} = {{value}}",
-    "{{value}}% off": "Giảm {{value}}%"
+    "{{value}}% off": "Giảm {{value}}%",
+    "Rankings display": "Rankings display",
+    "Scales the token volumes shown on the public rankings page. Billing, logs and every other figure keep the real values.": "Nhân khối lượng token hiển thị trên trang xếp hạng công khai. Hoá đơn, nhật ký và mọi số liệu khác vẫn là giá trị thực.",
+    "Enable rankings multiplier": "Bật hệ số nhân bảng xếp hạng",
+    "Off shows the real token volumes": "Khi tắt sẽ hiển thị khối lượng thực",
+    "For example 9.8 shows 9.8 times the real volume": "Ví dụ 9.8 sẽ hiển thị gấp 9.8 lần khối lượng thực",
+    "Ranking display multiplier must be a number": "Hệ số nhân bảng xếp hạng phải là số",
+    "Ranking display multiplier must be greater than 0 and at most 1000": "Hệ số nhân bảng xếp hạng phải lớn hơn 0 và tối đa 1000",
+    "Multiplier must be greater than 0": "Hệ số nhân phải lớn hơn 0",
+    "Multiplier must be at most 1000": "Hệ số nhân tối đa là 1000"
   }
 }

@@ -8275,6 +8275,15 @@
     "{{source}} {{name}} is not {{value}}": "{{source}} {{name}} ≠ {{value}}",
     "{{source}} {{name}} is present": "{{source}} {{name}} est présent",
     "{{source}} {{name}} is {{value}}": "{{source}} {{name}} = {{value}}",
-    "{{value}}% off": "-{{value}} %"
+    "{{value}}% off": "-{{value}} %",
+    "Rankings display": "Rankings display",
+    "Scales the token volumes shown on the public rankings page. Billing, logs and every other figure keep the real values.": "Multiplie les volumes de tokens affichés sur la page publique du classement. La facturation, les journaux et tous les autres chiffres restent les valeurs réelles.",
+    "Enable rankings multiplier": "Activer le multiplicateur du classement",
+    "Off shows the real token volumes": "Désactivé, les volumes réels sont affichés",
+    "For example 9.8 shows 9.8 times the real volume": "Par exemple 9,8 affiche 9,8 fois le volume réel",
+    "Ranking display multiplier must be a number": "Le multiplicateur du classement doit être un nombre",
+    "Ranking display multiplier must be greater than 0 and at most 1000": "Le multiplicateur du classement doit être supérieur à 0 et au plus 1000",
+    "Multiplier must be greater than 0": "Le multiplicateur doit être supérieur à 0",
+    "Multiplier must be at most 1000": "Le multiplicateur doit être au plus 1000"
   }
 }

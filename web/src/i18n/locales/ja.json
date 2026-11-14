@@ -8275,6 +8275,15 @@
     "{{source}} {{name}} is not {{value}}": "{{source}} {{name}} ≠ {{value}}",
     "{{source}} {{name}} is present": "{{source}} {{name}} あり",
     "{{source}} {{name}} is {{value}}": "{{source}} {{name}} = {{value}}",
-    "{{value}}% off": "{{value}}% オフ"
+    "{{value}}% off": "{{value}}% オフ",
+    "Rankings display": "Rankings display",
+    "Scales the token volumes shown on the public rankings page. Billing, logs and every other figure keep the real values.": "公開ランキングに表示するトークン量を倍率で拡大します。課金・ログなど他の数値は実際の値のままです。",
+    "Enable rankings multiplier": "ランキング倍率を有効にする",
+    "Off shows the real token volumes": "オフの場合は実際のトークン量を表示します",
+    "For example 9.8 shows 9.8 times the real volume": "例えば 9.8 を指定すると実際の 9.8 倍で表示されます",
+    "Ranking display multiplier must be a number": "ランキング倍率は数値で指定してください",
+    "Ranking display multiplier must be greater than 0 and at most 1000": "ランキング倍率は 0 より大きく 1000 以下で指定してください",
+    "Multiplier must be greater than 0": "倍率は 0 より大きくしてください",
+    "Multiplier must be at most 1000": "倍率は 1000 以下にしてください"
   }
 }
