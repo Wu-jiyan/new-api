@@ -263,8 +263,8 @@ export function useFilters(
     return extractAllTags(models)
   }, [models])
 
-  // 折叠只作用于广场的列表与计数。搜索时临时展开，否则按后缀名（如
-  // `gemini-4-argon-high`）精确搜索会得到空结果。
+  // 折叠只作用于广场的列表与计数。开关关闭时搜索也不放宽：本来就是要
+  // 「一个模型一张卡片」，想按 `-high` 这类后缀定位具体变体，先打开开关。
   const countedModels = useMemo(
     () => collapseEffortVariants(models ?? [], showVariants),
     [models, showVariants]
@@ -277,8 +277,7 @@ export function useFilters(
   const filteredModels = useMemo(() => {
     if (!models || models.length === 0) return []
 
-    const visible =
-      showVariants || debouncedSearchInput ? models : countedModels
+    const visible = showVariants ? models : countedModels
 
     return filterAndSortModels(visible, {
       search: debouncedSearchInput,

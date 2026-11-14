@@ -39,6 +39,7 @@ describe('effort variants', () => {
       ['qwen3.6-27b-nonthinking', 'qwen3.6-27b'],
       ['grok-4.20-0309-non-reasoning', 'grok-4.20-0309'],
       ['nova-pro-thinking', 'nova-pro'],
+      ['gpt-5.4-tiered', 'gpt-5.4'],
     ]
     for (const [name, base] of cases) {
       expect(splitEffortVariant(name)?.base).toBe(base)
@@ -97,6 +98,24 @@ describe('effort variants', () => {
       'gemini-4-argon-low',
       'gemini-4-argon-high',
     ])
+  })
+
+  it('treats a -tiered row as the variant of its base model', () => {
+    const models = [
+      { model_name: 'gpt-5.4' },
+      { model_name: 'gpt-5.4-tiered' },
+      { model_name: 'gpt-image-2.5-tiered' },
+    ]
+
+    expect(splitEffortVariant('gpt-5.4-tiered')).toEqual({
+      base: 'gpt-5.4',
+      effort: 'tiered',
+    })
+    // 基础模型在广场里时收起，但一个没有基础模型的 -tiered 行仍然独立展示。
+    expect(
+      collapseEffortVariants(models, false).map((m) => m.model_name)
+    ).toEqual(['gpt-5.4', 'gpt-image-2.5-tiered'])
+    expect([...hiddenEffortVariantNames(models)]).toEqual(['gpt-5.4-tiered'])
   })
 
   it('does not hide a whole family when the base model is absent', () => {

@@ -762,3 +762,84 @@ describe('filter option collapsing', () => {
     expect(moreToggles()).toHaveLength(0)
   })
 })
+
+/** Renders the names the model grid would show, so filtering is observable. */
+function PricingVisibleModels(props: { models: PricingModel[] }) {
+  const filters = useFilters(props.models, {})
+
+  return (
+    <ul aria-label='Visible models'>
+      {filters.filteredModels.map((model) => (
+        <li key={model.model_name}>{model.model_name}</li>
+      ))}
+    </ul>
+  )
+}
+
+async function renderVisibleModels(models: PricingModel[], entry: string) {
+  const root = createRootRoute()
+  const pricing = createRoute({
+    getParentRoute: () => root,
+    path: '/pricing/',
+    component: () => <PricingVisibleModels models={models} />,
+    validateSearch: (search: Record<string, unknown>) => search,
+  })
+  const router = createRouter({
+    routeTree: root.addChildren([pricing]),
+    history: createMemoryHistory({ initialEntries: [entry] }),
+  })
+  render(<RouterProvider router={router} />)
+  await screen.findByRole('list', { name: 'Visible models' })
+}
+
+function variantModel(id: number, modelName: string): PricingModel {
+  return {
+    id,
+    model_name: modelName,
+    vendor_name: 'Vendor A',
+    quota_type: 0,
+    model_ratio: 1,
+    completion_ratio: 1,
+    enable_groups: ['default'],
+    supported_endpoint_types: ['openai'],
+  }
+}
+
+const variantCatalog: PricingModel[] = [
+  variantModel(1, 'gemini-4-argon'),
+  variantModel(2, 'gemini-4-argon-high'),
+  variantModel(3, 'gpt-5.4'),
+  variantModel(4, 'gpt-5.4-tiered'),
+]
+
+describe('effort variant visibility', () => {
+  it('keeps variants hidden while searching when the switch is off', async () => {
+    await renderVisibleModels(variantCatalog, '/pricing/?search=argon-high')
+
+    // 关掉开关后搜索不得把变体放回来，否则「一个模型一张卡片」形同虚设。
+    expect(screen.queryByText('gemini-4-argon-high')).toBeNull()
+  })
+
+  it('shows the searched variant once the switch is on', async () => {
+    await renderVisibleModels(
+      variantCatalog,
+      '/pricing/?search=argon-high&variants=true'
+    )
+
+    expect(screen.getByText('gemini-4-argon-high')).toBeTruthy()
+  })
+
+  it('finds the base model by its own name while variants stay hidden', async () => {
+    await renderVisibleModels(variantCatalog, '/pricing/?search=argon')
+
+    expect(screen.getByText('gemini-4-argon')).toBeTruthy()
+    expect(screen.queryByText('gemini-4-argon-high')).toBeNull()
+  })
+
+  it('collapses a -tiered row into its base model', async () => {
+    await renderVisibleModels(variantCatalog, '/pricing/')
+
+    expect(screen.getByText('gpt-5.4')).toBeTruthy()
+    expect(screen.queryByText('gpt-5.4-tiered')).toBeNull()
+  })
+})
