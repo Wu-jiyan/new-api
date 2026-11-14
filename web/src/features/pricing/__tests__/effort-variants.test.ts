@@ -40,6 +40,7 @@ describe('effort variants', () => {
       ['grok-4.20-0309-non-reasoning', 'grok-4.20-0309'],
       ['nova-pro-thinking', 'nova-pro'],
       ['gpt-5.4-tiered', 'gpt-5.4'],
+      ['gemini-3.1-pro-extra-low', 'gemini-3.1-pro'],
     ]
     for (const [name, base] of cases) {
       expect(splitEffortVariant(name)?.base).toBe(base)
@@ -55,6 +56,11 @@ describe('effort variants', () => {
     expect(splitEffortVariant('gemini-4-hydrogen-xhigh')).toEqual({
       base: 'gemini-4-hydrogen',
       effort: 'xhigh',
+    })
+    // `-extra-low` 自己就长着一条 `-low` 尾巴，截错位置会留下 `…-extra`。
+    expect(splitEffortVariant('gemini-3.1-pro-extra-low')).toEqual({
+      base: 'gemini-3.1-pro',
+      effort: 'extra-low',
     })
   })
 

@@ -106,7 +106,11 @@ func (mi *Model) MatchesName(name string) bool {
 }
 
 // resolveModelMetadata preserves catalog precedence: exact, prefix, suffix,
-// then contains. The first matching record within a rule type wins.
+// then contains. Within a rule type the most specific record wins — the longest
+// prefix, suffix, or substring — because a database returns rows in a physical
+// order that an insert or an update can silently reshuffle. With row order as
+// the tiebreaker, gemini-3.1-pro would take gemini-3.1-pro-preview-* once the
+// broader gemini-3.1-pro row happened to be read first.
 func resolveModelMetadata(records []Model, names []string) map[string]*Model {
 	resolved := make(map[string]*Model)
 	for i := range records {
@@ -115,15 +119,23 @@ func resolveModelMetadata(records []Model, names []string) map[string]*Model {
 		}
 	}
 	for _, rule := range []int{NameRulePrefix, NameRuleSuffix, NameRuleContains} {
-		for i := range records {
-			metadata := &records[i]
-			if metadata.NameRule != rule {
+		for _, name := range names {
+			if _, exists := resolved[name]; exists {
 				continue
 			}
-			for _, name := range names {
-				if _, exists := resolved[name]; !exists && metadata.MatchesName(name) {
-					resolved[name] = metadata
+			var best *Model
+			for i := range records {
+				metadata := &records[i]
+				if metadata.NameRule != rule || !metadata.MatchesName(name) {
+					continue
 				}
+				if best == nil || len(metadata.ModelName) > len(best.ModelName) ||
+					(len(metadata.ModelName) == len(best.ModelName) && metadata.Id < best.Id) {
+					best = metadata
+				}
+			}
+			if best != nil {
+				resolved[name] = best
 			}
 		}
 	}

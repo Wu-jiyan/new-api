@@ -3,6 +3,7 @@ package model
 import (
 	"math"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -269,6 +270,64 @@ func TestPricingExposesOriginalPrice(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(encoded), `"original_price":{`)
 	assert.Contains(t, string(encoded), `"currency":"CNY"`)
+}
+
+// 前缀规则之间按「最长匹配」定胜负，而不是按数据库读回的行顺序：
+// gemini-3.1-pro-preview-* 必须吃 gemini-3.1-pro-preview 那条更具体的规则，
+// 哪怕更宽的 gemini-3.1-pro 是后录入的。行顺序会随插入和更新变化（物理顺序、
+// 更新后元组搬家），所以两种写入顺序都必须解析出同一个结果。
+func TestPricingResolvesTheMostSpecificPrefixMetadata(t *testing.T) {
+	cases := []struct {
+		name  string
+		rules []Model
+	}{
+		{
+			name: "specific rule written first",
+			rules: []Model{
+				{ModelName: "specific-broad-narrow-", NameRule: NameRulePrefix, Status: 1, Description: "specific rule"},
+				{ModelName: "specific-broad-", NameRule: NameRulePrefix, Status: 1, Description: "broad rule"},
+			},
+		},
+		{
+			name: "broad rule written first",
+			rules: []Model{
+				{ModelName: "specific-broad-", NameRule: NameRulePrefix, Status: 1, Description: "broad rule"},
+				{ModelName: "specific-broad-narrow-", NameRule: NameRulePrefix, Status: 1, Description: "specific rule"},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setupCharacterChatModelDB(t)
+			require.NoError(t, DB.AutoMigrate(&Model{}, &Channel{}, &Ability{}, &Vendor{}, &Option{}))
+			InvalidatePricingCache()
+			t.Cleanup(InvalidatePricingCache)
+
+			require.NoError(t, DB.Create(&Channel{
+				Id: 1, Type: 1, Key: "sk-test", Name: "prefix-rule-channel",
+				Models: "specific-broad-narrow-model,specific-broad-plain",
+				Group:  "default", Status: common.ChannelStatusEnabled,
+			}).Error)
+			for _, name := range []string{"specific-broad-narrow-model", "specific-broad-plain"} {
+				require.NoError(t, DB.Create(&Ability{Group: "default", Model: name, ChannelId: 1, Enabled: true}).Error)
+			}
+			for i := range tc.rules {
+				rule := tc.rules[i]
+				require.NoError(t, rule.Insert())
+			}
+
+			descriptions := make(map[string]string)
+			for _, item := range GetPricing() {
+				if strings.HasPrefix(item.ModelName, "specific-broad") {
+					descriptions[item.ModelName] = item.Description
+				}
+			}
+			// 两条前缀都命中，更具体的那条赢。
+			assert.Equal(t, "specific rule", descriptions["specific-broad-narrow-model"])
+			// 只被宽规则命中的模型不受影响。
+			assert.Equal(t, "broad rule", descriptions["specific-broad-plain"])
+		})
+	}
 }
 
 // legacyModel 是「上一版」models 表的形状：有元信息与评分列，

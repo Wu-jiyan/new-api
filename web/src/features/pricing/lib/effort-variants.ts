@@ -19,9 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 /**
  * Reasoning-effort suffixes a provider appends to a model name.
  *
- * Longer suffixes come first: `-nonthinking` must win over `-thinking`, and
- * `-xhigh` over `-high`, otherwise a variant would be chopped at the wrong
- * place and produce a base name that does not exist.
+ * Longer suffixes come first: `-nonthinking` must win over `-thinking`,
+ * `-xhigh` over `-high`, and `-extra-low` over `-low`, otherwise a variant would
+ * be chopped at the wrong place and produce a base name that does not exist.
  *
  * `-tiered` is a pricing-mode marker rather than an effort level, but it is a
  * variant of the same base model, so it collapses with the rest.
@@ -35,6 +35,7 @@ const EFFORT_SUFFIXES = [
   '-xhigh',
   '-thinking',
   '-high',
+  '-extra-low',
   '-low',
   '-tiered',
   '-max',
