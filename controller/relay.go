@@ -348,7 +348,7 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 		return nil, types.NewError(errors.New(i18n.T(c, i18n.MsgRelayRetryGetChannelFailed, map[string]any{"Group": selectGroup, "Model": info.OriginModelName, "Error": err.Error()})), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
 	if channel == nil {
-		return nil, types.NewError(errors.New(i18n.T(c, i18n.MsgRelayRetryNoAvailableChannel, map[string]any{"Group": selectGroup, "Model": info.OriginModelName})), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		return nil, channelSelectionFailedError(c, info, selectGroup)
 	}
 
 	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
@@ -359,6 +359,22 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 		return nil, newAPIError
 	}
 	return channel, nil
+}
+
+// channelSelectionFailedError reports why an attempt found no channel to use.
+// When an earlier attempt already failed, its error is the answer: reporting
+// only "no available channel" reads like a configuration problem and hides the
+// upstream failure that consumed the retry budget.
+func channelSelectionFailedError(c *gin.Context, info *relaycommon.RelayInfo, selectGroup string) *types.NewAPIError {
+	if lastError := info.LastError; lastError != nil {
+		logger.LogError(c, i18n.T(c, i18n.MsgRelayRetryChannelExhausted, map[string]any{
+			"Group": selectGroup,
+			"Model": info.OriginModelName,
+			"Error": lastError.ErrorWithStatusCode(),
+		}))
+		return lastError.MarkSkipRetry()
+	}
+	return types.NewError(errors.New(i18n.T(c, i18n.MsgRelayRetryNoAvailableChannel, map[string]any{"Group": selectGroup, "Model": info.OriginModelName})), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError, relayInfo *relaycommon.RelayInfo) {

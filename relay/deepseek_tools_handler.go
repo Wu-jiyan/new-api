@@ -20,6 +20,23 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// toolsRequestRejectedStatus reports whether an upstream status describes the
+// request itself rather than the channel: the Search API refused the query, or
+// the Fetch API could not retrieve the URL. Every channel answers such a
+// request the same way, so it must not consume the retry budget.
+func toolsRequestRejectedStatus(status int) bool {
+	switch status {
+	case http.StatusBadRequest,
+		http.StatusForbidden,
+		http.StatusNotFound,
+		http.StatusMethodNotAllowed,
+		http.StatusGone,
+		http.StatusUnprocessableEntity:
+		return true
+	}
+	return false
+}
+
 // DeepSeekToolsHelper relays the DeepSeek Search and Fetch APIs like
 // /v1/alpha/search: the raw body is forwarded, the response is returned
 // unchanged, and the call is billed at the routing name's request price with
@@ -104,6 +121,13 @@ func DeepSeekToolsHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErr
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
 		newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		// A rejected query or an unfetchable target is answered the same way by
+		// every channel, so the answer is returned instead of spent on a retry.
+		// Retrying it used to end in "no available channel" whenever the model
+		// had a single channel, hiding the real upstream message.
+		if toolsRequestRejectedStatus(newAPIError.StatusCode) {
+			newAPIError.MarkSkipRetry()
+		}
 		return newAPIError
 	}
 

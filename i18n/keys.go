@@ -50,6 +50,7 @@ const (
 	MsgRelayGroupUpstreamSaturated       = "relay.group_upstream_saturated"
 	MsgRelayRetryGetChannelFailed        = "relay.retry_get_channel_failed"
 	MsgRelayRetryNoAvailableChannel      = "relay.retry_no_available_channel"
+	MsgRelayRetryChannelExhausted        = "relay.retry_channel_exhausted"
 	MsgRelayAccessTokenUnsupported       = "relay.access_token_unsupported"
 	MsgRelayRequestRejected              = "relay.request_rejected"
 	MsgRelayRequestPluginFailed          = "relay.request_plugin_failed"

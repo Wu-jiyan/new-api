@@ -392,6 +392,15 @@ func ErrOptionWithSkipRetry() NewAPIErrorOptions {
 	}
 }
 
+// MarkSkipRetry marks an error that no other channel can resolve, so the relay
+// loop reports it to the client instead of spending another attempt.
+func (e *NewAPIError) MarkSkipRetry() *NewAPIError {
+	if e != nil {
+		e.skipRetry = true
+	}
+	return e
+}
+
 func ErrOptionWithNoRecordErrorLog() NewAPIErrorOptions {
 	return func(e *NewAPIError) {
 		e.recordErrorLog = kitutil.GetPointer(false)

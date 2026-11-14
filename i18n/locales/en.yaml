@@ -40,6 +40,7 @@ relay.group_saturated: "The current group is at capacity. Please try again later
 relay.group_upstream_saturated: "The upstream of the current group is at capacity. Please try again later"
 relay.retry_get_channel_failed: "Failed to get available channel for model {{.Model}} under group {{.Group}} (retry): {{.Error}}"
 relay.retry_no_available_channel: "No available channel for model {{.Model}} under group {{.Group}} (retry)"
+relay.retry_channel_exhausted: "No other channel left to retry for model {{.Model}} under group {{.Group}}; the previous upstream error follows: {{.Error}}"
 relay.access_token_unsupported: "Access tokens are not supported here"
 relay.request_rejected: "Request rejected by policy"
 relay.request_plugin_failed: "A request plugin failed"
