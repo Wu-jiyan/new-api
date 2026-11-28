@@ -27,7 +27,7 @@ func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, fo
 	}
 
 	if !forceFormat && !thinkToContent {
-		return helper.StringData(c, data)
+		return helper.StringData(c, info.RewriteResponseModelName(data))
 	}
 
 	var lastStreamResponse dto.ChatCompletionsStreamResponse
@@ -285,6 +285,15 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	}
 
 	info.ObserveResponseModel(simpleResponse.Model)
+	// 渠道映射不应泄漏给客户端：开关开启时把响应体里的真实模型名换成请求名。
+	// 解析出的结构体也要同步，convert 与强格式化路径都从它重建响应。
+	responseModelName := info.ResponseModelName()
+	if responseModelName != "" && responseModelName != simpleResponse.Model {
+		if rewritten := info.RewriteResponseModelName(string(responseBody)); rewritten != string(responseBody) {
+			responseBody = []byte(rewritten)
+		}
+		simpleResponse.Model = responseModelName
+	}
 	for _, choice := range simpleResponse.Choices {
 		if choice.FinishReason == constant.FinishReasonContentFilter {
 			info.PerformanceBusinessRejection = true

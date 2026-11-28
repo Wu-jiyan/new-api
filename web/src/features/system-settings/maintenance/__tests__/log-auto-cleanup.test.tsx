@@ -56,6 +56,8 @@ function renderSection(
               overrides.autoCleanupEnabled ?? false,
             'log_cleanup_setting.retention_days': overrides.retentionDays ?? 0,
             'system_task_setting.retention_days': 30,
+            'response_model_setting.user_visible': true,
+            'response_model_setting.rewrite_enabled': true,
           }}
         />
       </SettingsPageProvider>

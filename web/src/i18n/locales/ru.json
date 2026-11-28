@@ -8358,6 +8358,11 @@
     "Every model in the selected groups": "Все модели выбранных групп",
     "Leave empty to advertise every model the plan groups serve. Picking models narrows which requests may consume this quota, and the options follow the groups above.": "Оставьте пустым, чтобы показывать все модели групп плана. Выбор моделей ограничивает, какие запросы могут расходовать эту квоту; варианты следуют за группами выше.",
     "Plugin routes": "Маршруты плагина",
-    "{{on}} of {{total}} on": "Включено {{on}} из {{total}}"
+    "{{on}} of {{total}} on": "Включено {{on}} из {{total}}",
+    "Response model name": "Имя модели в ответе",
+    "Let users see the routed and returned model": "Показывать пользователям маршрутизированную и возвращённую модель",
+    "Shows the model the request was routed to and the model the upstream reported in the usage log. Administrators always see them.": "Показывает в журнале использования модель, в которую был маршрутизирован запрос, и модель, которую вернул upstream. Администраторы видят их всегда.",
+    "Return the requested model name in responses": "Возвращать в ответе запрошенное имя модели",
+    "When a channel maps the model, responses carry the name the caller requested instead of the upstream name.": "Если канал сопоставляет модель, в ответе будет имя, запрошенное клиентом, а не имя upstream."
   }
 }

@@ -8358,6 +8358,11 @@
     "Every model in the selected groups": "Tous les modèles des groupes sélectionnés",
     "Leave empty to advertise every model the plan groups serve. Picking models narrows which requests may consume this quota, and the options follow the groups above.": "Laissez vide pour annoncer tous les modèles des groupes du forfait. Une sélection restreint les requêtes pouvant consommer ce quota, et les options suivent les groupes ci-dessus.",
     "Plugin routes": "Routes du plugin",
-    "{{on}} of {{total}} on": "{{on}} sur {{total}} activées"
+    "{{on}} of {{total}} on": "{{on}} sur {{total}} activées",
+    "Response model name": "Nom du modèle dans la réponse",
+    "Let users see the routed and returned model": "Laisser les utilisateurs voir le modèle routé et renvoyé",
+    "Shows the model the request was routed to and the model the upstream reported in the usage log. Administrators always see them.": "Affiche dans le journal d'utilisation le modèle vers lequel la requête a été routée et le modèle renvoyé par l'amont. Les administrateurs les voient toujours.",
+    "Return the requested model name in responses": "Renvoyer dans la réponse le nom de modèle demandé",
+    "When a channel maps the model, responses carry the name the caller requested instead of the upstream name.": "Lorsqu'un canal mappe le modèle, la réponse porte le nom demandé par l'appelant au lieu du nom amont."
   }
 }

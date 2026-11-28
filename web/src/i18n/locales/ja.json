@@ -8358,6 +8358,11 @@
     "Every model in the selected groups": "選択したグループの全モデル",
     "Leave empty to advertise every model the plan groups serve. Picking models narrows which requests may consume this quota, and the options follow the groups above.": "空欄にするとプランのグループが提供する全モデルを表示します。モデルを選ぶとそのモデルのリクエストのみがこの枠を消費でき、選択肢は上のグループに従います。",
     "Plugin routes": "プラグインルート",
-    "{{on}} of {{total}} on": "{{total}} 件中 {{on}} 件オン"
+    "{{on}} of {{total}} on": "{{total}} 件中 {{on}} 件オン",
+    "Response model name": "応答のモデル名",
+    "Let users see the routed and returned model": "ルーティング先と応答のモデルをユーザーに表示する",
+    "Shows the model the request was routed to and the model the upstream reported in the usage log. Administrators always see them.": "使用ログに、リクエストのルーティング先モデルと上流が返したモデルを表示します。管理者は常に閲覧できます。",
+    "Return the requested model name in responses": "応答で要求されたモデル名を返す",
+    "When a channel maps the model, responses carry the name the caller requested instead of the upstream name.": "チャネルがモデルをマッピングしている場合、応答には上流の名前ではなく呼び出し元が要求した名前を含めます。"
   }
 }

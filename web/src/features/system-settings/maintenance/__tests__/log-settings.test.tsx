@@ -47,6 +47,8 @@ function Fixture() {
             'log_cleanup_setting.enabled': false,
             'log_cleanup_setting.retention_days': 30,
             'system_task_setting.retention_days': 30,
+            'response_model_setting.user_visible': true,
+            'response_model_setting.rewrite_enabled': true,
           }}
         />
       </SettingsPageProvider>
@@ -88,6 +90,7 @@ test('the page shows the log modules in order, each with its own controls', asyn
     screen.getAllByRole('heading', { level: 4 }).map((h) => h.textContent)
   ).toEqual([
     'Log recording',
+    'Response model name',
     'Log search and export',
     'Automatic log cleanup',
     'System task records',
@@ -98,6 +101,20 @@ test('the page shows the log modules in order, each with its own controls', asyn
   expect(within(recording).getAllByRole('switch')).toHaveLength(1)
   expect(
     within(recording).getByRole('switch', { name: 'Record quota usage' })
+  ).toBeVisible()
+  const responseModel = screen.getByRole('group', {
+    name: 'Response model name',
+  })
+  expect(within(responseModel).getAllByRole('switch')).toHaveLength(2)
+  expect(
+    within(responseModel).getByRole('switch', {
+      name: 'Let users see the routed and returned model',
+    })
+  ).toBeVisible()
+  expect(
+    within(responseModel).getByRole('switch', {
+      name: 'Return the requested model name in responses',
+    })
   ).toBeVisible()
   const search = screen.getByRole('group', { name: 'Log search and export' })
   expect(

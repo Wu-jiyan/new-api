@@ -8358,6 +8358,11 @@
     "Every model in the selected groups": "Every model in the selected groups",
     "Leave empty to advertise every model the plan groups serve. Picking models narrows which requests may consume this quota, and the options follow the groups above.": "Leave empty to advertise every model the plan groups serve. Picking models narrows which requests may consume this quota, and the options follow the groups above.",
     "Plugin routes": "Plugin routes",
-    "{{on}} of {{total}} on": "{{on}} of {{total}} on"
+    "{{on}} of {{total}} on": "{{on}} of {{total}} on",
+    "Response model name": "Response model name",
+    "Let users see the routed and returned model": "Let users see the routed and returned model",
+    "Shows the model the request was routed to and the model the upstream reported in the usage log. Administrators always see them.": "Shows the model the request was routed to and the model the upstream reported in the usage log. Administrators always see them.",
+    "Return the requested model name in responses": "Return the requested model name in responses",
+    "When a channel maps the model, responses carry the name the caller requested instead of the upstream name.": "When a channel maps the model, responses carry the name the caller requested instead of the upstream name."
   }
 }

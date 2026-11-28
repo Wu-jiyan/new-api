@@ -8358,6 +8358,11 @@
     "Every model in the selected groups": "所選分組內的全部模型",
     "Leave empty to advertise every model the plan groups serve. Picking models narrows which requests may consume this quota, and the options follow the groups above.": "留空則展示方案分組下的全部模型。選中模型後，只有這些模型的請求能消耗此額度；可選項跟隨上方分組。",
     "Plugin routes": "外掛路由",
-    "{{on}} of {{total}} on": "已開啟 {{on}}/{{total}}"
+    "{{on}} of {{total}} on": "已開啟 {{on}}/{{total}}",
+    "Response model name": "回應模型名",
+    "Let users see the routed and returned model": "允許使用者查看轉發模型與回傳模型",
+    "Shows the model the request was routed to and the model the upstream reported in the usage log. Administrators always see them.": "在使用日誌裡顯示該請求被轉發到的模型，以及上游實際回傳的模型。管理員始終可見。",
+    "Return the requested model name in responses": "回應中回傳請求的模型名",
+    "When a channel maps the model, responses carry the name the caller requested instead of the upstream name.": "渠道做了模型對應時，回應裡帶上呼叫方請求的模型名，而不是上游的模型名。"
   }
 }

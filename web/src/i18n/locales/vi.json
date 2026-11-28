@@ -8358,6 +8358,11 @@
     "Every model in the selected groups": "Mọi mô hình trong các nhóm đã chọn",
     "Leave empty to advertise every model the plan groups serve. Picking models narrows which requests may consume this quota, and the options follow the groups above.": "Để trống để hiển thị mọi mô hình mà các nhóm của gói phục vụ. Chọn mô hình sẽ giới hạn những yêu cầu nào được dùng hạn mức này; các lựa chọn đi theo nhóm phía trên.",
     "Plugin routes": "Tuyến của plugin",
-    "{{on}} of {{total}} on": "Đã bật {{on}}/{{total}}"
+    "{{on}} of {{total}} on": "Đã bật {{on}}/{{total}}",
+    "Response model name": "Tên mô hình trong phản hồi",
+    "Let users see the routed and returned model": "Cho phép người dùng xem mô hình định tuyến và mô hình trả về",
+    "Shows the model the request was routed to and the model the upstream reported in the usage log. Administrators always see them.": "Hiển thị trong nhật ký sử dụng mô hình mà yêu cầu được định tuyến tới và mô hình mà upstream trả về. Quản trị viên luôn thấy.",
+    "Return the requested model name in responses": "Trả về tên mô hình đã yêu cầu trong phản hồi",
+    "When a channel maps the model, responses carry the name the caller requested instead of the upstream name.": "Khi kênh ánh xạ mô hình, phản hồi mang tên mà bên gọi yêu cầu thay vì tên của upstream."
   }
 }

@@ -130,6 +130,10 @@ const OPERATIONS_SECTIONS = [
             settings['log_cleanup_setting.retention_days'] ?? 0,
           'system_task_setting.retention_days':
             settings['system_task_setting.retention_days'] ?? 30,
+          'response_model_setting.user_visible':
+            settings['response_model_setting.user_visible'] ?? true,
+          'response_model_setting.rewrite_enabled':
+            settings['response_model_setting.rewrite_enabled'] ?? true,
         }}
       />
     ),

@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -262,4 +263,71 @@ func TestResponseModelDoesNotRecordSynthesizedModel(t *testing.T) {
 	})
 	require.Nil(t, apiErr)
 	assert.Nil(t, info.ResponseModel)
+}
+
+// The operator decides whether a regular user may read the routed and returned
+// model names, and whether a response repeats the caller's own model name.
+func TestResponseModelSettingsControlVisibilityAndRewrite(t *testing.T) {
+	settings := operation_setting.GetResponseModelSetting()
+	previousVisible, previousRewrite := settings.UserVisible, settings.RewriteEnabled
+	t.Cleanup(func() {
+		settings.UserVisible, settings.RewriteEnabled = previousVisible, previousRewrite
+	})
+
+	newInfo := func() *relaycommon.RelayInfo {
+		info := &relaycommon.RelayInfo{
+			OriginModelName: "requested",
+			ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: "mapped", IsModelMapped: true},
+		}
+		info.ObserveResponseModel("real-model")
+		return info
+	}
+
+	t.Run("users read the model names when the operator allows it", func(t *testing.T) {
+		settings.UserVisible = true
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		other := service.GenerateTextOtherInfo(c, newInfo(), 1, 1, 1, 0, 0, 0, 1)
+		var stored struct {
+			ResponseModel *relaycommon.ResponseModel `json:"response_model"`
+		}
+		require.NoError(t, common.UnmarshalJsonStr(other.JSONString(), &stored))
+		require.NotNil(t, stored.ResponseModel)
+		assert.Equal(t, "real-model", stored.ResponseModel.ReturnedModel)
+	})
+
+	t.Run("hiding it leaves the names to administrators", func(t *testing.T) {
+		settings.UserVisible = false
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		other := service.GenerateTextOtherInfo(c, newInfo(), 1, 1, 1, 0, 0, 0, 1)
+		raw := other.JSONString()
+		var top struct {
+			ResponseModel *relaycommon.ResponseModel `json:"response_model"`
+		}
+		require.NoError(t, common.UnmarshalJsonStr(raw, &top))
+		assert.Nil(t, top.ResponseModel, "a hidden name is not a top-level field")
+		assert.Contains(t, raw, "admin_info")
+	})
+
+	t.Run("a response carries the requested name while rewriting is on", func(t *testing.T) {
+		settings.RewriteEnabled = true
+		info := newInfo()
+		body := `{"id":"x","model":"mapped","choices":[]}`
+		assert.Equal(t, "requested", info.ResponseModelName())
+		assert.Equal(t, `{"id":"x","model":"requested","choices":[]}`, info.RewriteResponseModelName(body))
+	})
+
+	t.Run("rewriting off keeps the routed name", func(t *testing.T) {
+		settings.RewriteEnabled = false
+		info := newInfo()
+		body := `{"id":"x","model":"mapped","choices":[]}`
+		assert.Equal(t, "mapped", info.ResponseModelName())
+		assert.Equal(t, body, info.RewriteResponseModelName(body))
+	})
+
+	t.Run("a body without the routed name is returned untouched", func(t *testing.T) {
+		settings.RewriteEnabled = true
+		info := newInfo()
+		body := `{"id":"x","model":"another","choices":[]}`
+		assert.Equal(t, body, info.RewriteResponseModelName(body))
+	})
 }

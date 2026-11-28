@@ -67,6 +67,10 @@ const logSettingsSchema = z.object({
   system_task_setting: z.object({
     retention_days: z.number().int().min(1),
   }),
+  response_model_setting: z.object({
+    user_visible: z.boolean(),
+    rewrite_enabled: z.boolean(),
+  }),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
@@ -79,6 +83,8 @@ type LogSettingsSectionProps = {
     'log_cleanup_setting.enabled': boolean
     'log_cleanup_setting.retention_days': number
     'system_task_setting.retention_days': number
+    'response_model_setting.user_visible': boolean
+    'response_model_setting.rewrite_enabled': boolean
   }
 }
 
@@ -87,6 +93,7 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
   const updateOption = useUpdateOption()
   const recordingTitleId = useId()
   const searchTitleId = useId()
+  const responseModelTitleId = useId()
   const retentionTitleId = useId()
   const taskHistoryTitleId = useId()
   const formDefaults = useMemo<LogSettingsFormValues>(
@@ -102,6 +109,12 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
       system_task_setting: {
         retention_days:
           props.defaultValues['system_task_setting.retention_days'],
+      },
+      response_model_setting: {
+        user_visible:
+          props.defaultValues['response_model_setting.user_visible'],
+        rewrite_enabled:
+          props.defaultValues['response_model_setting.rewrite_enabled'],
       },
     }),
     [props.defaultValues]
@@ -170,6 +183,24 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
         value: values.system_task_setting.retention_days,
       })
     }
+    if (
+      values.response_model_setting.user_visible !==
+      props.defaultValues['response_model_setting.user_visible']
+    ) {
+      updates.push({
+        key: 'response_model_setting.user_visible',
+        value: values.response_model_setting.user_visible,
+      })
+    }
+    if (
+      values.response_model_setting.rewrite_enabled !==
+      props.defaultValues['response_model_setting.rewrite_enabled']
+    ) {
+      updates.push({
+        key: 'response_model_setting.rewrite_enabled',
+        value: values.response_model_setting.rewrite_enabled,
+      })
+    }
 
     if (updates.length === 0) {
       toast.info(t('No changes to save'))
@@ -223,6 +254,70 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
                 </SettingsSwitchItem>
               )}
             />
+          </div>
+
+          <Separator />
+
+          <div
+            role='group'
+            aria-labelledby={responseModelTitleId}
+            className='flex min-w-0 flex-col gap-4'
+          >
+            <h4 id={responseModelTitleId} className='font-medium'>
+              {t('Response model name')}
+            </h4>
+            <SettingsFormGrid>
+              <FormField
+                control={form.control}
+                name='response_model_setting.user_visible'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>
+                        {t('Let users see the routed and returned model')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Shows the model the request was routed to and the model the upstream reported in the usage log. Administrators always see them.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </SettingsSwitchItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='response_model_setting.rewrite_enabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>
+                        {t('Return the requested model name in responses')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'When a channel maps the model, responses carry the name the caller requested instead of the upstream name.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </SettingsSwitchItem>
+                )}
+              />
+            </SettingsFormGrid>
           </div>
 
           <Separator />

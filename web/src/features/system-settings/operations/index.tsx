@@ -57,6 +57,8 @@ const defaultOperationsSettings: OperationsSettings = {
   'log_setting.user_export_enabled': true,
   'log_setting.max_range_days': 365,
   'system_task_setting.retention_days': 30,
+  'response_model_setting.user_visible': true,
+  'response_model_setting.rewrite_enabled': true,
   'ranking_display_setting.multiplier_enabled': false,
   'ranking_display_setting.multiplier': 1,
   'performance_setting.disk_cache_enabled': false,

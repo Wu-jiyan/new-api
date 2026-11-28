@@ -425,6 +425,8 @@ export type OperationsSettings = {
   'log_setting.user_export_enabled': boolean
   'log_setting.max_range_days': number
   'system_task_setting.retention_days': number
+  'response_model_setting.user_visible': boolean
+  'response_model_setting.rewrite_enabled': boolean
   'ranking_display_setting.multiplier_enabled': boolean
   'ranking_display_setting.multiplier': number
   'performance_setting.disk_cache_enabled': boolean
