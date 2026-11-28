@@ -48,6 +48,7 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { getServerMessage } from '@/lib/server-error-message'
@@ -260,7 +261,7 @@ export function UserSubscriptionsDialog(props: Props) {
               <Combobox
                 options={plans.map((p) => ({
                   value: String(p.plan.id),
-                  label: `${p.plan.title} ($${Number(p.plan.price_amount || 0).toFixed(2)})`,
+                  label: `${p.plan.title} (${formatBillingCurrencyFromUSD(Number(p.plan.price_amount || 0))})`,
                 }))}
                 value={selectedPlanId}
                 onValueChange={(v) => v !== null && setSelectedPlanId(v)}
