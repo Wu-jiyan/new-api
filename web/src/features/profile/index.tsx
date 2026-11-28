@@ -68,6 +68,11 @@ export function Profile() {
   // Older cached status payloads lack these fields; the site default is on.
   const quotaRemindEnabled = status?.quota_remind_enabled !== false
   const quotaRemindThreshold = status?.quota_remind_threshold ?? 0
+  // The right column holds the check-in calendar and the sidebar personalisation.
+  // A root user has no sidebar settings to configure, and check-in may be off, so
+  // the column can be empty: reserving it then leaves a blank strip beside the
+  // settings cards instead of letting them use the width.
+  const hasRightColumn = checkinEnabled || canConfigureSidebar
 
   return (
     <Main>
@@ -78,7 +83,14 @@ export function Profile() {
           </CardStaggerItem>
 
           <CardStaggerItem>
-            <div className='grid gap-4 sm:gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.46fr)] xl:items-start'>
+            <div
+              data-testid='profile-columns'
+              className={
+                hasRightColumn
+                  ? 'grid gap-4 sm:gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.46fr)] xl:items-start'
+                  : 'space-y-4 sm:space-y-6'
+              }
+            >
               <div className='space-y-4 sm:space-y-6'>
                 <ProfileSettingsCard
                   profile={profile}
@@ -93,17 +105,19 @@ export function Profile() {
                 />
               </div>
 
-              <div className='space-y-4 sm:space-y-6 xl:sticky xl:top-6'>
-                {checkinEnabled && (
-                  <CheckinCalendarCard
-                    checkinEnabled={checkinEnabled}
-                    captchaEnabled={captchaEnabled}
-                    captchaProvider={captchaProvider}
-                    captchaSiteKey={captchaSiteKey}
-                  />
-                )}
-                {canConfigureSidebar && <SidebarModulesCard />}
-              </div>
+              {hasRightColumn && (
+                <div className='space-y-4 sm:space-y-6 xl:sticky xl:top-6'>
+                  {checkinEnabled && (
+                    <CheckinCalendarCard
+                      checkinEnabled={checkinEnabled}
+                      captchaEnabled={captchaEnabled}
+                      captchaProvider={captchaProvider}
+                      captchaSiteKey={captchaSiteKey}
+                    />
+                  )}
+                  {canConfigureSidebar && <SidebarModulesCard />}
+                </div>
+              )}
             </div>
           </CardStaggerItem>
         </CardStaggerContainer>
