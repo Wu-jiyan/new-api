@@ -41,6 +41,20 @@ export async function getAdminPlans(): Promise<ApiResponse<PlanRecord[]>> {
   return res.data
 }
 
+/**
+ * Models an administrator may pin on a plan, bounded to the groups that plan
+ * covers. An empty group list returns every model the station serves.
+ */
+export async function getPlanModelOptions(
+  groups: string[]
+): Promise<ApiResponse<string[]>> {
+  const res = await api.get('/api/subscription/admin/plan-model-options', {
+    params: { group: groups },
+    paramsSerializer: { indexes: null },
+  })
+  return res.data
+}
+
 export async function createPlan(
   data: PlanPayload
 ): Promise<ApiResponse<PlanRecord>> {

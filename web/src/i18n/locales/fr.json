@@ -8317,6 +8317,10 @@
     "Ranking display multiplier must be a number": "Le multiplicateur du classement doit être un nombre",
     "Ranking display multiplier must be greater than 0 and at most 1000": "Le multiplicateur du classement doit être supérieur à 0 et au plus 1000",
     "Multiplier must be greater than 0": "Le multiplicateur doit être supérieur à 0",
-    "Multiplier must be at most 1000": "Le multiplicateur doit être au plus 1000"
+    "Multiplier must be at most 1000": "Le multiplicateur doit être au plus 1000",
+    "View all available models": "Voir tous les modèles disponibles",
+    "{{n}} models can consume this plan": "{{n}} modèles peuvent consommer ce forfait",
+    "Every model in the selected groups": "Tous les modèles des groupes sélectionnés",
+    "Leave empty to advertise every model the plan groups serve. Picking models narrows which requests may consume this quota, and the options follow the groups above.": "Laissez vide pour annoncer tous les modèles des groupes du forfait. Une sélection restreint les requêtes pouvant consommer ce quota, et les options suivent les groupes ci-dessus."
   }
 }

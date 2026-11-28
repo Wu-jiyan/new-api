@@ -8317,6 +8317,10 @@
     "Ranking display multiplier must be a number": "ランキング倍率は数値で指定してください",
     "Ranking display multiplier must be greater than 0 and at most 1000": "ランキング倍率は 0 より大きく 1000 以下で指定してください",
     "Multiplier must be greater than 0": "倍率は 0 より大きくしてください",
-    "Multiplier must be at most 1000": "倍率は 1000 以下にしてください"
+    "Multiplier must be at most 1000": "倍率は 1000 以下にしてください",
+    "View all available models": "利用可能なモデルをすべて表示",
+    "{{n}} models can consume this plan": "{{n}} 個のモデルがこのプランを消費できます",
+    "Every model in the selected groups": "選択したグループの全モデル",
+    "Leave empty to advertise every model the plan groups serve. Picking models narrows which requests may consume this quota, and the options follow the groups above.": "空欄にするとプランのグループが提供する全モデルを表示します。モデルを選ぶとそのモデルのリクエストのみがこの枠を消費でき、選択肢は上のグループに従います。"
   }
 }

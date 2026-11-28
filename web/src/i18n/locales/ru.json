@@ -8317,6 +8317,10 @@
     "Ranking display multiplier must be a number": "Множитель рейтинга должен быть числом",
     "Ranking display multiplier must be greater than 0 and at most 1000": "Множитель рейтинга должен быть больше 0 и не более 1000",
     "Multiplier must be greater than 0": "Множитель должен быть больше 0",
-    "Multiplier must be at most 1000": "Множитель должен быть не более 1000"
+    "Multiplier must be at most 1000": "Множитель должен быть не более 1000",
+    "View all available models": "Показать все доступные модели",
+    "{{n}} models can consume this plan": "{{n}} моделей могут расходовать этот план",
+    "Every model in the selected groups": "Все модели выбранных групп",
+    "Leave empty to advertise every model the plan groups serve. Picking models narrows which requests may consume this quota, and the options follow the groups above.": "Оставьте пустым, чтобы показывать все модели групп плана. Выбор моделей ограничивает, какие запросы могут расходовать эту квоту; варианты следуют за группами выше."
   }
 }

@@ -8317,6 +8317,10 @@
     "Ranking display multiplier must be a number": "Hệ số nhân bảng xếp hạng phải là số",
     "Ranking display multiplier must be greater than 0 and at most 1000": "Hệ số nhân bảng xếp hạng phải lớn hơn 0 và tối đa 1000",
     "Multiplier must be greater than 0": "Hệ số nhân phải lớn hơn 0",
-    "Multiplier must be at most 1000": "Hệ số nhân tối đa là 1000"
+    "Multiplier must be at most 1000": "Hệ số nhân tối đa là 1000",
+    "View all available models": "Xem tất cả mô hình khả dụng",
+    "{{n}} models can consume this plan": "{{n}} mô hình có thể dùng gói này",
+    "Every model in the selected groups": "Mọi mô hình trong các nhóm đã chọn",
+    "Leave empty to advertise every model the plan groups serve. Picking models narrows which requests may consume this quota, and the options follow the groups above.": "Để trống để hiển thị mọi mô hình mà các nhóm của gói phục vụ. Chọn mô hình sẽ giới hạn những yêu cầu nào được dùng hạn mức này; các lựa chọn đi theo nhóm phía trên."
   }
 }

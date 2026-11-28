@@ -8317,6 +8317,10 @@
     "Ranking display multiplier must be a number": "Ranking display multiplier must be a number",
     "Ranking display multiplier must be greater than 0 and at most 1000": "Ranking display multiplier must be greater than 0 and at most 1000",
     "Multiplier must be greater than 0": "Multiplier must be greater than 0",
-    "Multiplier must be at most 1000": "Multiplier must be at most 1000"
+    "Multiplier must be at most 1000": "Multiplier must be at most 1000",
+    "View all available models": "View all available models",
+    "{{n}} models can consume this plan": "{{n}} models can consume this plan",
+    "Every model in the selected groups": "Every model in the selected groups",
+    "Leave empty to advertise every model the plan groups serve. Picking models narrows which requests may consume this quota, and the options follow the groups above.": "Leave empty to advertise every model the plan groups serve. Picking models narrows which requests may consume this quota, and the options follow the groups above."
   }
 }

@@ -213,6 +213,11 @@ type SubscriptionPlan struct {
 	QuotaResetPeriod        string `json:"quota_reset_period" gorm:"type:varchar(16);default:'never'"`
 	QuotaResetCustomSeconds int64  `json:"quota_reset_custom_seconds" gorm:"type:bigint;default:0"`
 
+	// AvailableModels is filled per response for display: the models this plan
+	// covers. It is never persisted; the administrator's own restriction lives in
+	// UsableModels and an empty UsableModels means "follow the plan's groups".
+	AvailableModels []string `json:"available_models,omitempty" gorm:"-"`
+
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
 }
@@ -236,6 +241,77 @@ func (p *SubscriptionPlan) NormalizeDefaults() {
 	if p.AllowWalletOverflow == nil {
 		p.AllowWalletOverflow = common.GetPointer(true)
 	}
+}
+
+// SubscriptionPlanGroups returns the groups a plan's quota applies to: the
+// groups it is allowed to pay for plus the group it upgrades the buyer into. An
+// empty result means "any group".
+func SubscriptionPlanGroups(plan *SubscriptionPlan) []string {
+	if plan == nil {
+		return nil
+	}
+	groups := make([]string, 0, len(plan.UsableGroups)+1)
+	seen := make(map[string]bool, len(plan.UsableGroups)+1)
+	for _, group := range append(slices.Clone(plan.UsableGroups), plan.UpgradeGroup) {
+		group = strings.TrimSpace(group)
+		if group == "" || seen[group] {
+			continue
+		}
+		seen[group] = true
+		groups = append(groups, group)
+	}
+	return groups
+}
+
+// SubscriptionPlanAvailableModels lists the models a plan covers: the explicit
+// UsableModels when an administrator pinned them, otherwise every model the
+// plan's groups serve right now. An empty result with no pinned models means the
+// station has no model to advertise, so callers must not print an empty list.
+func SubscriptionPlanAvailableModels(plan *SubscriptionPlan) []string {
+	if plan == nil {
+		return nil
+	}
+	if len(plan.UsableModels) > 0 {
+		models := make([]string, 0, len(plan.UsableModels))
+		seen := make(map[string]bool, len(plan.UsableModels))
+		for _, name := range plan.UsableModels {
+			name = strings.TrimSpace(name)
+			if name == "" || seen[name] {
+				continue
+			}
+			seen[name] = true
+			models = append(models, name)
+		}
+		slices.Sort(models)
+		return models
+	}
+	return GetModelsForGroups(SubscriptionPlanGroups(plan))
+}
+
+// GetModelsForGroups returns the model names served by any of the groups. It reads
+// the cached pricing snapshot (refreshed at most once a minute) instead of running
+// SQL, so listing plans does not cost one query per plan. An empty groups slice
+// means every model the station currently serves.
+func GetModelsForGroups(groups []string) []string {
+	wanted := make(map[string]struct{}, len(groups))
+	for _, group := range groups {
+		if group = strings.TrimSpace(group); group != "" {
+			wanted[group] = struct{}{}
+		}
+	}
+
+	models := make([]string, 0)
+	for _, pricing := range GetPricing() {
+		if len(wanted) > 0 && !slices.ContainsFunc(pricing.EnableGroup, func(group string) bool {
+			_, ok := wanted[group]
+			return ok
+		}) {
+			continue
+		}
+		models = append(models, pricing.ModelName)
+	}
+	slices.Sort(models)
+	return models
 }
 
 // Subscription order (payment -> webhook -> create UserSubscription)

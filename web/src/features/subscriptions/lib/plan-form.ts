@@ -48,6 +48,7 @@ export function getPlanFormSchema(t: TFunction) {
     upgrade_group: z.string().optional(),
     downgrade_group: z.string().optional(),
     usable_groups: z.array(z.string()).default([]),
+    usable_models: z.array(z.string()).default([]),
     stripe_price_id: z.string().optional(),
     creem_product_id: z.string().optional(),
     waffo_pancake_product_id: z.string().optional(),
@@ -74,6 +75,7 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   upgrade_group: '',
   downgrade_group: '',
   usable_groups: [],
+  usable_models: [],
   stripe_price_id: '',
   creem_product_id: '',
   waffo_pancake_product_id: '',
@@ -98,6 +100,7 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     upgrade_group: plan.upgrade_group || '',
     downgrade_group: plan.downgrade_group || '',
     usable_groups: plan.usable_groups ?? [],
+    usable_models: plan.usable_models ?? [],
     stripe_price_id: plan.stripe_price_id || '',
     creem_product_id: plan.creem_product_id || '',
     waffo_pancake_product_id: plan.waffo_pancake_product_id || '',
@@ -123,6 +126,7 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
       upgrade_group: values.upgrade_group || '',
       downgrade_group: values.downgrade_group || '',
       usable_groups: values.usable_groups ?? [],
+      usable_models: values.usable_models ?? [],
     },
   }
 }

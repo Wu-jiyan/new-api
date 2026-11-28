@@ -43,6 +43,11 @@ export const subscriptionPlanSchema = z.object({
   downgrade_group: z.string().optional(),
   // Groups whose requests may consume this plan's quota (empty = any group)
   usable_groups: z.array(z.string()).optional(),
+  // Models whose requests may consume this plan's quota (empty = follow the groups)
+  usable_models: z.array(z.string()).optional(),
+  // Resolved by the server for display: the models this plan covers. Never sent
+  // back on write; derived from usable_models or from the plan's groups.
+  available_models: z.array(z.string()).optional(),
   stripe_price_id: z.string().optional(),
   creem_product_id: z.string().optional(),
   waffo_pancake_product_id: z.string().optional(),

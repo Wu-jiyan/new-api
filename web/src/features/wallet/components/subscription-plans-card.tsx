@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Crown, RefreshCw, Sparkles, Check } from 'lucide-react'
+import { Crown, RefreshCw, Sparkles, Check, ChevronRight } from 'lucide-react'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { Dialog } from '@/components/dialog'
 import { GroupBadge } from '@/components/group-badge'
 import {
   StatusBadge,
@@ -118,6 +119,8 @@ export function SubscriptionPlansCard({
 
   const [purchaseOpen, setPurchaseOpen] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState<PlanRecord | null>(null)
+  // Plan whose full model list the dialog shows; null keeps it closed.
+  const [modelsPlan, setModelsPlan] = useState<PlanRecord['plan'] | null>(null)
 
   const enableStripe = !!topupInfo?.enable_stripe_topup
   const enableCreem = !!topupInfo?.enable_creem_topup
@@ -550,6 +553,7 @@ export function SubscriptionPlansCard({
               const limit = Number(plan.max_purchase_per_user || 0)
               const count = planPurchaseCountMap.get(plan.id) || 0
               const reached = limit > 0 && count >= limit
+              const planModels = plan.available_models ?? []
 
               const benefits = [
                 `${t('Validity Period')}: ${formatDuration(plan, t)}`,
@@ -603,6 +607,29 @@ export function SubscriptionPlansCard({
                         {price}
                       </span>
                     </div>
+
+                    {planModels.length > 0 && (
+                      <button
+                        type='button'
+                        onClick={() => setModelsPlan(plan)}
+                        aria-label={t('View all available models')}
+                        className='border-border/70 hover:bg-muted/60 focus-visible:ring-ring/40 mb-2 flex w-full items-center gap-2 rounded-md border border-dashed px-2 py-1.5 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none'
+                      >
+                        <span className='text-muted-foreground shrink-0 text-xs'>
+                          {t('Available Models')}
+                        </span>
+                        <span className='min-w-0 flex-1 truncate text-xs'>
+                          {planModels.slice(0, 2).join('、')}
+                          {planModels.length > 2
+                            ? ` +${planModels.length - 2}`
+                            : ''}
+                        </span>
+                        <ChevronRight
+                          aria-hidden='true'
+                          className='text-muted-foreground h-3.5 w-3.5 shrink-0'
+                        />
+                      </button>
+                    )}
 
                     <div className='flex-1 space-y-1.5 pb-3'>
                       {benefits.map((label) => (
@@ -680,6 +707,28 @@ export function SubscriptionPlansCard({
             : undefined
         }
       />
+
+      <Dialog
+        open={modelsPlan !== null}
+        onOpenChange={(open) => {
+          if (!open) setModelsPlan(null)
+        }}
+        title={modelsPlan?.title || t('Available Models')}
+        description={t('{{n}} models can consume this plan', {
+          n: modelsPlan?.available_models?.length ?? 0,
+        })}
+      >
+        <div className='flex max-h-[60vh] flex-wrap gap-1.5 overflow-y-auto pr-1'>
+          {(modelsPlan?.available_models ?? []).map((modelName) => (
+            <span
+              key={modelName}
+              className='border-border/70 bg-muted/40 rounded-md border px-2 py-0.5 font-mono text-xs break-all'
+            >
+              {modelName}
+            </span>
+          ))}
+        </div>
+      </Dialog>
     </>
   )
 }

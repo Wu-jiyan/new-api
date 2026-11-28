@@ -54,6 +54,30 @@ func normalizeSubscriptionUsableGroups(groups []string) ([]string, error) {
 	return normalized, nil
 }
 
+// maxSubscriptionUsableModels caps how many models a plan can pin, matching the
+// limit the admin console offers.
+const maxSubscriptionUsableModels = 200
+
+// normalizeSubscriptionUsableModels trims and de-duplicates the models whose
+// requests may consume this plan's quota. An empty result means "follow the
+// plan's groups", which is the default the card advertises.
+func normalizeSubscriptionUsableModels(models []string) ([]string, error) {
+	normalized := make([]string, 0, len(models))
+	seen := make(map[string]bool, len(models))
+	for _, name := range models {
+		name = strings.TrimSpace(name)
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		normalized = append(normalized, name)
+	}
+	if len(normalized) > maxSubscriptionUsableModels {
+		return nil, fmt.Errorf("可用模型最多 %d 个", maxSubscriptionUsableModels)
+	}
+	return normalized, nil
+}
+
 // ---- User APIs ----
 
 func GetSubscriptionPlans(c *gin.Context) {
@@ -70,6 +94,7 @@ func GetSubscriptionPlans(c *gin.Context) {
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
 		p.NormalizeDefaults()
+		p.AvailableModels = model.SubscriptionPlanAvailableModels(&p)
 		result = append(result, SubscriptionPlanDTO{
 			Plan: p,
 		})
@@ -154,6 +179,7 @@ func AdminListSubscriptionPlans(c *gin.Context) {
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
 		p.NormalizeDefaults()
+		p.AvailableModels = model.SubscriptionPlanAvailableModels(&p)
 		result = append(result, SubscriptionPlanDTO{
 			Plan: p,
 		})
@@ -163,6 +189,24 @@ func AdminListSubscriptionPlans(c *gin.Context) {
 
 type AdminUpsertSubscriptionPlanRequest struct {
 	Plan model.SubscriptionPlan `json:"plan"`
+}
+
+// AdminListSubscriptionPlanModelOptions returns the models an administrator may
+// pin on a plan, bounded to the groups that plan covers. With no groups given it
+// lists every model the station serves, matching what an unrestricted plan
+// advertises on the card.
+func AdminListSubscriptionPlanModelOptions(c *gin.Context) {
+	groups := make([]string, 0)
+	seen := make(map[string]bool)
+	for _, group := range c.QueryArray("group") {
+		group = strings.TrimSpace(group)
+		if group == "" || seen[group] {
+			continue
+		}
+		seen[group] = true
+		groups = append(groups, group)
+	}
+	common.ApiSuccess(c, model.GetModelsForGroups(groups))
 }
 
 func AdminCreateSubscriptionPlan(c *gin.Context) {
@@ -232,6 +276,12 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		return
 	}
 	req.Plan.UsableGroups = usableGroups
+	usableModels, err := normalizeSubscriptionUsableModels(req.Plan.UsableModels)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	req.Plan.UsableModels = usableModels
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorT(c, "Custom reset cycle must be greater than 0 seconds")
@@ -311,6 +361,12 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		return
 	}
 	req.Plan.UsableGroups = usableGroups
+	usableModels, err := normalizeSubscriptionUsableModels(req.Plan.UsableModels)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	req.Plan.UsableModels = usableModels
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorT(c, "Custom reset cycle must be greater than 0 seconds")
@@ -349,11 +405,14 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap).Error; err != nil {
 			return err
 		}
-		// GORM's JSON serializer only runs for struct writes, so the slice must go
-		// through a Select-ed struct update: it is the only path that can also clear
-		// the restriction (an empty slice is a zero value the map cannot express).
+		// GORM's JSON serializer only runs for struct writes, so these slices must
+		// go through a Select-ed struct update: it is the only path that can also
+		// clear a restriction (an empty slice is a zero value a map cannot express).
 		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).
-			Select("usable_groups").Updates(model.SubscriptionPlan{UsableGroups: req.Plan.UsableGroups}).Error; err != nil {
+			Select("usable_groups", "usable_models").Updates(model.SubscriptionPlan{
+			UsableGroups: req.Plan.UsableGroups,
+			UsableModels: req.Plan.UsableModels,
+		}).Error; err != nil {
 			return err
 		}
 		return nil

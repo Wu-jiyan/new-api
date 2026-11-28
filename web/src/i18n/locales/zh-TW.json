@@ -8317,6 +8317,10 @@
     "Ranking display multiplier must be a number": "排行榜倍率必須是數字",
     "Ranking display multiplier must be greater than 0 and at most 1000": "排行榜倍率必須大於 0 且不超過 1000",
     "Multiplier must be greater than 0": "倍率必須大於 0",
-    "Multiplier must be at most 1000": "倍率不能超過 1000"
+    "Multiplier must be at most 1000": "倍率不能超過 1000",
+    "View all available models": "查看全部可用模型",
+    "{{n}} models can consume this plan": "{{n}} 個模型可消耗此方案",
+    "Every model in the selected groups": "所選分組內的全部模型",
+    "Leave empty to advertise every model the plan groups serve. Picking models narrows which requests may consume this quota, and the options follow the groups above.": "留空則展示方案分組下的全部模型。選中模型後，只有這些模型的請求能消耗此額度；可選項跟隨上方分組。"
   }
 }

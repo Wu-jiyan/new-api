@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CalendarClock, CreditCard, RefreshCw, Settings2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -71,6 +71,7 @@ import {
   createPlan,
   updatePlan,
   getGroups,
+  getPlanModelOptions,
   createWaffoPancakeSubscriptionProduct,
   listWaffoPancakeSubscriptionProductOptions,
 } from '../api'
@@ -104,6 +105,7 @@ export function SubscriptionsMutateDrawer({
   const currencyLabel = getCurrencyLabel()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [groupOptions, setGroupOptions] = useState<string[]>([])
+  const [modelOptions, setModelOptions] = useState<string[]>([])
   const [creatingPancakeProduct, setCreatingPancakeProduct] = useState(false)
   const [pancakeProducts, setPancakeProducts] = useState<
     { id: string; name: string; status: string }[]
@@ -160,6 +162,40 @@ export function SubscriptionsMutateDrawer({
     typeof watchedTitle === 'string' &&
     watchedTitle.trim().length > 0 &&
     Number(watchedPrice ?? 0) > 0
+
+  // Model choices follow the plan's own scope: the groups it may pay for plus the
+  // group it upgrades into. An empty scope offers every model the station serves.
+  const watchedUsableGroups = form.watch('usable_groups')
+  const watchedUpgradeGroup = form.watch('upgrade_group')
+  const modelScope = useMemo(
+    () =>
+      [...(watchedUsableGroups ?? []), watchedUpgradeGroup ?? '']
+        .map((group) => group.trim())
+        .filter(Boolean)
+        .join('\u0000'),
+    [watchedUsableGroups, watchedUpgradeGroup]
+  )
+
+  useEffect(() => {
+    if (!open) return
+    getPlanModelOptions(modelScope ? modelScope.split('\u0000') : [])
+      .then((res) => {
+        if (res.success) {
+          setModelOptions(res.data ?? [])
+        }
+      })
+      .catch(() => {})
+  }, [open, modelScope])
+
+  const selectedModels = form.watch('usable_models')
+  const modelSelectOptions = useMemo(() => {
+    // Keep already-pinned models selectable even when the scope narrowed, so a
+    // saved restriction is never silently dropped from the editor.
+    const names = new Set([...modelOptions, ...(selectedModels ?? [])])
+    return [...names]
+      .sort((a, b) => a.localeCompare(b))
+      .map((name) => ({ value: name, label: name }))
+  }, [modelOptions, selectedModels])
 
   const onSubmit = async (values: PlanFormValues) => {
     setIsSubmitting(true)
@@ -514,6 +550,31 @@ export function SubscriptionsMutateDrawer({
                     <FormDescription>
                       {t(
                         'Leave empty so this plan can pay for any group. Otherwise only requests in these groups can consume its quota.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='usable_models'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Available Models')}</FormLabel>
+                    <FormControl>
+                      <MultiSelect
+                        options={modelSelectOptions}
+                        selected={field.value ?? []}
+                        onChange={field.onChange}
+                        placeholder={t('Every model in the selected groups')}
+                        disabled={isSubmitting}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Leave empty to advertise every model the plan groups serve. Picking models narrows which requests may consume this quota, and the options follow the groups above.'
                       )}
                     </FormDescription>
                     <FormMessage />
