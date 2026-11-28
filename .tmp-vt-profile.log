@@ -1,0 +1,33 @@
+﻿
+ RUN  v5.0.4 E:/new-api/web
+
+ ✓ src/features/profile/__tests__/settings.test.tsx (17 tests) 572ms
+bun : stderr | src/features/profile/__tests__/layout.test.tsx > does not reserve the side column when the viewer has no
+thing to put in it
+所在位置 行:1 字符: 206
++ ... io\bin;$env:PATH"; bun x vitest run src/features/profile 2>&1 | Out-F ...
++                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (stderr | src/fe...ng to put in it:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+You have Reduced Motion enabled on your device. Animations may not appear as expected.. For more information and steps 
+for solving, visit https://motion.dev/troubleshooting/reduced-motion-disabled
+Base UI: A component that acts as a button expected a non-<button> because the `nativeButton` prop is false. Rendering 
+a <button> keeps native behavior while Base UI applies non-native attributes and handlers, which can add unintended ext
+ra attributes (such as `role` or `aria-disabled`). Use a non-<button> in the `render` prop, or set `nativeButton` to `t
+rue`.
+    at Button (E:/new-api/web/src/components/ui/button.tsx:65:57)
+    at InputGroupButton (E:/new-api/web/src/components/ui/input-group.tsx:91:57)
+    at ComboboxInput (E:/new-api/web/src/components/ui/combobox.tsx:287:80)
+    at OptionCombobox (E:/new-api/web/src/components/ui/combobox.tsx:124:63)
+    at Combobox (E:/new-api/web/src/components/ui/combobox.tsx:60:88)
+    at LanguagePreferencesCard (E:/new-api/web/src/features/profile/components/language-preferences-card.tsx:127:65)
+    at Profile (E:/new-api/web/src/features/profile/index.tsx:107:65)
+
+ ✓ src/features/profile/__tests__/layout.test.tsx (3 tests) 350ms
+
+ Test Files  2 passed (2)
+      Tests  20 passed (20)
+   Start at  16:20:51
+   Duration  6.88s (import 57%, environment 19%, tests 11%, transform 8%, setup 5%)
+

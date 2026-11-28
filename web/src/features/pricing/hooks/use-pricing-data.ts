@@ -90,6 +90,7 @@ export function usePricingData(enabled = true) {
     defaults: data?.defaults,
     filterDefaults: data?.filter_defaults,
     originalPriceSettings: data?.original_price_settings,
+    modelOrder: data?.model_order,
     isLoading,
     error,
     refetch,

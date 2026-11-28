@@ -191,6 +191,9 @@ export type ModelCapability =
   | 'caching'
   | 'embeddings'
 
+/** Model names in each server-ordered sort; unlisted models follow by name. */
+export type ModelOrder = Record<'recommended' | 'requests' | 'tokens', string[]>
+
 export type PricingData = {
   success: boolean
   message?: string
@@ -220,6 +223,8 @@ export type PricingData = {
   }
   /** Site-wide original price / discount display settings */
   original_price_settings?: OriginalPriceSettings
+  /** Server-side recommended order and the usage-ranking order */
+  model_order?: ModelOrder
 }
 
 export type TokenUnit = 'M' | 'K'

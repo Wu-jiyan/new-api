@@ -1,0 +1,89 @@
+﻿?   	github.com/QuantumNous/new-api	[no test files]
+ok  	github.com/QuantumNous/new-api/common	(cached)
+ok  	github.com/QuantumNous/new-api/common/limiter	(cached)
+ok  	github.com/QuantumNous/new-api/constant	(cached)
+ok  	github.com/QuantumNous/new-api/controller	142.866s
+ok  	github.com/QuantumNous/new-api/dto	(cached)
+ok  	github.com/QuantumNous/new-api/e2e	11.016s
+ok  	github.com/QuantumNous/new-api/i18n	(cached)
+?   	github.com/QuantumNous/new-api/logger	[no test files]
+ok  	github.com/QuantumNous/new-api/middleware	4.626s
+ok  	github.com/QuantumNous/new-api/model	(cached)
+ok  	github.com/QuantumNous/new-api/oauth	(cached)
+ok  	github.com/QuantumNous/new-api/pkg/billingexpr	(cached)
+?   	github.com/QuantumNous/new-api/pkg/cachex	[no test files]
+?   	github.com/QuantumNous/new-api/pkg/ionet	[no test files]
+ok  	github.com/QuantumNous/new-api/pkg/jsplugin	(cached)
+ok  	github.com/QuantumNous/new-api/pkg/perf_metrics	(cached)
+ok  	github.com/QuantumNous/new-api/pkg/requestpatch	(cached)
+ok  	github.com/QuantumNous/new-api/pkg/wsmanager	(cached)
+ok  	github.com/QuantumNous/new-api/plugins	14.316s
+ok  	github.com/QuantumNous/new-api/relay	16.211s
+ok  	github.com/QuantumNous/new-api/relay/channel	(cached)
+ok  	github.com/QuantumNous/new-api/relay/channel/advancedcustom	9.811s
+?   	github.com/QuantumNous/new-api/relay/channel/ai360	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/channel/ali	(cached)
+ok  	github.com/QuantumNous/new-api/relay/channel/aws	(cached)
+?   	github.com/QuantumNous/new-api/relay/channel/baidu	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/baidu_v2	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/channel/claude	(cached)
+?   	github.com/QuantumNous/new-api/relay/channel/cloudflare	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/channel/codex	(cached)
+?   	github.com/QuantumNous/new-api/relay/channel/cohere	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/coze	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/channel/deepseek	(cached)
+?   	github.com/QuantumNous/new-api/relay/channel/dify	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/channel/gemini	(cached)
+?   	github.com/QuantumNous/new-api/relay/channel/jimeng	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/jina	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/lingyiwanwu	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/channel/minimax	(cached)
+?   	github.com/QuantumNous/new-api/relay/channel/mistral	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/mokaai	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/channel/moonshot	(cached)
+?   	github.com/QuantumNous/new-api/relay/channel/newapi	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/channel/ollama	(cached)
+ok  	github.com/QuantumNous/new-api/relay/channel/openai	(cached)
+?   	github.com/QuantumNous/new-api/relay/channel/openrouter	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/palm	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/perplexity	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/channel/providerplugin	(cached)
+?   	github.com/QuantumNous/new-api/relay/channel/replicate	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/siliconflow	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/channel/sub2api	(cached)
+?   	github.com/QuantumNous/new-api/relay/channel/submodel	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/channel/task/jsplugin	(cached)
+?   	github.com/QuantumNous/new-api/relay/channel/task/taskcommon	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/channel/tencent	(cached)
+ok  	github.com/QuantumNous/new-api/relay/channel/typesafe	(cached)
+ok  	github.com/QuantumNous/new-api/relay/channel/vertex	(cached)
+?   	github.com/QuantumNous/new-api/relay/channel/volcengine	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/xai	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/xinference	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/xunfei	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/zhipu	[no test files]
+?   	github.com/QuantumNous/new-api/relay/channel/zhipu_4v	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/common	(cached)
+?   	github.com/QuantumNous/new-api/relay/common_handler	[no test files]
+ok  	github.com/QuantumNous/new-api/relay/constant	(cached)
+ok  	github.com/QuantumNous/new-api/relay/helper	(cached)
+ok  	github.com/QuantumNous/new-api/relay/requestplugin	(cached)
+ok  	github.com/QuantumNous/new-api/router	13.211s
+ok  	github.com/QuantumNous/new-api/service	(cached)
+ok  	github.com/QuantumNous/new-api/service/authz	(cached)
+?   	github.com/QuantumNous/new-api/service/passkey	[no test files]
+ok  	github.com/QuantumNous/new-api/setting	(cached)
+ok  	github.com/QuantumNous/new-api/setting/billing_setting	5.689s
+ok  	github.com/QuantumNous/new-api/setting/config	(cached)
+?   	github.com/QuantumNous/new-api/setting/console_setting	[no test files]
+ok  	github.com/QuantumNous/new-api/setting/model_setting	(cached)
+ok  	github.com/QuantumNous/new-api/setting/operation_setting	(cached)
+?   	github.com/QuantumNous/new-api/setting/original_price_setting	[no test files]
+?   	github.com/QuantumNous/new-api/setting/perf_metrics_setting	[no test files]
+?   	github.com/QuantumNous/new-api/setting/performance_setting	[no test files]
+ok  	github.com/QuantumNous/new-api/setting/ratio_setting	(cached)
+ok  	github.com/QuantumNous/new-api/setting/reasoning	(cached)
+?   	github.com/QuantumNous/new-api/setting/request_plugin_setting	[no test files]
+ok  	github.com/QuantumNous/new-api/setting/system_setting	(cached)
+ok  	github.com/QuantumNous/new-api/setting/task_pricing_setting	(cached)
+?   	github.com/QuantumNous/new-api/types	[no test files]

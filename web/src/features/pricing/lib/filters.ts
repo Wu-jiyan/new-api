@@ -20,6 +20,7 @@ import { parseModalityFilter } from '@/lib/catalog-modalities'
 
 import {
   SORT_OPTIONS,
+  MODEL_ORDER_SORTS,
   FILTER_ALL,
   QUOTA_TYPES,
   QUOTA_TYPE_VALUES,
@@ -30,7 +31,7 @@ import {
   type QuotaTypeOption,
   type SortOption,
 } from '../constants'
-import type { PricingModel } from '../types'
+import type { ModelOrder, PricingModel } from '../types'
 import { compileBillingExpression } from './billing-expression/parser'
 import { visitExpression } from './billing-expression/types'
 import {
@@ -324,10 +325,25 @@ function getSortPrice(
 }
 
 /**
- * 按展示名比较模型。分数或价格相等时，后端返回顺序不可依赖，必须有确定的次序。
+ * 按模型名比较。分数或价格相等时，后端返回顺序不可依赖，必须有确定的次序。
  */
-function compareModelDisplayName(a: PricingModel, b: PricingModel): number {
+function compareModelNames(a: PricingModel, b: PricingModel): number {
   return (a.model_name || '').localeCompare(b.model_name || '')
+}
+
+/**
+ * Orders models for the usage sorts of the model square: most used first,
+ * equal usage in plain string order like the server's list, and models
+ * without usage by name like the rest of the square.
+ */
+export function compareModelUsage(
+  a: { name: string; usage: number },
+  b: { name: string; usage: number }
+): number {
+  if (a.usage !== b.usage) return b.usage - a.usage
+  if (a.usage === 0) return a.name.localeCompare(b.name)
+  if (a.name === b.name) return 0
+  return a.name < b.name ? -1 : 1
 }
 
 /**
@@ -338,7 +354,8 @@ function compareModelDisplayName(a: PricingModel, b: PricingModel): number {
 export function sortModels(
   models: PricingModel[],
   sortBy: string,
-  dimension: ScoreDimension = DEFAULT_SCORE_DIMENSION
+  dimension: ScoreDimension = DEFAULT_SCORE_DIMENSION,
+  modelOrder?: ModelOrder
 ): PricingModel[] {
   const sorted = [...models]
 
@@ -355,14 +372,26 @@ export function sortModels(
       if (priceA === undefined || priceB === undefined) {
         return Number(priceA === undefined) - Number(priceB === undefined)
       }
-      return priceSort.dir * (priceA - priceB) || compareModelDisplayName(a, b)
+      return priceSort.dir * (priceA - priceB) || compareModelNames(a, b)
     })
+    return sorted
+  }
+
+  if (MODEL_ORDER_SORTS.has(sortBy)) {
+    // Models missing from the order follow it by name
+    const order = modelOrder?.[sortBy as keyof ModelOrder] ?? []
+    const rank = new Map(order.map((name, index) => [name, index]))
+    sorted.sort(
+      (a, b) =>
+        (rank.get(a.model_name) ?? order.length) -
+          (rank.get(b.model_name) ?? order.length) || compareModelNames(a, b)
+    )
     return sorted
   }
 
   switch (sortBy) {
     case SORT_OPTIONS.NAME:
-      sorted.sort(compareModelDisplayName)
+      sorted.sort(compareModelNames)
       break
     case SORT_OPTIONS.CONTEXT_HIGH:
     case SORT_OPTIONS.CONTEXT_LOW: {
@@ -375,9 +404,7 @@ export function sortModels(
         if (contextA === 0 || contextB === 0) {
           return Number(contextA === 0) - Number(contextB === 0)
         }
-        return (
-          direction * (contextA - contextB) || compareModelDisplayName(a, b)
-        )
+        return direction * (contextA - contextB) || compareModelNames(a, b)
       })
       break
     }
@@ -389,7 +416,7 @@ export function sortModels(
         const hasB = scoreB > 0
         if (hasA !== hasB) return hasA ? -1 : 1
         if (scoreA !== scoreB) return scoreB - scoreA
-        return compareModelDisplayName(a, b)
+        return compareModelNames(a, b)
       })
       break
   }
@@ -418,6 +445,8 @@ export function filterAndSortModels(
     dimension?: ScoreDimension
     /** Auto Group Chain; scopes what "all groups" means. */
     autoGroups?: readonly string[]
+    /** Server-side recommended order and usage ranking */
+    modelOrder?: ModelOrder
   }
 ): PricingModel[] {
   const dimension = filters.dimension ?? DEFAULT_SCORE_DIMENSION
@@ -430,7 +459,7 @@ export function filterAndSortModels(
   result = filterByKind(result, filters.kind)
   result = filterByTag(result, filters.tag)
   result = filterByRating(result, filters.rating, dimension)
-  result = sortModels(result, filters.sortBy, dimension)
+  result = sortModels(result, filters.sortBy, dimension, filters.modelOrder)
 
   return result
 }

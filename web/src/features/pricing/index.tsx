@@ -64,6 +64,7 @@ export function Pricing() {
     defaults,
     filterDefaults,
     originalPriceSettings,
+    modelOrder,
     isLoading,
     priceRate,
     usdExchangeRate,
@@ -110,7 +111,7 @@ export function Pricing() {
     availableTags,
     clearFilters,
     clearSearch,
-  } = useFilters(models || [], defaults, autoGroupChain)
+  } = useFilters(models || [], defaults, autoGroupChain, modelOrder)
 
   const originalPriceEnabled = originalPriceSettings?.enabled === true
   const [showOriginalPrice, setShowOriginalPrice] = useOriginalPriceToggle(

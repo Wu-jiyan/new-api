@@ -48,7 +48,7 @@ import {
   isScoreDimension,
   type ScoreDimension,
 } from '../lib/scores'
-import type { PricingModel, TokenUnit } from '../types'
+import type { ModelOrder, PricingModel, TokenUnit } from '../types'
 
 type FilterState = {
   search?: string
@@ -88,7 +88,9 @@ export function useFilters(
   models: PricingModel[],
   defaults?: { sort?: string; dimension?: ScoreDimension },
   /** Auto Group Chain: defines what "all groups" means for listing and pricing. */
-  autoGroups?: readonly string[]
+  autoGroups?: readonly string[],
+  /** Server-side recommended order and usage ranking. */
+  modelOrder?: ModelOrder
 ) {
   const search = useSearch({ from: '/pricing/' })
   const navigate = useNavigate()
@@ -117,10 +119,10 @@ export function useFilters(
     () => parseSearchScopes(filterState.searchScope),
     [filterState.searchScope]
   )
-  // URL 参数优先，其次是运营配置的默认排序，最后才是内置默认值。
+  // URL 参数优先，其次是运营配置的默认排序，最后才是服务端给的推荐顺序。
   const sortBy =
     filterState.sort ||
-    (isSortOption(defaults?.sort) ? defaults.sort : SORT_OPTIONS.NAME)
+    (isSortOption(defaults?.sort) ? defaults.sort : SORT_OPTIONS.RECOMMENDED)
   const vendorFilter = filterState.vendor || FILTER_ALL
   const groupFilter = filterState.group || FILTER_ALL
   const quotaTypeFilter = filterState.quotaType || QUOTA_TYPES.ALL
@@ -165,7 +167,7 @@ export function useFilters(
     [updateFilters]
   )
   const setSortBy = useCallback(
-    // 同上：选择“按名称排序”也要写入，否则会回落到运营配置的默认排序。
+    // 同上：选择“推荐顺序”或“按名称排序”都要写入，否则会回落到运营配置的默认排序。
     (v: string) => updateFilters({ sort: v }),
     [updateFilters]
   )
@@ -293,11 +295,13 @@ export function useFilters(
       sortBy,
       dimension: scoreDimension,
       autoGroups,
+      modelOrder,
     })
   }, [
     models,
     countedModels,
     showVariants,
+    modelOrder,
     debouncedSearchInput,
     searchScopes,
     vendorFilter,

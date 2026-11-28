@@ -1,11 +1,15 @@
 package controller
 
 import (
+	"net/http"
+	"strconv"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/original_price_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -62,18 +66,68 @@ func GetPricing(c *gin.Context) {
 		"group_forced_price": ratio_setting.GetGroupForcedPriceCopy(),
 		"usable_group":       usableGroup,
 		"supported_endpoint": model.GetSupportedEndpointMap(),
-"auto_groups":        service.GetUserAutoGroup(userGroup),
+		"auto_groups":        service.GetUserAutoGroup(userGroup),
 		// Unfiltered chain: the model square scopes prices and the model-level
 		// success rate to it, so a free/promotional group outside the chain no
 		// longer makes every model look free.
 		"auto_group_chain": setting.GetAutoGroups(),
 		"defaults":         model.GetModelSquareDefaults(),
 		"filter_defaults":  model.GetModelSquareFilter(),
-		"pricing_version":  "gacha-rating-v1",
+		// 推荐顺序与按用量排序的默认排序，由管理端在系统设置里配置。
+		"model_order":     service.BuildModelSquareOrder(pricing),
+		"pricing_version": "gacha-rating-v1",
 		// 原价展示开关与市场汇率快照。折扣由前端按「实付价 ÷ 官方原价」计算，
 		// 后端只负责给出统一的开关与汇率口径。
 		"original_price_settings": original_price_setting.GetPublicOptions(),
 	})
+}
+
+type modelSquareUsage struct {
+	ModelName  string `json:"model_name"`
+	Icon       string `json:"icon,omitempty"`
+	VendorName string `json:"vendor_name,omitempty"`
+	VendorIcon string `json:"vendor_icon,omitempty"`
+	Requests   int64  `json:"requests"`
+	Tokens     int64  `json:"tokens"`
+}
+
+// GetModelSquareUsage lists every model of the model square, whichever group
+// can see it, with its usage for the order preview.
+func GetModelSquareUsage(c *gin.Context) {
+	days := c.DefaultQuery("days", "7")
+	if err := operation_setting.ValidateModelSquareOption("model_square_setting.sort_days", days); err != nil {
+		common.ApiErrorStatus(c, http.StatusBadRequest, err)
+		return
+	}
+	dayCount, _ := strconv.Atoi(days)
+	totals, err := service.GetModelUsageTotals(dayCount)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	usage := make(map[string]model.ModelUsageTotal, len(totals))
+	for _, total := range totals {
+		usage[total.ModelName] = total
+	}
+	pricing := model.GetPricing()
+	vendors := make(map[int]model.PricingVendor)
+	for _, vendor := range model.GetVendors() {
+		vendors[vendor.ID] = vendor
+	}
+	rows := make([]modelSquareUsage, 0, len(pricing))
+	for _, item := range pricing {
+		vendor := vendors[item.VendorID]
+		total := usage[item.ModelName]
+		rows = append(rows, modelSquareUsage{
+			ModelName:  item.ModelName,
+			Icon:       item.Icon,
+			VendorName: vendor.Name,
+			VendorIcon: vendor.Icon,
+			Requests:   total.Requests,
+			Tokens:     total.Tokens,
+		})
+	}
+	common.ApiSuccess(c, rows)
 }
 
 func ResetModelRatio(c *gin.Context) {
